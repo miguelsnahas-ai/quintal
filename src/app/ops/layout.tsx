@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "./actions";
@@ -23,9 +24,17 @@ export default async function OpsLayout({
   return (
     <div className="flex min-h-screen flex-1 flex-col bg-neutral-50">
       <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-6 py-3">
-        <span className="text-sm font-semibold text-neutral-900">
-          Quintal — operação
-        </span>
+        <nav className="flex items-center gap-4">
+          <Link href="/ops" className="text-sm font-semibold text-neutral-900">
+            Quintal — operação
+          </Link>
+          <Link
+            href="/ops/families"
+            className="text-sm text-neutral-600 hover:text-neutral-900"
+          >
+            Famílias
+          </Link>
+        </nav>
         <div className="flex items-center gap-3 text-sm text-neutral-600">
           <span>{user.email}</span>
           <form action={signOut}>
