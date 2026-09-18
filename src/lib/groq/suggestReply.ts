@@ -1,9 +1,10 @@
-import { createOpenAIClient } from "./client";
+import { createGroqClient } from "./client";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 
-// Cost-tier model, same reasoning as suggestEvent.ts: short, well-scoped
-// drafting task, not one that needs a flagship model.
-const MODEL = "gpt-5.4-mini";
+// Same reasoning as suggestEvent.ts: openai/gpt-oss-120b, Groq's
+// recommended free-tier replacement for the deprecated
+// llama-3.3-70b-versatile.
+const MODEL = "openai/gpt-oss-120b";
 
 export async function suggestReply(input: {
   messageBody: string;
@@ -11,7 +12,7 @@ export async function suggestReply(input: {
   childAge: string | null;
   recentEvents: { type: string; notes: string; occurredAt: string }[];
 }): Promise<string> {
-  const client = createOpenAIClient();
+  const client = createGroqClient();
 
   const contextBlock = input.childName
     ? `Criança: ${input.childName}${input.childAge ? ` (${input.childAge})` : ""}
@@ -30,9 +31,12 @@ ${
 }`
     : "Não há uma criança específica identificada para esta conversa.";
 
-  const response = await client.responses.create({
+  const completion = await client.chat.completions.create({
     model: MODEL,
-    instructions: `Você é o Quintal, um copiloto de parentalidade que responde pelo WhatsApp a pais de crianças pequenas. Uma operadora humana revisa e edita cada resposta antes de enviar — você está apenas rascunhando.
+    messages: [
+      {
+        role: "system",
+        content: `Você é o Quintal, um copiloto de parentalidade que responde pelo WhatsApp a pais de crianças pequenas. Uma operadora humana revisa e edita cada resposta antes de enviar — você está apenas rascunhando.
 
 Escreva uma resposta curta (2 a 5 frases, tom de mensagem de WhatsApp), calorosa e prática, em português do Brasil, para a mensagem abaixo, usando o contexto da criança quando disponível.
 
@@ -41,10 +45,18 @@ Regras importantes:
 - Não dê diagnóstico médico nem prometa resultados. Diante de sinais de saúde preocupantes, sugira conversar com o pediatra.
 - Seja acolhedor e específico à situação relatada, sem soar genérico ou robótico.
 - Responda só com o texto da mensagem em si, sem saudação de assinatura nem aspas ao redor.`,
-    input: `${contextBlock}
-
-Mensagem do pai/mãe: "${input.messageBody}"`,
+      },
+      {
+        role: "user",
+        content: `${contextBlock}\n\nMensagem do pai/mãe: "${input.messageBody}"`,
+      },
+    ],
   });
 
-  return response.output_text.trim();
+  const text = completion.choices[0]?.message?.content;
+  if (!text) {
+    throw new Error("A IA não retornou uma resposta.");
+  }
+
+  return text.trim();
 }

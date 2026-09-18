@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { eventInputSchema } from "@/lib/validation/events";
-import { suggestEventFromMessage, type EventSuggestion } from "@/lib/openai/suggestEvent";
-import { suggestReply } from "@/lib/openai/suggestReply";
+import { suggestEventFromMessage, type EventSuggestion } from "@/lib/groq/suggestEvent";
+import { suggestReply } from "@/lib/groq/suggestReply";
 import { sendWhatsAppTextMessage } from "@/lib/whatsapp/send";
 import type { Json } from "@/lib/supabase/types";
 
