@@ -91,6 +91,57 @@ export type Database = {
           },
         ]
       }
+      events: {
+        Row: {
+          child_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string
+          occurred_at: string
+          payload: Json
+          source_message_id: string | null
+          type: string
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes: string
+          occurred_at?: string
+          payload?: Json
+          source_message_id?: string | null
+          type: string
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string
+          occurred_at?: string
+          payload?: Json
+          source_message_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       families: {
         Row: {
           created_at: string

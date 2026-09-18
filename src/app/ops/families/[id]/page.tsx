@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ageLabel } from "@/lib/format";
@@ -189,7 +190,12 @@ export default async function FamilyDetailPage({
                 className="flex items-center justify-between px-4 py-3 text-sm"
               >
                 <div>
-                  <span className="font-medium text-neutral-900">{child.name}</span>
+                  <Link
+                    href={`/ops/children/${child.id}`}
+                    className="font-medium text-neutral-900 hover:underline"
+                  >
+                    {child.name}
+                  </Link>
                   {ageLabel(child.birth_date) && (
                     <span className="text-neutral-500"> · {ageLabel(child.birth_date)}</span>
                   )}

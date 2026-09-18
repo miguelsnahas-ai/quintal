@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { linkMessageToFamily, toggleMessageHandled } from "./actions";
 
@@ -71,6 +72,13 @@ export default async function InboxPage({
                 </span>
 
                 <div className="flex items-center gap-3">
+                  <Link
+                    href={`/ops/inbox/${message.id}`}
+                    className="text-neutral-600 hover:text-neutral-900"
+                  >
+                    Triar
+                  </Link>
+
                   {!message.family_id && families && families.length > 0 && (
                     <form action={linkMessageToFamily} className="flex items-center gap-2">
                       <input type="hidden" name="message_id" value={message.id} />
