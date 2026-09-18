@@ -39,7 +39,7 @@ export default async function TriageMessagePage({
   const { data: message } = await supabase
     .from("messages")
     .select(
-      "id, from_phone_number, message_type, body, wa_timestamp, handled_at, family_id, caregiver_id, families(name)",
+      "id, wa_message_id, from_phone_number, message_type, body, wa_timestamp, handled_at, family_id, caregiver_id, families(name)",
     )
     .eq("id", messageId)
     .maybeSingle();
@@ -68,6 +68,8 @@ export default async function TriageMessagePage({
         .order("occurred_at", { ascending: false })
         .limit(20)
     : { data: null };
+
+  const isSimulated = message.wa_message_id.startsWith("sim-");
 
   const messageDateTime = message.wa_timestamp
     ? toDatetimeLocalValue(new Date(message.wa_timestamp))
@@ -110,8 +112,13 @@ export default async function TriageMessagePage({
 
       <div className="rounded-md border border-neutral-200 bg-white p-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="font-medium text-neutral-900">
+          <span className="flex items-center gap-2 font-medium text-neutral-900">
             {message.families?.name ?? "Família não identificada"}
+            {isSimulated && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                simulação
+              </span>
+            )}
           </span>
           <span className="text-neutral-500">{message.from_phone_number}</span>
         </div>
@@ -335,6 +342,13 @@ export default async function TriageMessagePage({
                     className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
                   />
                 </div>
+
+                {isSimulated && (
+                  <p className="text-xs text-amber-700">
+                    ⚠️ Esta é uma conversa simulada, mas o envio abaixo é real —
+                    vai para o número de telefone do cuidador de verdade.
+                  </p>
+                )}
 
                 <button
                   type="submit"

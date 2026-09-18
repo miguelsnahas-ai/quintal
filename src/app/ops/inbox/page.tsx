@@ -14,7 +14,7 @@ export default async function InboxPage({
     supabase
       .from("messages")
       .select(
-        "id, from_phone_number, message_type, body, wa_timestamp, handled_at, family_id, families(name)",
+        "id, wa_message_id, from_phone_number, message_type, body, wa_timestamp, handled_at, family_id, families(name)",
       )
       .eq("direction", "inbound")
       .order("wa_timestamp", { ascending: false })
@@ -53,8 +53,13 @@ export default async function InboxPage({
               }`}
             >
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-neutral-900">
+                <span className="flex items-center gap-2 font-medium text-neutral-900">
                   {message.families?.name ?? "Família não identificada"}
+                  {message.wa_message_id.startsWith("sim-") && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                      simulação
+                    </span>
+                  )}
                 </span>
                 <span className="text-neutral-500">{message.from_phone_number}</span>
               </div>
