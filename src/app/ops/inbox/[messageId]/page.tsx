@@ -5,6 +5,7 @@ import { ageLabel, toDatetimeLocalValue } from "@/lib/format";
 import { eventTypeLabels, eventTypes, type EventType } from "@/lib/validation/events";
 import {
   createEventFromMessage,
+  recordReplyFeedback,
   sendReply,
   suggestEvent,
   suggestReplyDraft,
@@ -72,6 +73,20 @@ export default async function TriageMessagePage({
     ? toDatetimeLocalValue(new Date(message.wa_timestamp))
     : toDatetimeLocalValue(new Date());
 
+  // Surface the most recent unrated reply to this family so the operator
+  // can close the feedback loop while triaging what the parent said next.
+  const { data: pendingFeedbackReply } = message.family_id
+    ? await supabase
+        .from("messages")
+        .select("id, body, wa_timestamp")
+        .eq("family_id", message.family_id)
+        .eq("direction", "outbound")
+        .is("feedback_recorded_at", null)
+        .order("wa_timestamp", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+
   return (
     <div className="space-y-6">
       <div>
@@ -116,7 +131,50 @@ export default async function TriageMessagePage({
           e vincule antes de continuar.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <>
+          {pendingFeedbackReply && (
+            <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+              <h2 className="text-sm font-medium text-neutral-700">
+                A resposta anterior ajudou?
+              </h2>
+              <p className="text-sm text-neutral-800">{pendingFeedbackReply.body}</p>
+              <p className="text-xs text-neutral-500">
+                {pendingFeedbackReply.wa_timestamp
+                  ? new Date(pendingFeedbackReply.wa_timestamp).toLocaleString("pt-BR")
+                  : ""}
+              </p>
+              <form action={recordReplyFeedback} className="space-y-2">
+                <input type="hidden" name="message_id" value={message.id} />
+                <input type="hidden" name="reply_message_id" value={pendingFeedbackReply.id} />
+                <textarea
+                  name="feedback_notes"
+                  placeholder="Nota opcional (o que a família disse, o que funcionou ou não)"
+                  rows={2}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    name="helpful"
+                    value="true"
+                    className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+                  >
+                    👍 Ajudou
+                  </button>
+                  <button
+                    type="submit"
+                    name="helpful"
+                    value="false"
+                    className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
+                  >
+                    👎 Não ajudou
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="space-y-6">
             {children && children.length > 1 && (
               <div className="flex flex-wrap gap-2 text-sm">
@@ -323,7 +381,8 @@ export default async function TriageMessagePage({
               <p className="text-sm text-neutral-500">Nenhuma criança selecionada.</p>
             )}
           </section>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

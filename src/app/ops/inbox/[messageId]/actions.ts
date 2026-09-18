@@ -217,3 +217,36 @@ export async function sendReply(formData: FormData) {
   revalidatePath("/ops/inbox");
   redirect(`/ops/inbox/${messageId}?sent=1`);
 }
+
+export async function recordReplyFeedback(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const messageId = String(formData.get("message_id") ?? "");
+  const replyMessageId = String(formData.get("reply_message_id") ?? "");
+  const helpful = formData.get("helpful") === "true";
+  const feedbackNotesRaw = formData.get("feedback_notes");
+  const feedbackNotes =
+    feedbackNotesRaw && String(feedbackNotesRaw).trim() ? String(feedbackNotesRaw).trim() : null;
+
+  const { error } = await supabase
+    .from("messages")
+    .update({
+      helpful,
+      feedback_notes: feedbackNotes,
+      feedback_recorded_at: new Date().toISOString(),
+    })
+    .eq("id", replyMessageId);
+
+  if (error) {
+    redirect(`/ops/inbox/${messageId}?error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath(`/ops/inbox/${messageId}`);
+  redirect(`/ops/inbox/${messageId}`);
+}

@@ -170,8 +170,11 @@ export type Database = {
           created_at: string
           direction: string
           family_id: string | null
+          feedback_notes: string | null
+          feedback_recorded_at: string | null
           from_phone_number: string
           handled_at: string | null
+          helpful: boolean | null
           id: string
           in_reply_to_message_id: string | null
           message_type: string
@@ -185,8 +188,11 @@ export type Database = {
           created_at?: string
           direction?: string
           family_id?: string | null
+          feedback_notes?: string | null
+          feedback_recorded_at?: string | null
           from_phone_number: string
           handled_at?: string | null
+          helpful?: boolean | null
           id?: string
           in_reply_to_message_id?: string | null
           message_type: string
@@ -200,8 +206,11 @@ export type Database = {
           created_at?: string
           direction?: string
           family_id?: string | null
+          feedback_notes?: string | null
+          feedback_recorded_at?: string | null
           from_phone_number?: string
           handled_at?: string | null
+          helpful?: boolean | null
           id?: string
           in_reply_to_message_id?: string | null
           message_type?: string
