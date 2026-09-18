@@ -112,6 +112,66 @@ export type Database = {
         }
         Relationships: []
       }
+      messages: {
+        Row: {
+          body: string | null
+          caregiver_id: string | null
+          created_at: string
+          direction: string
+          family_id: string | null
+          from_phone_number: string
+          handled_at: string | null
+          id: string
+          message_type: string
+          raw_payload: Json
+          wa_message_id: string
+          wa_timestamp: string | null
+        }
+        Insert: {
+          body?: string | null
+          caregiver_id?: string | null
+          created_at?: string
+          direction?: string
+          family_id?: string | null
+          from_phone_number: string
+          handled_at?: string | null
+          id?: string
+          message_type: string
+          raw_payload: Json
+          wa_message_id: string
+          wa_timestamp?: string | null
+        }
+        Update: {
+          body?: string | null
+          caregiver_id?: string | null
+          created_at?: string
+          direction?: string
+          family_id?: string | null
+          from_phone_number?: string
+          handled_at?: string | null
+          id?: string
+          message_type?: string
+          raw_payload?: Json
+          wa_message_id?: string
+          wa_timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waitlist_leads: {
         Row: {
           app_used: string | null
