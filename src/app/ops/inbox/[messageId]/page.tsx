@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AlertTriangle, CheckCircle2, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ageLabel, toDatetimeLocalValue } from "@/lib/format";
 import { eventTypeLabels, eventTypes, type EventType } from "@/lib/validation/events";
+import { Button } from "@/components/ui/Button";
+import { Card, cardClassName } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Input, Label, Select, Textarea, FieldError } from "@/components/ui/Field";
 import {
   createEventFromMessage,
   recordReplyFeedback,
@@ -92,47 +97,43 @@ export default async function TriageMessagePage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/ops/inbox" className="text-sm text-neutral-500 hover:text-neutral-900">
+        <Link href="/ops/inbox" className="text-sm text-ink-muted hover:text-ink">
           ← Inbox
         </Link>
-        <h1 className="text-lg font-semibold text-neutral-900">Triar mensagem</h1>
+        <h1 className="text-lg font-bold text-ink">Triar mensagem</h1>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
+      <FieldError>{error}</FieldError>
 
       {sent === "1" && (
-        <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700" role="status">
+        <p
+          className="flex items-center gap-2 rounded-sm bg-success/30 px-3 py-2 text-sm text-ink"
+          role="status"
+        >
+          <CheckCircle2 className="h-4 w-4" aria-hidden />
           Resposta enviada com sucesso.
         </p>
       )}
 
-      <div className="rounded-md border border-neutral-200 bg-white p-4">
+      <Card className="p-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="flex items-center gap-2 font-medium text-neutral-900">
+          <span className="flex items-center gap-2 font-medium text-ink">
             {message.families?.name ?? "Família não identificada"}
-            {isSimulated && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                simulação
-              </span>
-            )}
+            {isSimulated && <Badge variant="decorative">simulação</Badge>}
           </span>
-          <span className="text-neutral-500">{message.from_phone_number}</span>
+          <span className="text-ink-muted">{message.from_phone_number}</span>
         </div>
-        <p className="mt-2 text-sm text-neutral-800">
+        <p className="mt-2 text-sm text-ink">
           {message.message_type === "text"
             ? message.body
             : `[mensagem de mídia: ${message.message_type}]`}
         </p>
-      </div>
+      </Card>
 
       {!message.family_id ? (
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-ink-muted">
           Esta mensagem ainda não está vinculada a uma família.{" "}
-          <Link href="/ops/inbox" className="underline hover:text-neutral-900">
+          <Link href="/ops/inbox" className="underline hover:text-ink">
             Volte para a inbox
           </Link>{" "}
           e vincule antes de continuar.
@@ -140,12 +141,10 @@ export default async function TriageMessagePage({
       ) : (
         <>
           {pendingFeedbackReply && (
-            <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
-              <h2 className="text-sm font-medium text-neutral-700">
-                A resposta anterior ajudou?
-              </h2>
-              <p className="text-sm text-neutral-800">{pendingFeedbackReply.body}</p>
-              <p className="text-xs text-neutral-500">
+            <Card className="space-y-3 border-tertiary p-4">
+              <h2 className="text-sm font-medium text-ink">A resposta anterior ajudou?</h2>
+              <p className="text-sm text-ink">{pendingFeedbackReply.body}</p>
+              <p className="text-xs text-ink-muted">
                 {pendingFeedbackReply.wa_timestamp
                   ? new Date(pendingFeedbackReply.wa_timestamp).toLocaleString("pt-BR")
                   : ""}
@@ -153,248 +152,208 @@ export default async function TriageMessagePage({
               <form action={recordReplyFeedback} className="space-y-2">
                 <input type="hidden" name="message_id" value={message.id} />
                 <input type="hidden" name="reply_message_id" value={pendingFeedbackReply.id} />
-                <textarea
+                <Textarea
                   name="feedback_notes"
                   placeholder="Nota opcional (o que a família disse, o que funcionou ou não)"
                   rows={2}
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
                 />
                 <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    name="helpful"
-                    value="true"
-                    className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
-                  >
-                    👍 Ajudou
-                  </button>
-                  <button
-                    type="submit"
-                    name="helpful"
-                    value="false"
-                    className="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-100"
-                  >
-                    👎 Não ajudou
-                  </button>
+                  <Button type="submit" variant="secondary" name="helpful" value="true">
+                    <ThumbsUp className="h-4 w-4" aria-hidden />
+                    Ajudou
+                  </Button>
+                  <Button type="submit" variant="secondary" name="helpful" value="false">
+                    <ThumbsDown className="h-4 w-4" aria-hidden />
+                    Não ajudou
+                  </Button>
                 </div>
               </form>
-            </div>
+            </Card>
           )}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <section className="space-y-6">
-            {children && children.length > 1 && (
-              <div className="flex flex-wrap gap-2 text-sm">
-                {children.map((child) => (
+            <section className="space-y-6">
+              {children && children.length > 1 && (
+                <div className="flex flex-wrap gap-2 text-sm">
+                  {children.map((child) => (
+                    <Link
+                      key={child.id}
+                      href={`/ops/inbox/${messageId}?child_id=${child.id}`}
+                      className={`rounded-full px-3 py-1 ${
+                        selectedChild?.id === child.id
+                          ? "bg-accent text-ink"
+                          : "bg-neutral/40 text-ink-muted hover:bg-neutral/60"
+                      }`}
+                    >
+                      {child.name}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {!children || children.length === 0 || !selectedChild ? (
+                <p className="text-sm text-ink-muted">
+                  Esta família ainda não tem crianças cadastradas.{" "}
                   <Link
-                    key={child.id}
-                    href={`/ops/inbox/${messageId}?child_id=${child.id}`}
-                    className={`rounded-full px-3 py-1 ${
-                      selectedChild?.id === child.id
-                        ? "bg-neutral-900 text-white"
-                        : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
-                    }`}
+                    href={`/ops/families/${message.family_id}`}
+                    className="underline hover:text-ink"
                   >
-                    {child.name}
-                  </Link>
-                ))}
-              </div>
-            )}
+                    Cadastre uma criança
+                  </Link>{" "}
+                  antes de registrar um evento.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <h2 className="text-sm font-medium text-ink">Registrar evento</h2>
 
-            {!children || children.length === 0 || !selectedChild ? (
-              <p className="text-sm text-neutral-600">
-                Esta família ainda não tem crianças cadastradas.{" "}
-                <Link
-                  href={`/ops/families/${message.family_id}`}
-                  className="underline hover:text-neutral-900"
-                >
-                  Cadastre uma criança
-                </Link>{" "}
-                antes de registrar um evento.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                <h2 className="text-sm font-medium text-neutral-700">Registrar evento</h2>
+                  {message.message_type === "text" && (
+                    <form action={suggestEvent} className="flex justify-end">
+                      <input type="hidden" name="message_id" value={message.id} />
+                      <input type="hidden" name="child_id" value={selectedChild.id} />
+                      <input type="hidden" name="message_body" value={message.body ?? ""} />
+                      <input type="hidden" name="child_name" value={selectedChild.name} />
+                      <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
+                      <Button type="submit" variant="secondary" className="px-3 py-1.5 text-xs">
+                        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                        Sugerir com IA
+                      </Button>
+                    </form>
+                  )}
 
-                {message.message_type === "text" && (
-                  <form action={suggestEvent} className="flex justify-end">
+                  <form action={createEventFromMessage} className={cardClassName("space-y-3 p-4")}>
                     <input type="hidden" name="message_id" value={message.id} />
                     <input type="hidden" name="child_id" value={selectedChild.id} />
+
+                    <div className="space-y-1">
+                      <Label>Tipo</Label>
+                      <Select
+                        name="type"
+                        required
+                        defaultValue={(suggestedType as EventType) ?? eventTypes[0]}
+                      >
+                        {eventTypes.map((type) => (
+                          <option key={type} value={type}>
+                            {eventTypeLabels[type]}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>Quando</Label>
+                      <Input
+                        type="datetime-local"
+                        name="occurred_at"
+                        required
+                        defaultValue={messageDateTime}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label>
+                        Notas
+                        {suggestedNotes && (
+                          <span className="ml-2 font-normal text-ink-muted">
+                            (sugestão da IA — revise antes de salvar)
+                          </span>
+                        )}
+                      </Label>
+                      <Textarea
+                        name="notes"
+                        required
+                        rows={4}
+                        defaultValue={
+                          suggestedNotes ??
+                          (message.message_type === "text" ? (message.body ?? "") : "")
+                        }
+                      />
+                    </div>
+
+                    <Button type="submit">Registrar e marcar como tratada</Button>
+                  </form>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <h2 className="text-sm font-medium text-ink">Responder</h2>
+
+                {message.message_type === "text" && (
+                  <form action={suggestReplyDraft} className="flex justify-end">
+                    <input type="hidden" name="message_id" value={message.id} />
+                    <input type="hidden" name="child_id" value={selectedChild?.id ?? ""} />
                     <input type="hidden" name="message_body" value={message.body ?? ""} />
-                    <input type="hidden" name="child_name" value={selectedChild.name} />
+                    <input type="hidden" name="child_name" value={selectedChild?.name ?? ""} />
                     <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
-                    <button
-                      type="submit"
-                      className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
-                    >
-                      ✨ Sugerir com IA
-                    </button>
+                    <Button type="submit" variant="secondary" className="px-3 py-1.5 text-xs">
+                      <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                      Sugerir resposta com IA
+                    </Button>
                   </form>
                 )}
 
-                <form
-                  action={createEventFromMessage}
-                  className="space-y-3 rounded-md border border-neutral-200 bg-white p-4"
-                >
+                <form action={sendReply} className={cardClassName("space-y-3 p-4")}>
                   <input type="hidden" name="message_id" value={message.id} />
-                  <input type="hidden" name="child_id" value={selectedChild.id} />
+                  <input type="hidden" name="to_phone_number" value={message.from_phone_number} />
+                  <input type="hidden" name="family_id" value={message.family_id} />
+                  <input type="hidden" name="caregiver_id" value={message.caregiver_id ?? ""} />
 
                   <div className="space-y-1">
-                    <label className="text-sm font-medium text-neutral-700">Tipo</label>
-                    <select
-                      name="type"
-                      required
-                      defaultValue={(suggestedType as EventType) ?? eventTypes[0]}
-                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-                    >
-                      {eventTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {eventTypeLabels[type]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-neutral-700">Quando</label>
-                    <input
-                      type="datetime-local"
-                      name="occurred_at"
-                      required
-                      defaultValue={messageDateTime}
-                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-neutral-700">
-                      Notas
-                      {suggestedNotes && (
-                        <span className="ml-2 font-normal text-neutral-400">
-                          (sugestão da IA — revise antes de salvar)
+                    <Label>
+                      Mensagem
+                      {draftReply && (
+                        <span className="ml-2 font-normal text-ink-muted">
+                          (sugestão da IA — revise antes de enviar)
                         </span>
                       )}
-                    </label>
-                    <textarea
-                      name="notes"
-                      required
-                      rows={4}
-                      defaultValue={
-                        suggestedNotes ??
-                        (message.message_type === "text" ? (message.body ?? "") : "")
-                      }
-                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-                    />
+                    </Label>
+                    <Textarea name="reply_body" required rows={4} defaultValue={draftReply ?? ""} />
                   </div>
 
-                  <button
-                    type="submit"
-                    className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-                  >
-                    Registrar e marcar como tratada
-                  </button>
+                  {isSimulated && (
+                    <p className="flex items-center gap-1.5 text-xs text-decorative">
+                      <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+                      Esta é uma conversa simulada, mas o envio abaixo é real — vai para o número
+                      de telefone do cuidador de verdade.
+                    </p>
+                  )}
+
+                  <Button type="submit">Enviar pelo WhatsApp</Button>
                 </form>
               </div>
-            )}
+            </section>
 
-            <div className="space-y-3">
-              <h2 className="text-sm font-medium text-neutral-700">Responder</h2>
-
-              {message.message_type === "text" && (
-                <form action={suggestReplyDraft} className="flex justify-end">
-                  <input type="hidden" name="message_id" value={message.id} />
-                  <input type="hidden" name="child_id" value={selectedChild?.id ?? ""} />
-                  <input type="hidden" name="message_body" value={message.body ?? ""} />
-                  <input type="hidden" name="child_name" value={selectedChild?.name ?? ""} />
-                  <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
-                  <button
-                    type="submit"
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
-                  >
-                    ✨ Sugerir resposta com IA
-                  </button>
-                </form>
-              )}
-
-              <form
-                action={sendReply}
-                className="space-y-3 rounded-md border border-neutral-200 bg-white p-4"
-              >
-                <input type="hidden" name="message_id" value={message.id} />
-                <input type="hidden" name="to_phone_number" value={message.from_phone_number} />
-                <input type="hidden" name="family_id" value={message.family_id} />
-                <input type="hidden" name="caregiver_id" value={message.caregiver_id ?? ""} />
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-neutral-700">
-                    Mensagem
-                    {draftReply && (
-                      <span className="ml-2 font-normal text-neutral-400">
-                        (sugestão da IA — revise antes de enviar)
-                      </span>
+            <section className="space-y-3">
+              {selectedChild ? (
+                <>
+                  <h2 className="text-sm font-medium text-ink">
+                    Contexto de {selectedChild.name}
+                    {selectedChildAge && (
+                      <span className="ml-2 font-normal text-ink-muted">{selectedChildAge}</span>
                     )}
-                  </label>
-                  <textarea
-                    name="reply_body"
-                    required
-                    rows={4}
-                    defaultValue={draftReply ?? ""}
-                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-                  />
-                </div>
-
-                {isSimulated && (
-                  <p className="text-xs text-amber-700">
-                    ⚠️ Esta é uma conversa simulada, mas o envio abaixo é real —
-                    vai para o número de telefone do cuidador de verdade.
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-                >
-                  Enviar pelo WhatsApp
-                </button>
-              </form>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            {selectedChild ? (
-              <>
-                <h2 className="text-sm font-medium text-neutral-700">
-                  Contexto de {selectedChild.name}
-                  {selectedChildAge && (
-                    <span className="ml-2 font-normal text-neutral-500">{selectedChildAge}</span>
+                  </h2>
+                  {!events || events.length === 0 ? (
+                    <p className="text-sm text-ink-muted">Nenhum evento registrado ainda.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {events.map((event) => (
+                        <Card key={event.id} className="space-y-1 p-3">
+                          <div className="flex items-center justify-between text-xs text-ink-muted">
+                            <Badge variant="accent">
+                              {eventTypeLabels[event.type as keyof typeof eventTypeLabels] ??
+                                event.type}
+                            </Badge>
+                            <span>{new Date(event.occurred_at).toLocaleString("pt-BR")}</span>
+                          </div>
+                          <p className="text-sm text-ink">{event.notes}</p>
+                        </Card>
+                      ))}
+                    </div>
                   )}
-                </h2>
-                {!events || events.length === 0 ? (
-                  <p className="text-sm text-neutral-500">Nenhum evento registrado ainda.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {events.map((event) => (
-                      <li
-                        key={event.id}
-                        className="space-y-1 rounded-md border border-neutral-200 bg-white p-3"
-                      >
-                        <div className="flex items-center justify-between text-xs text-neutral-500">
-                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700">
-                            {eventTypeLabels[event.type as keyof typeof eventTypeLabels] ??
-                              event.type}
-                          </span>
-                          <span>{new Date(event.occurred_at).toLocaleString("pt-BR")}</span>
-                        </div>
-                        <p className="text-sm text-neutral-800">{event.notes}</p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-neutral-500">Nenhuma criança selecionada.</p>
-            )}
-          </section>
+                </>
+              ) : (
+                <p className="text-sm text-ink-muted">Nenhuma criança selecionada.</p>
+              )}
+            </section>
           </div>
         </>
       )}

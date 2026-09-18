@@ -1,26 +1,57 @@
 @import "tailwindcss";
 
+/* Design system: "Minimalismo Sereno de Bem-Estar" — light-only palette,
+   no pure black, soft pastel accents. See design_1.md for the source
+   spec this was adapted from. Palette values live under --palette-*;
+   @theme inline maps them to Tailwind color tokens (bg-primary,
+   text-ink, etc.) without Tailwind resolving/copying the value at
+   build time, so a single edit here updates every usage. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --palette-primary: #ffffff; /* page & card surfaces */
+  --palette-secondary: #fdf6e3; /* app background, alternate surface */
+  --palette-tertiary: #a8dadc; /* supporting accent */
+  --palette-neutral: #e0e0e0; /* borders, dividers, muted fills */
+  --palette-surface: #87ceeb; /* secondary accent (info, nav indicator) */
+  --palette-accent: #e6e6fa; /* primary button fill */
+  --palette-success: #98fb98; /* success / positive states */
+  --palette-decorative: #d2b48c; /* decorative use only */
+
+  /* No pure black anywhere — off-black/charcoal for text. */
+  --palette-ink: #2f2e2b;
+  --palette-ink-muted: #6b6a64;
+
+  --palette-radius-sm: 8px;
+  --palette-radius-md: 16px;
+  --palette-radius-lg: 24px;
+
+  /* Referenced directly via arbitrary values (shadow-[var(--shadow-card)]),
+     not part of the @theme token set. */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lift: 0 4px 14px rgba(0, 0, 0, 0.08);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-primary: var(--palette-primary);
+  --color-secondary: var(--palette-secondary);
+  --color-tertiary: var(--palette-tertiary);
+  --color-neutral: var(--palette-neutral);
+  --color-surface: var(--palette-surface);
+  --color-accent: var(--palette-accent);
+  --color-success: var(--palette-success);
+  --color-decorative: var(--palette-decorative);
+  --color-ink: var(--palette-ink);
+  --color-ink-muted: var(--palette-ink-muted);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --radius-sm: var(--palette-radius-sm);
+  --radius-md: var(--palette-radius-md);
+  --radius-lg: var(--palette-radius-lg);
+
+  --font-sans: var(--font-nunito);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--palette-secondary);
+  color: var(--palette-ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { Card } from "@/components/ui/Card";
 
 export default async function WaitlistPage() {
   const supabase = await createClient();
@@ -11,39 +13,39 @@ export default async function WaitlistPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold text-neutral-900">
-          Lista de interesse
-        </h1>
-        <p className="text-sm text-neutral-600">
+        <h1 className="text-lg font-bold text-ink">Lista de interesse</h1>
+        <p className="text-sm text-ink-muted">
           Cadastros vindos da landing page, mais recentes primeiro.
         </p>
       </div>
 
       {!leads || leads.length === 0 ? (
-        <p className="text-sm text-neutral-500">
-          Nenhum cadastro ainda. Se alguém já se inscreveu e não aparece
-          aqui, verifique se a landing page está gravando neste mesmo
-          projeto Supabase.
-        </p>
+        <Card className="flex flex-col items-center gap-2 p-8 text-center">
+          <ClipboardList className="h-8 w-8 text-ink-muted" aria-hidden />
+          <p className="text-sm text-ink-muted">
+            Nenhum cadastro ainda. Se alguém já se inscreveu e não aparece
+            aqui, verifique se a landing page está gravando neste mesmo
+            projeto Supabase.
+          </p>
+        </Card>
       ) : (
-        <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 bg-white">
+        <Card className="divide-y divide-neutral">
           {leads.map((lead) => (
-            <li key={lead.id}>
-              <Link
-                href={`/ops/waitlist/${lead.id}`}
-                className="flex items-center justify-between px-4 py-3 text-sm hover:bg-neutral-50"
-              >
-                <div>
-                  <span className="font-medium text-neutral-900">{lead.name}</span>
-                  <span className="ml-2 text-neutral-500">{lead.email}</span>
-                </div>
-                <span className="text-neutral-500">
-                  {new Date(lead.created_at).toLocaleDateString("pt-BR")}
-                </span>
-              </Link>
-            </li>
+            <Link
+              key={lead.id}
+              href={`/ops/waitlist/${lead.id}`}
+              className="flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-secondary/60"
+            >
+              <div>
+                <span className="font-medium text-ink">{lead.name}</span>
+                <span className="ml-2 text-ink-muted">{lead.email}</span>
+              </div>
+              <span className="text-ink-muted">
+                {new Date(lead.created_at).toLocaleDateString("pt-BR")}
+              </span>
+            </Link>
           ))}
-        </ul>
+        </Card>
       )}
     </div>
   );

@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ageLabel, toDatetimeLocalValue } from "@/lib/format";
 import { eventTypeLabels, eventTypes } from "@/lib/validation/events";
+import { Button } from "@/components/ui/Button";
+import { Card, cardClassName } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Input, Label, Select, Textarea, FieldError } from "@/components/ui/Field";
 import { createEvent } from "./actions";
 
 export default async function ChildDetailPage({
@@ -39,103 +44,83 @@ export default async function ChildDetailPage({
       <div>
         <Link
           href={`/ops/families/${child.family_id}`}
-          className="text-sm text-neutral-500 hover:text-neutral-900"
+          className="text-sm text-ink-muted hover:text-ink"
         >
           ← {child.families?.name ?? "família"}
         </Link>
-        <h1 className="text-lg font-semibold text-neutral-900">
+        <h1 className="text-lg font-bold text-ink">
           {child.name}
           {ageLabel(child.birth_date) && (
-            <span className="ml-2 text-sm font-normal text-neutral-500">
+            <span className="ml-2 text-sm font-normal text-ink-muted">
               {ageLabel(child.birth_date)}
             </span>
           )}
         </h1>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
+      <FieldError>{error}</FieldError>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-neutral-700">Registrar evento</h2>
+        <h2 className="text-sm font-medium text-ink">Registrar evento</h2>
         <form
           action={createEvent}
-          className="grid grid-cols-1 gap-3 rounded-md border border-neutral-200 bg-white p-4 sm:grid-cols-2"
+          className={cardClassName("grid grid-cols-1 gap-3 p-4 sm:grid-cols-2")}
         >
           <input type="hidden" name="child_id" value={child.id} />
           <div className="space-y-1">
-            <label className="text-sm font-medium text-neutral-700">Tipo</label>
-            <select
-              name="type"
-              required
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-            >
+            <Label>Tipo</Label>
+            <Select name="type" required>
               {eventTypes.map((type) => (
                 <option key={type} value={type}>
                   {eventTypeLabels[type]}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-neutral-700">Quando</label>
-            <input
+            <Label>Quando</Label>
+            <Input
               type="datetime-local"
               name="occurred_at"
               required
               defaultValue={toDatetimeLocalValue(new Date())}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
             />
           </div>
           <div className="space-y-1 sm:col-span-2">
-            <label className="text-sm font-medium text-neutral-700">Notas</label>
-            <textarea
-              name="notes"
-              required
-              rows={3}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-            />
+            <Label>Notas</Label>
+            <Textarea name="notes" required rows={3} />
           </div>
           <div className="sm:col-span-2">
-            <button
-              type="submit"
-              className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-            >
-              Registrar
-            </button>
+            <Button type="submit">Registrar</Button>
           </div>
         </form>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-neutral-700">
-          Histórico ({events?.length ?? 0})
-        </h2>
+        <h2 className="text-sm font-medium text-ink">Histórico ({events?.length ?? 0})</h2>
         {!events || events.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nenhum evento registrado ainda.</p>
+          <p className="text-sm text-ink-muted">Nenhum evento registrado ainda.</p>
         ) : (
-          <ul className="space-y-2">
+          <div className="space-y-2">
             {events.map((event) => (
-              <li
-                key={event.id}
-                className="space-y-1 rounded-md border border-neutral-200 bg-white p-3"
-              >
-                <div className="flex items-center justify-between text-xs text-neutral-500">
-                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700">
+              <Card key={event.id} className="space-y-1 p-3">
+                <div className="flex items-center justify-between text-xs text-ink-muted">
+                  <Badge variant="accent">
                     {eventTypeLabels[event.type as keyof typeof eventTypeLabels] ?? event.type}
-                  </span>
-                  <span>
+                  </Badge>
+                  <span className="flex items-center gap-1">
                     {new Date(event.occurred_at).toLocaleString("pt-BR")}
-                    {event.source_message_id && " · via WhatsApp"}
+                    {event.source_message_id && (
+                      <>
+                        <MessageCircle className="h-3 w-3" aria-hidden /> via WhatsApp
+                      </>
+                    )}
                   </span>
                 </div>
-                <p className="text-sm text-neutral-800">{event.notes}</p>
-              </li>
+                <p className="text-sm text-ink">{event.notes}</p>
+              </Card>
             ))}
-          </ul>
+          </div>
         )}
       </section>
     </div>

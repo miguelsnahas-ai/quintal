@@ -1,5 +1,10 @@
 import Link from "next/link";
+import { Inbox as InboxIcon, MessageSquareText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button, buttonClassName } from "@/components/ui/Button";
+import { Select, FieldError } from "@/components/ui/Field";
 import { linkMessageToFamily, toggleMessageHandled } from "./actions";
 
 export default async function InboxPage({
@@ -25,74 +30,65 @@ export default async function InboxPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold text-neutral-900">
-          Inbox do WhatsApp
-        </h1>
-        <p className="text-sm text-neutral-600">
-          Mensagens recebidas, mais recentes primeiro.
-        </p>
+        <h1 className="text-lg font-bold text-ink">Inbox do WhatsApp</h1>
+        <p className="text-sm text-ink-muted">Mensagens recebidas, mais recentes primeiro.</p>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
+      <FieldError>{error}</FieldError>
 
       {!messages || messages.length === 0 ? (
-        <p className="text-sm text-neutral-500">
-          Nenhuma mensagem recebida ainda.
-        </p>
+        <Card className="flex flex-col items-center gap-2 p-8 text-center">
+          <InboxIcon className="h-8 w-8 text-ink-muted" aria-hidden />
+          <p className="text-sm text-ink-muted">Nenhuma mensagem recebida ainda.</p>
+        </Card>
       ) : (
         <ul className="space-y-3">
           {messages.map((message) => (
-            <li
+            <Card
               key={message.id}
-              className={`space-y-2 rounded-md border bg-white p-4 ${
-                message.handled_at ? "border-neutral-200" : "border-neutral-300"
-              }`}
+              as="li"
+              className={`space-y-2 p-4 ${message.handled_at ? "" : "border-tertiary"}`}
             >
               <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2 font-medium text-neutral-900">
+                <span className="flex items-center gap-2 font-medium text-ink">
                   {message.families?.name ?? "Família não identificada"}
                   {message.wa_message_id.startsWith("sim-") && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                      simulação
-                    </span>
+                    <Badge variant="decorative">simulação</Badge>
                   )}
                 </span>
-                <span className="text-neutral-500">{message.from_phone_number}</span>
+                <span className="text-ink-muted">{message.from_phone_number}</span>
               </div>
 
-              <p className="text-sm text-neutral-800">
+              <p className="text-sm text-ink">
                 {message.message_type === "text"
                   ? message.body
                   : `[mensagem de mídia: ${message.message_type}]`}
               </p>
 
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
                 <span>
                   {message.wa_timestamp
                     ? new Date(message.wa_timestamp).toLocaleString("pt-BR")
                     : ""}
                 </span>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <Link
                     href={`/ops/inbox/${message.id}`}
-                    className="text-neutral-600 hover:text-neutral-900"
+                    className={buttonClassName("ghost", "px-2 py-1")}
                   >
+                    <MessageSquareText className="h-4 w-4" aria-hidden />
                     Triar
                   </Link>
 
                   {!message.family_id && families && families.length > 0 && (
                     <form action={linkMessageToFamily} className="flex items-center gap-2">
                       <input type="hidden" name="message_id" value={message.id} />
-                      <select
+                      <Select
                         name="family_id"
                         required
                         defaultValue=""
-                        className="rounded-md border border-neutral-300 px-2 py-1 text-xs text-neutral-700"
+                        className="px-2 py-1 text-xs"
                       >
                         <option value="" disabled>
                           Vincular à família...
@@ -102,10 +98,10 @@ export default async function InboxPage({
                             {family.name}
                           </option>
                         ))}
-                      </select>
-                      <button type="submit" className="text-neutral-600 hover:text-neutral-900">
+                      </Select>
+                      <Button type="submit" variant="ghost" className="px-2 py-1">
                         Vincular
-                      </button>
+                      </Button>
                     </form>
                   )}
 
@@ -116,13 +112,13 @@ export default async function InboxPage({
                       name="was_handled"
                       value={String(Boolean(message.handled_at))}
                     />
-                    <button type="submit" className="text-neutral-600 hover:text-neutral-900">
+                    <Button type="submit" variant="ghost" className="px-2 py-1">
                       {message.handled_at ? "Reabrir" : "Marcar como tratada"}
-                    </button>
+                    </Button>
                   </form>
                 </div>
               </div>
-            </li>
+            </Card>
           ))}
         </ul>
       )}

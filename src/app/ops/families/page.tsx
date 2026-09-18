@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/Button";
+import { Card, cardClassName } from "@/components/ui/Card";
+import { Input, Label, FieldError } from "@/components/ui/Field";
 import { createFamily } from "./actions";
 
 export default async function FamiliesPage({
@@ -17,84 +21,55 @@ export default async function FamiliesPage({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-lg font-semibold text-neutral-900">Famílias</h1>
-        <p className="text-sm text-neutral-600">
+        <h1 className="text-lg font-bold text-ink">Famílias</h1>
+        <p className="text-sm text-ink-muted">
           Cadastro das famílias atendidas pelo concierge.
         </p>
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-neutral-700">
-          Adicionar família
-        </h2>
+        <h2 className="text-sm font-medium text-ink">Adicionar família</h2>
         <form
           action={createFamily}
-          className="flex flex-col gap-3 rounded-md border border-neutral-200 bg-white p-4 sm:flex-row sm:items-end"
+          className={cardClassName("flex flex-col gap-3 p-4 sm:flex-row sm:items-end")}
         >
           <div className="flex-1 space-y-1">
-            <label htmlFor="name" className="text-sm font-medium text-neutral-700">
-              Nome da família
-            </label>
-            <input
-              id="name"
-              name="name"
-              required
-              placeholder="ex: Família Silva"
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-            />
+            <Label htmlFor="name">Nome da família</Label>
+            <Input id="name" name="name" required placeholder="ex: Família Silva" />
           </div>
           <div className="flex-1 space-y-1">
-            <label htmlFor="notes" className="text-sm font-medium text-neutral-700">
-              Notas (opcional)
-            </label>
-            <input
-              id="notes"
-              name="notes"
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-            />
+            <Label htmlFor="notes">Notas (opcional)</Label>
+            <Input id="notes" name="notes" />
           </div>
-          <button
-            type="submit"
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-          >
-            Criar
-          </button>
+          <Button type="submit">Criar</Button>
         </form>
-        {error && (
-          <p className="text-sm text-red-600" role="alert">
-            {error}
-          </p>
-        )}
+        <FieldError>{error}</FieldError>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-neutral-700">
+        <h2 className="text-sm font-medium text-ink">
           {families?.length ?? 0} família(s)
         </h2>
         {!families || families.length === 0 ? (
-          <p className="text-sm text-neutral-500">
-            Nenhuma família cadastrada ainda.
-          </p>
+          <Card className="flex flex-col items-center gap-2 p-8 text-center">
+            <Users className="h-8 w-8 text-ink-muted" aria-hidden />
+            <p className="text-sm text-ink-muted">Nenhuma família cadastrada ainda.</p>
+          </Card>
         ) : (
-          <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200 bg-white">
+          <Card className="divide-y divide-neutral">
             {families.map((family) => (
-              <li key={family.id}>
-                <Link
-                  href={`/ops/families/${family.id}`}
-                  className="flex items-center justify-between px-4 py-3 text-sm hover:bg-neutral-50"
-                >
-                  <span className="font-medium text-neutral-900">
-                    {family.name}
-                  </span>
-                  {family.notes && (
-                    <span className="truncate pl-4 text-neutral-500">
-                      {family.notes}
-                    </span>
-                  )}
-                </Link>
-              </li>
+              <Link
+                key={family.id}
+                href={`/ops/families/${family.id}`}
+                className="flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-secondary/60"
+              >
+                <span className="font-medium text-ink">{family.name}</span>
+                {family.notes && (
+                  <span className="truncate pl-4 text-ink-muted">{family.notes}</span>
+                )}
+              </Link>
             ))}
-          </ul>
+          </Card>
         )}
       </section>
     </div>

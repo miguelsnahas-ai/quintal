@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { buttonClassName } from "@/components/ui/Button";
 
 export default async function OpsHomePage() {
   const supabase = await createClient();
@@ -10,16 +12,12 @@ export default async function OpsHomePage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-lg font-semibold text-neutral-900">Bem-vindo</h1>
-        <p className="text-sm text-neutral-600">
-          {count ?? 0} família(s) cadastrada(s).
-        </p>
+        <h1 className="text-lg font-bold text-ink">Bem-vindo</h1>
+        <p className="text-sm text-ink-muted">{count ?? 0} família(s) cadastrada(s).</p>
       </div>
-      <Link
-        href="/ops/families"
-        className="inline-block rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-      >
+      <Link href="/ops/families" className={buttonClassName("primary")}>
         Ver famílias
+        <ArrowRight className="h-4 w-4" aria-hidden />
       </Link>
     </div>
   );

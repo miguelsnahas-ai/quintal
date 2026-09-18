@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Send } from "lucide-react";
+import { cardClassName } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Input, Label, FieldError } from "@/components/ui/Field";
 import { generatePlaygroundReply, type PlaygroundTurn } from "./actions";
 
 export default function PlaygroundChat() {
@@ -39,40 +43,32 @@ export default function PlaygroundChat() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 rounded-md border border-neutral-200 bg-white p-4 sm:grid-cols-2">
+      <div className={cardClassName("grid grid-cols-1 gap-3 p-4 sm:grid-cols-2")}>
         <div className="space-y-1">
-          <label className="text-sm font-medium text-neutral-700">
-            Nome da criança (opcional)
-          </label>
-          <input
+          <Label>Nome da criança (opcional)</Label>
+          <Input
             value={childName}
             onChange={(event) => setChildName(event.target.value)}
             placeholder="Ex: Laura"
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
           />
         </div>
         <div className="space-y-1">
-          <label className="text-sm font-medium text-neutral-700">
-            Idade (opcional)
-          </label>
-          <input
+          <Label>Idade (opcional)</Label>
+          <Input
             value={childAge}
             onChange={(event) => setChildAge(event.target.value)}
             placeholder="Ex: 8 meses"
-            className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
           />
         </div>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
+      <FieldError>{error}</FieldError>
 
-      <div className="min-h-[300px] space-y-3 rounded-md border border-neutral-200 bg-[#e5ddd5] p-4">
+      {/* Bolhas estilo WhatsApp aqui são intencionais — é o que está sendo
+          testado, não a interface do Quintal em si. */}
+      <div className="min-h-[300px] space-y-3 rounded-sm border border-neutral p-4 bg-[#e5ddd5]">
         {messages.length === 0 ? (
-          <p className="text-center text-sm text-neutral-500">
+          <p className="text-center text-sm text-ink-muted">
             Escreva uma mensagem abaixo como se fosse um pai ou mãe no WhatsApp.
           </p>
         ) : (
@@ -82,16 +78,12 @@ export default function PlaygroundChat() {
               className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[75%] rounded-lg px-3 py-2 text-sm shadow-sm ${
-                  message.role === "user"
-                    ? "bg-[#dcf8c6] text-neutral-900"
-                    : "bg-white text-neutral-900"
+                className={`max-w-[75%] rounded-md px-3 py-2 text-sm shadow-sm ${
+                  message.role === "user" ? "bg-[#dcf8c6] text-ink" : "bg-primary text-ink"
                 }`}
               >
                 {message.role === "assistant" && message.eventTypeLabel && (
-                  <span className="mb-1 inline-block rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
-                    {message.eventTypeLabel}
-                  </span>
+                  <Badge className="mb-1">{message.eventTypeLabel}</Badge>
                 )}
                 <p className="whitespace-pre-wrap">{message.content}</p>
               </div>
@@ -100,7 +92,7 @@ export default function PlaygroundChat() {
         )}
         {isPending && (
           <div className="flex justify-start">
-            <div className="max-w-[75%] rounded-lg bg-white px-3 py-2 text-sm text-neutral-400 shadow-sm">
+            <div className="max-w-[75%] rounded-md bg-primary px-3 py-2 text-sm text-ink-muted shadow-sm">
               digitando...
             </div>
           </div>
@@ -114,17 +106,18 @@ export default function PlaygroundChat() {
         }}
         className="flex gap-2"
       >
-        <input
+        <Input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Digite uma mensagem..."
-          className="flex-1 rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+          className="flex-1 rounded-full"
         />
         <button
           type="submit"
           disabled={isPending || !draft.trim()}
-          className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-ink transition-all duration-200 hover:brightness-95 disabled:opacity-50"
         >
+          <Send className="h-4 w-4" aria-hidden />
           Enviar
         </button>
       </form>

@@ -1,4 +1,8 @@
+import { Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/Button";
+import { cardClassName } from "@/components/ui/Card";
+import { Label, Select, Textarea, FieldError } from "@/components/ui/Field";
 import { simulateInboundMessage } from "./actions";
 
 export default async function SimulatorPage({
@@ -17,41 +21,25 @@ export default async function SimulatorPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold text-neutral-900">
-          Simulador de conversa
-        </h1>
-        <p className="text-sm text-neutral-600">
+        <h1 className="text-lg font-bold text-ink">Simulador de conversa</h1>
+        <p className="text-sm text-ink-muted">
           Cria uma mensagem inbound falsa (marcada como simulação) para testar
           a triagem e as sugestões de IA sem precisar do WhatsApp configurado.
         </p>
       </div>
 
-      {error && (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      )}
+      <FieldError>{error}</FieldError>
 
       {!caregivers || caregivers.length === 0 ? (
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-ink-muted">
           Nenhum cuidador cadastrado ainda. Cadastre uma família e um cuidador
           em /ops/families antes de simular uma mensagem.
         </p>
       ) : (
-        <form
-          action={simulateInboundMessage}
-          className="space-y-4 rounded-md border border-neutral-200 bg-white p-4"
-        >
+        <form action={simulateInboundMessage} className={cardClassName("space-y-4 p-4")}>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-neutral-700">
-              De quem é a mensagem
-            </label>
-            <select
-              name="caregiver_id"
-              required
-              defaultValue=""
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-            >
+            <Label>De quem é a mensagem</Label>
+            <Select name="caregiver_id" required defaultValue="">
               <option value="" disabled>
                 Selecione um cuidador...
               </option>
@@ -61,28 +49,23 @@ export default async function SimulatorPage({
                   {caregiver.phone_number}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-neutral-700">
-              Mensagem simulada
-            </label>
-            <textarea
+            <Label>Mensagem simulada</Label>
+            <Textarea
               name="body"
               required
               rows={4}
               placeholder="Ex: Oi! O bebê não parou de chorar a noite toda, não sei mais o que fazer."
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
             />
           </div>
 
-          <button
-            type="submit"
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
-          >
+          <Button type="submit">
+            <Send className="h-4 w-4" aria-hidden />
             Simular mensagem e abrir triagem
-          </button>
+          </Button>
         </form>
       )}
     </div>

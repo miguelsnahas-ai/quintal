@@ -1,7 +1,25 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  ClipboardList,
+  Inbox,
+  LogOut,
+  MessageSquareText,
+  Sparkles,
+  Sprout,
+  Users,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { Button } from "@/components/ui/Button";
 import { signOut } from "./actions";
+
+const navItems = [
+  { href: "/ops/families", label: "Famílias", icon: Users },
+  { href: "/ops/inbox", label: "Inbox", icon: Inbox },
+  { href: "/ops/simulator", label: "Simulador", icon: MessageSquareText },
+  { href: "/ops/playground", label: "Chat de teste", icon: Sparkles },
+  { href: "/ops/waitlist", label: "Lista de interesse", icon: ClipboardList },
+];
 
 export default async function OpsLayout({
   children,
@@ -22,55 +40,35 @@ export default async function OpsLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-1 flex-col bg-neutral-50">
-      <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-6 py-3">
-        <nav className="flex items-center gap-4">
-          <Link href="/ops" className="text-sm font-semibold text-neutral-900">
-            Quintal — operação
+    <div className="flex min-h-[100dvh] flex-1 flex-col">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral bg-primary px-6 py-3">
+        <nav className="flex flex-wrap items-center gap-1">
+          <Link href="/ops" className="mr-3 flex items-center gap-1.5 text-sm font-bold text-ink">
+            <Sprout className="h-5 w-5 text-tertiary" aria-hidden />
+            Quintal
           </Link>
-          <Link
-            href="/ops/families"
-            className="text-sm text-neutral-600 hover:text-neutral-900"
-          >
-            Famílias
-          </Link>
-          <Link
-            href="/ops/inbox"
-            className="text-sm text-neutral-600 hover:text-neutral-900"
-          >
-            Inbox
-          </Link>
-          <Link
-            href="/ops/simulator"
-            className="text-sm text-neutral-600 hover:text-neutral-900"
-          >
-            Simulador
-          </Link>
-          <Link
-            href="/ops/playground"
-            className="text-sm text-neutral-600 hover:text-neutral-900"
-          >
-            Chat de teste
-          </Link>
-          <Link
-            href="/ops/waitlist"
-            className="text-sm text-neutral-600 hover:text-neutral-900"
-          >
-            Lista de interesse
-          </Link>
+          {navItems.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-sm text-ink-muted transition-colors hover:bg-neutral/40 hover:text-ink"
+            >
+              <Icon className="h-4 w-4" aria-hidden />
+              {label}
+            </Link>
+          ))}
         </nav>
-        <div className="flex items-center gap-3 text-sm text-neutral-600">
+        <div className="flex items-center gap-3 text-sm text-ink-muted">
           <span>{user.email}</span>
           <form action={signOut}>
-            <button type="submit" className="text-neutral-500 hover:text-neutral-900">
+            <Button type="submit" variant="ghost" className="px-2 py-1">
+              <LogOut className="h-4 w-4" aria-hidden />
               Sair
-            </button>
+            </Button>
           </form>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
-        {children}
-      </main>
+      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">{children}</main>
     </div>
   );
 }
