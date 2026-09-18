@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ageLabel, toDatetimeLocalValue } from "@/lib/format";
 import { eventTypeLabels, eventTypes, type EventType } from "@/lib/validation/events";
-import { createEventFromMessage, suggestEvent } from "./actions";
+import {
+  createEventFromMessage,
+  sendReply,
+  suggestEvent,
+  suggestReplyDraft,
+} from "./actions";
 
 export default async function TriageMessagePage({
   params,
@@ -15,6 +20,8 @@ export default async function TriageMessagePage({
     error?: string;
     suggested_type?: string;
     suggested_notes?: string;
+    draft_reply?: string;
+    sent?: string;
   }>;
 }) {
   const { messageId } = await params;
@@ -23,13 +30,15 @@ export default async function TriageMessagePage({
     error,
     suggested_type: suggestedType,
     suggested_notes: suggestedNotes,
+    draft_reply: draftReply,
+    sent,
   } = await searchParams;
   const supabase = await createClient();
 
   const { data: message } = await supabase
     .from("messages")
     .select(
-      "id, from_phone_number, message_type, body, wa_timestamp, handled_at, family_id, families(name)",
+      "id, from_phone_number, message_type, body, wa_timestamp, handled_at, family_id, caregiver_id, families(name)",
     )
     .eq("id", messageId)
     .maybeSingle();
@@ -78,6 +87,12 @@ export default async function TriageMessagePage({
         </p>
       )}
 
+      {sent === "1" && (
+        <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700" role="status">
+          Resposta enviada com sucesso.
+        </p>
+      )}
+
       <div className="rounded-md border border-neutral-200 bg-white p-4">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium text-neutral-900">
@@ -98,23 +113,12 @@ export default async function TriageMessagePage({
           <Link href="/ops/inbox" className="underline hover:text-neutral-900">
             Volte para a inbox
           </Link>{" "}
-          e vincule antes de registrar um evento.
-        </p>
-      ) : !children || children.length === 0 ? (
-        <p className="text-sm text-neutral-600">
-          Esta família ainda não tem crianças cadastradas.{" "}
-          <Link
-            href={`/ops/families/${message.family_id}`}
-            className="underline hover:text-neutral-900"
-          >
-            Cadastre uma criança
-          </Link>{" "}
-          antes de registrar um evento.
+          e vincule antes de continuar.
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <section className="space-y-3">
-            {children.length > 1 && (
+          <section className="space-y-6">
+            {children && children.length > 1 && (
               <div className="flex flex-wrap gap-2 text-sm">
                 {children.map((child) => (
                   <Link
@@ -132,113 +136,191 @@ export default async function TriageMessagePage({
               </div>
             )}
 
-            {message.message_type === "text" && (
-              <form action={suggestEvent} className="flex justify-end">
-                <input type="hidden" name="message_id" value={message.id} />
-                <input type="hidden" name="child_id" value={selectedChild!.id} />
-                <input type="hidden" name="message_body" value={message.body ?? ""} />
-                <input type="hidden" name="child_name" value={selectedChild!.name} />
-                <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
-                <button
-                  type="submit"
-                  className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+            {!children || children.length === 0 || !selectedChild ? (
+              <p className="text-sm text-neutral-600">
+                Esta família ainda não tem crianças cadastradas.{" "}
+                <Link
+                  href={`/ops/families/${message.family_id}`}
+                  className="underline hover:text-neutral-900"
                 >
-                  ✨ Sugerir com IA
-                </button>
-              </form>
+                  Cadastre uma criança
+                </Link>{" "}
+                antes de registrar um evento.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <h2 className="text-sm font-medium text-neutral-700">Registrar evento</h2>
+
+                {message.message_type === "text" && (
+                  <form action={suggestEvent} className="flex justify-end">
+                    <input type="hidden" name="message_id" value={message.id} />
+                    <input type="hidden" name="child_id" value={selectedChild.id} />
+                    <input type="hidden" name="message_body" value={message.body ?? ""} />
+                    <input type="hidden" name="child_name" value={selectedChild.name} />
+                    <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+                    >
+                      ✨ Sugerir com IA
+                    </button>
+                  </form>
+                )}
+
+                <form
+                  action={createEventFromMessage}
+                  className="space-y-3 rounded-md border border-neutral-200 bg-white p-4"
+                >
+                  <input type="hidden" name="message_id" value={message.id} />
+                  <input type="hidden" name="child_id" value={selectedChild.id} />
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-neutral-700">Tipo</label>
+                    <select
+                      name="type"
+                      required
+                      defaultValue={(suggestedType as EventType) ?? eventTypes[0]}
+                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                    >
+                      {eventTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {eventTypeLabels[type]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-neutral-700">Quando</label>
+                    <input
+                      type="datetime-local"
+                      name="occurred_at"
+                      required
+                      defaultValue={messageDateTime}
+                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-neutral-700">
+                      Notas
+                      {suggestedNotes && (
+                        <span className="ml-2 font-normal text-neutral-400">
+                          (sugestão da IA — revise antes de salvar)
+                        </span>
+                      )}
+                    </label>
+                    <textarea
+                      name="notes"
+                      required
+                      rows={4}
+                      defaultValue={
+                        suggestedNotes ??
+                        (message.message_type === "text" ? (message.body ?? "") : "")
+                      }
+                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                  >
+                    Registrar e marcar como tratada
+                  </button>
+                </form>
+              </div>
             )}
 
-            <form
-              action={createEventFromMessage}
-              className="space-y-3 rounded-md border border-neutral-200 bg-white p-4"
-            >
-              <input type="hidden" name="message_id" value={message.id} />
-              <input type="hidden" name="child_id" value={selectedChild!.id} />
+            <div className="space-y-3">
+              <h2 className="text-sm font-medium text-neutral-700">Responder</h2>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-neutral-700">Tipo</label>
-                <select
-                  name="type"
-                  required
-                  defaultValue={(suggestedType as EventType) ?? eventTypes[0]}
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-                >
-                  {eventTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {eventTypeLabels[type]}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {message.message_type === "text" && (
+                <form action={suggestReplyDraft} className="flex justify-end">
+                  <input type="hidden" name="message_id" value={message.id} />
+                  <input type="hidden" name="child_id" value={selectedChild?.id ?? ""} />
+                  <input type="hidden" name="message_body" value={message.body ?? ""} />
+                  <input type="hidden" name="child_name" value={selectedChild?.name ?? ""} />
+                  <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+                  >
+                    ✨ Sugerir resposta com IA
+                  </button>
+                </form>
+              )}
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-neutral-700">Quando</label>
-                <input
-                  type="datetime-local"
-                  name="occurred_at"
-                  required
-                  defaultValue={messageDateTime}
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-neutral-700">
-                  Notas
-                  {suggestedNotes && (
-                    <span className="ml-2 font-normal text-neutral-400">
-                      (sugestão da IA — revise antes de salvar)
-                    </span>
-                  )}
-                </label>
-                <textarea
-                  name="notes"
-                  required
-                  rows={4}
-                  defaultValue={
-                    suggestedNotes ??
-                    (message.message_type === "text" ? (message.body ?? "") : "")
-                  }
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+              <form
+                action={sendReply}
+                className="space-y-3 rounded-md border border-neutral-200 bg-white p-4"
               >
-                Registrar e marcar como tratada
-              </button>
-            </form>
+                <input type="hidden" name="message_id" value={message.id} />
+                <input type="hidden" name="to_phone_number" value={message.from_phone_number} />
+                <input type="hidden" name="family_id" value={message.family_id} />
+                <input type="hidden" name="caregiver_id" value={message.caregiver_id ?? ""} />
+
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-neutral-700">
+                    Mensagem
+                    {draftReply && (
+                      <span className="ml-2 font-normal text-neutral-400">
+                        (sugestão da IA — revise antes de enviar)
+                      </span>
+                    )}
+                  </label>
+                  <textarea
+                    name="reply_body"
+                    required
+                    rows={4}
+                    defaultValue={draftReply ?? ""}
+                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800"
+                >
+                  Enviar pelo WhatsApp
+                </button>
+              </form>
+            </div>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-neutral-700">
-              Contexto de {selectedChild?.name}
-              {selectedChildAge && (
-                <span className="ml-2 font-normal text-neutral-500">{selectedChildAge}</span>
-              )}
-            </h2>
-            {!events || events.length === 0 ? (
-              <p className="text-sm text-neutral-500">Nenhum evento registrado ainda.</p>
+            {selectedChild ? (
+              <>
+                <h2 className="text-sm font-medium text-neutral-700">
+                  Contexto de {selectedChild.name}
+                  {selectedChildAge && (
+                    <span className="ml-2 font-normal text-neutral-500">{selectedChildAge}</span>
+                  )}
+                </h2>
+                {!events || events.length === 0 ? (
+                  <p className="text-sm text-neutral-500">Nenhum evento registrado ainda.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {events.map((event) => (
+                      <li
+                        key={event.id}
+                        className="space-y-1 rounded-md border border-neutral-200 bg-white p-3"
+                      >
+                        <div className="flex items-center justify-between text-xs text-neutral-500">
+                          <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700">
+                            {eventTypeLabels[event.type as keyof typeof eventTypeLabels] ??
+                              event.type}
+                          </span>
+                          <span>{new Date(event.occurred_at).toLocaleString("pt-BR")}</span>
+                        </div>
+                        <p className="text-sm text-neutral-800">{event.notes}</p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             ) : (
-              <ul className="space-y-2">
-                {events.map((event) => (
-                  <li
-                    key={event.id}
-                    className="space-y-1 rounded-md border border-neutral-200 bg-white p-3"
-                  >
-                    <div className="flex items-center justify-between text-xs text-neutral-500">
-                      <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700">
-                        {eventTypeLabels[event.type as keyof typeof eventTypeLabels] ??
-                          event.type}
-                      </span>
-                      <span>{new Date(event.occurred_at).toLocaleString("pt-BR")}</span>
-                    </div>
-                    <p className="text-sm text-neutral-800">{event.notes}</p>
-                  </li>
-                ))}
-              </ul>
+              <p className="text-sm text-neutral-500">Nenhuma criança selecionada.</p>
             )}
           </section>
         </div>

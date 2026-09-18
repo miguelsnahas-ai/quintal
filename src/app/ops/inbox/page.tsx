@@ -16,6 +16,7 @@ export default async function InboxPage({
       .select(
         "id, from_phone_number, message_type, body, wa_timestamp, handled_at, family_id, families(name)",
       )
+      .eq("direction", "inbound")
       .order("wa_timestamp", { ascending: false })
       .limit(100),
     supabase.from("families").select("id, name").order("name"),

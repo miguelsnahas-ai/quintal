@@ -173,6 +173,7 @@ export type Database = {
           from_phone_number: string
           handled_at: string | null
           id: string
+          in_reply_to_message_id: string | null
           message_type: string
           raw_payload: Json
           wa_message_id: string
@@ -187,6 +188,7 @@ export type Database = {
           from_phone_number: string
           handled_at?: string | null
           id?: string
+          in_reply_to_message_id?: string | null
           message_type: string
           raw_payload: Json
           wa_message_id: string
@@ -201,6 +203,7 @@ export type Database = {
           from_phone_number?: string
           handled_at?: string | null
           id?: string
+          in_reply_to_message_id?: string | null
           message_type?: string
           raw_payload?: Json
           wa_message_id?: string
@@ -212,6 +215,13 @@ export type Database = {
             columns: ["caregiver_id"]
             isOneToOne: false
             referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_in_reply_to_message_id_fkey"
+            columns: ["in_reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
           {
