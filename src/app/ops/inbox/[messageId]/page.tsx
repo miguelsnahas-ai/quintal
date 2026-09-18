@@ -2,18 +2,28 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ageLabel, toDatetimeLocalValue } from "@/lib/format";
-import { eventTypeLabels, eventTypes } from "@/lib/validation/events";
-import { createEventFromMessage } from "./actions";
+import { eventTypeLabels, eventTypes, type EventType } from "@/lib/validation/events";
+import { createEventFromMessage, suggestEvent } from "./actions";
 
 export default async function TriageMessagePage({
   params,
   searchParams,
 }: {
   params: Promise<{ messageId: string }>;
-  searchParams: Promise<{ child_id?: string; error?: string }>;
+  searchParams: Promise<{
+    child_id?: string;
+    error?: string;
+    suggested_type?: string;
+    suggested_notes?: string;
+  }>;
 }) {
   const { messageId } = await params;
-  const { child_id: requestedChildId, error } = await searchParams;
+  const {
+    child_id: requestedChildId,
+    error,
+    suggested_type: suggestedType,
+    suggested_notes: suggestedNotes,
+  } = await searchParams;
   const supabase = await createClient();
 
   const { data: message } = await supabase
@@ -38,6 +48,7 @@ export default async function TriageMessagePage({
 
   const selectedChild =
     children?.find((child) => child.id === requestedChildId) ?? children?.[0] ?? null;
+  const selectedChildAge = ageLabel(selectedChild?.birth_date ?? null);
 
   const { data: events } = selectedChild
     ? await supabase
@@ -121,6 +132,22 @@ export default async function TriageMessagePage({
               </div>
             )}
 
+            {message.message_type === "text" && (
+              <form action={suggestEvent} className="flex justify-end">
+                <input type="hidden" name="message_id" value={message.id} />
+                <input type="hidden" name="child_id" value={selectedChild!.id} />
+                <input type="hidden" name="message_body" value={message.body ?? ""} />
+                <input type="hidden" name="child_name" value={selectedChild!.name} />
+                <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
+                <button
+                  type="submit"
+                  className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100"
+                >
+                  ✨ Sugerir com IA
+                </button>
+              </form>
+            )}
+
             <form
               action={createEventFromMessage}
               className="space-y-3 rounded-md border border-neutral-200 bg-white p-4"
@@ -133,6 +160,7 @@ export default async function TriageMessagePage({
                 <select
                   name="type"
                   required
+                  defaultValue={(suggestedType as EventType) ?? eventTypes[0]}
                   className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
                 >
                   {eventTypes.map((type) => (
@@ -155,12 +183,22 @@ export default async function TriageMessagePage({
               </div>
 
               <div className="space-y-1">
-                <label className="text-sm font-medium text-neutral-700">Notas</label>
+                <label className="text-sm font-medium text-neutral-700">
+                  Notas
+                  {suggestedNotes && (
+                    <span className="ml-2 font-normal text-neutral-400">
+                      (sugestão da IA — revise antes de salvar)
+                    </span>
+                  )}
+                </label>
                 <textarea
                   name="notes"
                   required
                   rows={4}
-                  defaultValue={message.message_type === "text" ? (message.body ?? "") : ""}
+                  defaultValue={
+                    suggestedNotes ??
+                    (message.message_type === "text" ? (message.body ?? "") : "")
+                  }
                   className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-500"
                 />
               </div>
@@ -177,10 +215,8 @@ export default async function TriageMessagePage({
           <section className="space-y-3">
             <h2 className="text-sm font-medium text-neutral-700">
               Contexto de {selectedChild?.name}
-              {ageLabel(selectedChild?.birth_date ?? null) && (
-                <span className="ml-2 font-normal text-neutral-500">
-                  {ageLabel(selectedChild?.birth_date ?? null)}
-                </span>
+              {selectedChildAge && (
+                <span className="ml-2 font-normal text-neutral-500">{selectedChildAge}</span>
               )}
             </h2>
             {!events || events.length === 0 ? (

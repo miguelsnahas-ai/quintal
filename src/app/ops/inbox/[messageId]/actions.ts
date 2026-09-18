@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { eventInputSchema } from "@/lib/validation/events";
+import { suggestEventFromMessage, type EventSuggestion } from "@/lib/openai/suggestEvent";
 
 export async function createEventFromMessage(formData: FormData) {
   const supabase = await createClient();
@@ -53,4 +54,45 @@ export async function createEventFromMessage(formData: FormData) {
 
   revalidatePath("/ops/inbox");
   redirect("/ops/inbox");
+}
+
+export async function suggestEvent(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const messageId = String(formData.get("message_id") ?? "");
+  const childId = String(formData.get("child_id") ?? "");
+  const messageBody = String(formData.get("message_body") ?? "");
+  const childName = String(formData.get("child_name") ?? "");
+  const childAgeRaw = formData.get("child_age");
+  const childAge = childAgeRaw ? String(childAgeRaw) : null;
+
+  // The redirect below must happen outside this try/catch: redirect()
+  // works by throwing, and a catch here would otherwise treat a
+  // successful redirect as a failed suggestion.
+  let suggestion: EventSuggestion | null = null;
+  let errorMessage: string | null = null;
+
+  try {
+    suggestion = await suggestEventFromMessage({ messageBody, childName, childAge });
+  } catch (err) {
+    console.error("OpenAI event suggestion failed", err);
+    errorMessage = "Não foi possível gerar a sugestão. Tente novamente ou preencha manualmente.";
+  }
+
+  const params = new URLSearchParams({ child_id: childId });
+  if (suggestion) {
+    params.set("suggested_type", suggestion.type);
+    params.set("suggested_notes", suggestion.notes);
+  }
+  if (errorMessage) {
+    params.set("error", errorMessage);
+  }
+
+  redirect(`/ops/inbox/${messageId}?${params.toString()}`);
 }
