@@ -47,6 +47,12 @@ export default async function OpsLayout({
             Simulador
           </Link>
           <Link
+            href="/ops/playground"
+            className="text-sm text-neutral-600 hover:text-neutral-900"
+          >
+            Chat de teste
+          </Link>
+          <Link
             href="/ops/waitlist"
             className="text-sm text-neutral-600 hover:text-neutral-900"
           >
