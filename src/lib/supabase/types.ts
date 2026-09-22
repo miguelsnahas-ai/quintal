@@ -265,49 +265,85 @@ export type Database = {
       }
       waitlist_leads: {
         Row: {
+          app_used: string | null
+          app_which: string | null
+          caregivers: string[] | null
+          caregivers_other: string | null
+          challenges: string[] | null
+          challenges_other: string | null
           child_age: string[]
+          child_count: string | null
+          course_taken: string | null
+          course_which: string | null
           created_at: string
           email: string
+          expectation: string | null
           family_setup_interest: boolean
+          how_found: string | null
+          how_found_other: string | null
           id: string
           name: string
-          pain_point: string
-          pain_point_other: string | null
+          professionals: string[] | null
+          support_network: string[] | null
+          support_network_other: string | null
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
           whatsapp: string
-          willingness_to_pay: string
         }
         Insert: {
-          child_age: string[]
+          app_used?: string | null
+          app_which?: string | null
+          caregivers?: string[] | null
+          caregivers_other?: string | null
+          challenges?: string[] | null
+          challenges_other?: string | null
+          child_age?: string[]
+          child_count?: string | null
+          course_taken?: string | null
+          course_which?: string | null
           created_at?: string
           email: string
+          expectation?: string | null
           family_setup_interest?: boolean
+          how_found?: string | null
+          how_found_other?: string | null
           id?: string
           name: string
-          pain_point: string
-          pain_point_other?: string | null
+          professionals?: string[] | null
+          support_network?: string[] | null
+          support_network_other?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           whatsapp: string
-          willingness_to_pay: string
         }
         Update: {
+          app_used?: string | null
+          app_which?: string | null
+          caregivers?: string[] | null
+          caregivers_other?: string | null
+          challenges?: string[] | null
+          challenges_other?: string | null
           child_age?: string[]
+          child_count?: string | null
+          course_taken?: string | null
+          course_which?: string | null
           created_at?: string
           email?: string
+          expectation?: string | null
           family_setup_interest?: boolean
+          how_found?: string | null
+          how_found_other?: string | null
           id?: string
           name?: string
-          pain_point?: string
-          pain_point_other?: string | null
+          professionals?: string[] | null
+          support_network?: string[] | null
+          support_network_other?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           whatsapp?: string
-          willingness_to_pay?: string
         }
         Relationships: []
       }
