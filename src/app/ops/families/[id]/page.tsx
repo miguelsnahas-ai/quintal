@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { Radio, Send, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ageLabel } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +26,8 @@ export default async function FamilyDetailPage({
   const { id: familyId } = await params;
   const { error } = await searchParams;
   const supabase = await createClient();
+  const headersList = await headers();
+  const origin = `${headersList.get("x-forwarded-proto") ?? "https"}://${headersList.get("host")}`;
 
   const [{ data: family }, { data: caregivers }, { data: children }] =
     await Promise.all([
@@ -75,7 +78,7 @@ export default async function FamilyDetailPage({
         {caregivers && caregivers.length > 0 && (
           <Card className="divide-y divide-neutral">
             {caregivers.map((caregiver) => (
-              <div key={caregiver.id} className="flex items-center justify-between px-4 py-3 text-sm">
+              <div key={caregiver.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                 <div>
                   <span className="font-medium text-ink">{caregiver.name}</span>
                   {caregiver.role && <span className="text-ink-muted"> · {caregiver.role}</span>}
@@ -83,6 +86,26 @@ export default async function FamilyDetailPage({
                     <Badge className="ml-2">contato principal</Badge>
                   )}
                   <div className="text-ink-muted">{caregiver.phone_number}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-3">
+                    <Link
+                      href={`/test/${caregiver.id}`}
+                      target="_blank"
+                      className="flex items-center gap-1 text-xs text-ink-muted underline hover:text-ink"
+                    >
+                      <Send className="h-3 w-3" aria-hidden />
+                      Link de teste
+                    </Link>
+                    <Link
+                      href={`/ops/playground/monitor/${caregiver.id}`}
+                      className="flex items-center gap-1 text-xs text-ink-muted underline hover:text-ink"
+                    >
+                      <Radio className="h-3 w-3" aria-hidden />
+                      Monitorar
+                    </Link>
+                  </div>
+                  <div className="mt-1 max-w-xs truncate text-[11px] text-ink-muted/80">
+                    {origin}/test/{caregiver.id}
+                  </div>
                 </div>
                 <form action={deleteCaregiver}>
                   <input type="hidden" name="family_id" value={family.id} />

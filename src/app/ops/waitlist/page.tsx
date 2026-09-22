@@ -7,7 +7,7 @@ export default async function WaitlistPage() {
   const supabase = await createClient();
   const { data: leads } = await supabase
     .from("waitlist_leads")
-    .select("id, name, email, whatsapp, how_found, created_at")
+    .select("id, name, email, whatsapp, pain_point, created_at")
     .order("created_at", { ascending: false });
 
   return (

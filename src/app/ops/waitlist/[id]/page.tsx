@@ -51,26 +51,14 @@ export default async function WaitlistLeadPage({
       <dl className={cardClassName("grid grid-cols-1 gap-4 p-4 sm:grid-cols-2")}>
         <DetailField label="E-mail" value={lead.email} />
         <DetailField label="WhatsApp" value={lead.whatsapp} />
-        <DetailField label="Quantidade de filhos" value={lead.child_count} />
         <DetailField label="Idade dos filhos" value={list(lead.child_age)} />
-        <DetailField label="Cuidadores envolvidos" value={list(lead.caregivers)} />
-        <DetailField label="Outros cuidadores" value={lead.caregivers_other} />
-        <DetailField label="Principais desafios" value={list(lead.challenges)} />
-        <DetailField label="Outros desafios" value={lead.challenges_other} />
-        <DetailField label="Rede de apoio" value={list(lead.support_network)} />
-        <DetailField label="Outra rede de apoio" value={lead.support_network_other} />
-        <DetailField label="Profissionais acompanhando" value={list(lead.professionals)} />
-        <DetailField label="Já fez curso de parentalidade?" value={lead.course_taken} />
-        <DetailField label="Qual curso" value={lead.course_which} />
-        <DetailField label="Já usou outro app parecido?" value={lead.app_used} />
-        <DetailField label="Qual app" value={lead.app_which} />
-        <DetailField label="O que espera do Quintal" value={lead.expectation} />
+        <DetailField label="Principal desafio" value={lead.pain_point} />
+        <DetailField label="Outro desafio" value={lead.pain_point_other} />
         <DetailField
           label="Interesse em plano família"
           value={lead.family_setup_interest ? "Sim" : "Não"}
         />
-        <DetailField label="Como conheceu" value={lead.how_found} />
-        <DetailField label="Outro (como conheceu)" value={lead.how_found_other} />
+        <DetailField label="Disposição a pagar" value={lead.willingness_to_pay} />
         <DetailField label="UTM source" value={lead.utm_source} />
         <DetailField label="UTM medium" value={lead.utm_medium} />
         <DetailField label="UTM campaign" value={lead.utm_campaign} />

@@ -15,6 +15,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_settings: {
+        Row: {
+          custom_instructions: string
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          custom_instructions?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          custom_instructions?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       caregivers: {
         Row: {
           created_at: string
@@ -227,102 +248,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "messages_in_reply_to_message_id_fkey"
-            columns: ["in_reply_to_message_id"]
-            isOneToOne: false
-            referencedRelation: "messages"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "messages_family_id_fkey"
             columns: ["family_id"]
             isOneToOne: false
             referencedRelation: "families"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "messages_in_reply_to_message_id_fkey"
+            columns: ["in_reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
         ]
       }
       waitlist_leads: {
         Row: {
-          app_used: string | null
-          app_which: string | null
-          caregivers: string[] | null
-          caregivers_other: string | null
-          challenges: string[] | null
-          challenges_other: string | null
           child_age: string[]
-          child_count: string | null
-          course_taken: string | null
-          course_which: string | null
           created_at: string
           email: string
-          expectation: string | null
           family_setup_interest: boolean
-          how_found: string | null
-          how_found_other: string | null
           id: string
           name: string
-          professionals: string[] | null
-          support_network: string[] | null
-          support_network_other: string | null
+          pain_point: string
+          pain_point_other: string | null
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
           whatsapp: string
+          willingness_to_pay: string
         }
         Insert: {
-          app_used?: string | null
-          app_which?: string | null
-          caregivers?: string[] | null
-          caregivers_other?: string | null
-          challenges?: string[] | null
-          challenges_other?: string | null
-          child_age?: string[]
-          child_count?: string | null
-          course_taken?: string | null
-          course_which?: string | null
+          child_age: string[]
           created_at?: string
           email: string
-          expectation?: string | null
           family_setup_interest?: boolean
-          how_found?: string | null
-          how_found_other?: string | null
           id?: string
           name: string
-          professionals?: string[] | null
-          support_network?: string[] | null
-          support_network_other?: string | null
+          pain_point: string
+          pain_point_other?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           whatsapp: string
+          willingness_to_pay: string
         }
         Update: {
-          app_used?: string | null
-          app_which?: string | null
-          caregivers?: string[] | null
-          caregivers_other?: string | null
-          challenges?: string[] | null
-          challenges_other?: string | null
           child_age?: string[]
-          child_count?: string | null
-          course_taken?: string | null
-          course_which?: string | null
           created_at?: string
           email?: string
-          expectation?: string | null
           family_setup_interest?: boolean
-          how_found?: string | null
-          how_found_other?: string | null
           id?: string
           name?: string
-          professionals?: string[] | null
-          support_network?: string[] | null
-          support_network_other?: string | null
+          pain_point?: string
+          pain_point_other?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           whatsapp?: string
+          willingness_to_pay?: string
         }
         Relationships: []
       }

@@ -1,5 +1,6 @@
 import { createGroqClient } from "./client";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
+import { getCustomInstructions } from "@/lib/ai-settings";
 
 // Same reasoning as suggestEvent.ts: openai/gpt-oss-120b, Groq's
 // recommended free-tier replacement for the deprecated
@@ -31,6 +32,8 @@ ${
 }`
     : "Não há uma criança específica identificada para esta conversa.";
 
+  const customInstructions = await getCustomInstructions().catch(() => "");
+
   const completion = await client.chat.completions.create({
     model: MODEL,
     messages: [
@@ -44,7 +47,11 @@ Regras importantes:
 - Baseie-se APENAS no que está no contexto e na mensagem. Nunca invente eventos, diagnósticos ou fatos que não foram informados.
 - Não dê diagnóstico médico nem prometa resultados. Diante de sinais de saúde preocupantes, sugira conversar com o pediatra.
 - Seja acolhedor e específico à situação relatada, sem soar genérico ou robótico.
-- Responda só com o texto da mensagem em si, sem saudação de assinatura nem aspas ao redor.`,
+- Responda só com o texto da mensagem em si, sem saudação de assinatura nem aspas ao redor.${
+          customInstructions
+            ? `\n\nInstruções adicionais definidas pela operadora:\n${customInstructions}`
+            : ""
+        }`,
       },
       {
         role: "user",

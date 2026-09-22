@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createGroqClient } from "./client";
 import { eventTypeLabels, eventTypes } from "@/lib/validation/events";
+import { getCustomInstructions } from "@/lib/ai-settings";
 
 // llama-3.3-70b-versatile (used here previously) was deprecated by Groq
 // in June 2026; openai/gpt-oss-120b is their recommended free-tier
@@ -27,6 +28,8 @@ export async function suggestEventFromMessage(input: {
     .map((type) => `- ${type}: ${eventTypeLabels[type]}`)
     .join("\n");
 
+  const customInstructions = await getCustomInstructions().catch(() => "");
+
   const completion = await client.chat.completions.create({
     model: MODEL,
     response_format: { type: "json_object" },
@@ -42,7 +45,11 @@ Também escreva "notes": uma reescrita curta e fiel da mensagem, em português, 
 
 Sua sugestão é sempre revisada por um humano antes de ser salva. Na dúvida entre dois tipos, escolha o mais provável.
 
-Responda APENAS com um objeto JSON no formato exato: {"type": "<um dos tipos acima>", "notes": "<string>"}. Nenhum texto fora do JSON.`,
+Responda APENAS com um objeto JSON no formato exato: {"type": "<um dos tipos acima>", "notes": "<string>"}. Nenhum texto fora do JSON.${
+          customInstructions
+            ? `\n\nInstruções adicionais definidas pela operadora:\n${customInstructions}`
+            : ""
+        }`,
       },
       {
         role: "user",
