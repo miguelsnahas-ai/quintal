@@ -10,12 +10,18 @@
 
 -- to_tsvector(regconfig, text) is only STABLE, not IMMUTABLE, so Postgres
 -- rejects it directly inside a "generated always as ... stored" expression
--- (42P17). Wrapping it in a SQL function hard-coded to 'portuguese' and
--- declared immutable is the standard workaround — safe here because we
--- never change the text search config at runtime.
+-- (42P17). A `language sql` wrapper isn't enough on its own: trivial
+-- single-SELECT SQL functions get inlined by the planner, which re-exposes
+-- the underlying STABLE call once it's inside a multi-column expression
+-- (exactly what this generated column does) and the immutability check
+-- rejects it again. `language plpgsql` functions are never inlined, so the
+-- `immutable` label actually sticks — safe here since we never change the
+-- text search config at runtime.
 create function public.knowledge_chunks_tsvector(text) returns tsvector as $$
-  select to_tsvector('portuguese', $1)
-$$ language sql immutable;
+begin
+  return to_tsvector('portuguese', $1);
+end;
+$$ language plpgsql immutable;
 
 create table public.knowledge_chunks (
   id text primary key,
