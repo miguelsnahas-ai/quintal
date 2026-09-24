@@ -15,6 +15,55 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_feedback: {
+        Row: {
+          activity_id: string
+          caregiver_id: string | null
+          child_id: string | null
+          created_at: string
+          helpful: boolean
+          id: string
+        }
+        Insert: {
+          activity_id: string
+          caregiver_id?: string | null
+          child_id?: string | null
+          created_at?: string
+          helpful: boolean
+          id?: string
+        }
+        Update: {
+          activity_id?: string
+          caregiver_id?: string | null
+          child_id?: string | null
+          created_at?: string
+          helpful?: boolean
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_feedback_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_feedback_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_feedback_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_settings: {
         Row: {
           custom_instructions: string
@@ -248,6 +297,7 @@ export type Database = {
       }
       messages: {
         Row: {
+          activity_id: string | null
           body: string | null
           caregiver_id: string | null
           created_at: string
@@ -266,6 +316,7 @@ export type Database = {
           wa_timestamp: string | null
         }
         Insert: {
+          activity_id?: string | null
           body?: string | null
           caregiver_id?: string | null
           created_at?: string
@@ -284,6 +335,7 @@ export type Database = {
           wa_timestamp?: string | null
         }
         Update: {
+          activity_id?: string | null
           body?: string | null
           caregiver_id?: string | null
           created_at?: string
@@ -302,6 +354,13 @@ export type Database = {
           wa_timestamp?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_caregiver_id_fkey"
             columns: ["caregiver_id"]

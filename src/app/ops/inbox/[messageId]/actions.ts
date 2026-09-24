@@ -141,11 +141,16 @@ export async function suggestReplyDraft(formData: FormData) {
   let errorMessage: string | null = null;
 
   try {
-    draft = await suggestReply({
+    // The manual triage flow always has a human reviewing the draft
+    // before anything is sent, so activityId (used by the autopilot
+    // channels to attach an ActivityCard) is intentionally left unused
+    // here — the operator just gets the text to edit, same as before.
+    const suggestion = await suggestReply({
       messageBody,
       childContext,
       recentMessages,
     });
+    draft = suggestion.text;
   } catch (err) {
     console.error("OpenAI reply suggestion failed", err);
     errorMessage = "Não foi possível gerar a sugestão de resposta. Escreva manualmente.";

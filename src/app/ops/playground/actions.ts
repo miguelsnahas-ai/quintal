@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { recordConversationTurn } from "@/lib/conversation";
+import type { ActivitySummary } from "@/lib/activity";
 
 export type PlaygroundTurn = {
   role: "user" | "assistant";
@@ -14,7 +15,12 @@ export async function sendPlaygroundMessage(input: {
   caregiverId: string;
   childId: string | null;
   history: PlaygroundTurn[];
-}): Promise<{ eventTypeLabel: string | null; reply: string; inboundMessageId: string }> {
+}): Promise<{
+  eventTypeLabel: string | null;
+  reply: string;
+  inboundMessageId: string;
+  activity: ActivitySummary | null;
+}> {
   const supabase = await createClient();
   const {
     data: { user },

@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { suggestEventFromMessage } from "@/lib/groq/suggestEvent";
 import { suggestReply } from "@/lib/groq/suggestReply";
 import { getChildContext } from "@/lib/childContext";
+import { getActivity, toActivitySummary, type ActivitySummary } from "@/lib/activity";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 import type { Database, Json } from "@/lib/supabase/types";
 
@@ -33,7 +34,12 @@ export async function recordConversationTurn(
     messageBody: string;
     source: string;
   },
-): Promise<{ eventTypeLabel: string | null; reply: string; inboundMessageId: string }> {
+): Promise<{
+  eventTypeLabel: string | null;
+  reply: string;
+  inboundMessageId: string;
+  activity: ActivitySummary | null;
+}> {
   const { data: caregiver, error: caregiverError } = await supabase
     .from("caregivers")
     .select("id, family_id, phone_number")
@@ -88,7 +94,7 @@ export async function recordConversationTurn(
     throw new Error(inboundError?.message ?? "Falha ao registrar a mensagem.");
   }
 
-  const [suggestion, reply] = await Promise.all([
+  const [suggestion, replySuggestion] = await Promise.all([
     suggestEventFromMessage({
       messageBody: input.messageBody,
       childContext,
@@ -99,6 +105,17 @@ export async function recordConversationTurn(
       recentMessages,
     }),
   ]);
+
+  const reply = replySuggestion.text;
+
+  // Resolved through activity.ts (not just trusted as an id) so a stale or
+  // since-removed knowledge_chunks row never gets persisted as a
+  // reference — see suggestReply's own guard for the hallucination case.
+  let activity: ActivitySummary | null = null;
+  if (replySuggestion.activityId) {
+    const fullActivity = await getActivity(replySuggestion.activityId).catch(() => null);
+    activity = fullActivity ? toActivitySummary(fullActivity) : null;
+  }
 
   // Auto-recorded only when the classifier is confident this message
   // describes something concrete (see suggestEventFromMessage's
@@ -131,6 +148,7 @@ export async function recordConversationTurn(
     direction: "outbound",
     message_type: "text",
     body: reply,
+    activity_id: activity?.id ?? null,
     raw_payload: { simulated: true, source: input.source } as Json,
     wa_timestamp: new Date().toISOString(),
     family_id: caregiver.family_id,
@@ -151,5 +169,6 @@ export async function recordConversationTurn(
     eventTypeLabel: recordedEventTypeLabel,
     reply,
     inboundMessageId: inboundMessage.id,
+    activity,
   };
 }

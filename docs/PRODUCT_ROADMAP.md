@@ -178,7 +178,80 @@ resposta reflete esse histórico.
   reproduzida neste ambiente de desenvolvimento (mesma limitação de rede
   de sempre).
 
-## Fase 4 — candidatos (não implementados)
+## Fase 4 — conteúdo como experiência de produto (concluída)
+
+Objetivo: uma recomendação da IA deixar de terminar em "você pode
+brincar de X" e passar a poder abrir numa página de verdade — sem
+reconstruir a biblioteca de conteúdo existente, sem tabela nova para o
+conteúdo em si.
+
+### O que foi entregue
+
+1. **`getActivity(id)`** (`src/lib/activity.ts`) — lê as categorias
+   `brincadeiras`/`materiais` de `knowledge_chunks` de volta como um
+   objeto estruturado, reaproveitando os campos que a planilha de origem
+   já tinha (parseados de volta do texto `"Cabeçalho: Valor"` de
+   `content`) em vez de recriar a biblioteca ou inventar campos novos.
+   Mapeamento completo e diagnóstico do conteúdo em
+   `docs/ARCHITECTURE_TARGET.md`.
+2. **`/atividades/[id]`** — página pública, com identidade visual mais
+   quente que o `/ops` (fundo creme, cantos mais arredondados, sem borda),
+   mostrando só as seções que a atividade realmente tem preenchidas.
+3. **`ActivityCard`** (`src/components/conversation/ActivityCard.tsx`) —
+   componente reutilizável, hoje usado no chat, desenhado para também
+   servir numa futura home/lista de recomendações sem alteração.
+4. **`suggestReply` estruturado**: de `string` para `{ text, activityId }`
+   (Zod), no mesmo padrão `json_object` + validação manual já usado em
+   `suggestEvent`. A IA só pode citar um `activityId` que ela mesma
+   recebeu como candidato — um valor fora da lista é descartado, nunca
+   confiado.
+5. **Feedback mínimo**: nova tabela `activity_feedback` (a única tabela
+   nova desta fase) + botão "essa atividade ajudou?" na página.
+
+### Mudanças de banco
+
+- `messages.activity_id` (nova coluna, nullable, `references
+  knowledge_chunks(id) on delete set null`).
+- Nova tabela `activity_feedback` (activity_id, child_id, caregiver_id,
+  helpful, created_at) — RLS ligado, leitura para `authenticated`, sem
+  policy de escrita (só `service_role`).
+- `supabase/migrations/20260924233836_add_activity_reference_and_feedback.sql`.
+
+### Como testar manualmente
+
+1. `npm run build && npm run start`.
+2. Pelo `/ops`, verificar que a base tem candidatos reais: uma busca por
+   "Ela está entediada, o que posso fazer com ela?" contra
+   `search_knowledge_chunks` retorna majoritariamente linhas de
+   `brincadeiras` (verificado nesta fase: 5 de 6 resultados para uma
+   criança de 14 meses).
+3. Conversar em `/quintal` ou `/test/[caregiverId]` dizendo algo como "ela
+   está entediada" — se a IA recomendar uma atividade específica, um
+   `ActivityCard` aparece logo abaixo da resposta.
+4. Clicar no card → abre `/atividades/[id]` com título, faixa etária, por
+   que pode ser interessante, materiais, como fazer, desenvolvimento
+   relacionado e segurança (quando a linha tiver esse campo).
+5. Clicar em "Ajudou"/"Não ajudou" → grava uma linha em
+   `activity_feedback`.
+6. Acessar `/atividades/<id-de-outra-categoria>` (ex.: um id de
+   `alimentos`) → 404, de propósito (essas categorias não viram
+   "Activity" nesta fase).
+
+### Limitações conhecidas desta fase
+
+- Histórico recarregado em `/quintal` não re-renderiza o card (o texto
+  continua, o card some ao reabrir a conversa) — `activity_id` fica
+  gravado em `messages`, só não é reidratado ainda.
+- Feedback não é atribuído a família/criança (sempre `null`) — dá pra
+  medir "quantas pessoas acharam útil", não "esta família achou útil".
+- Só `brincadeiras`/`materiais` viram atividade; as outras 8 categorias
+  continuam só como contexto textual nas respostas.
+- Sem teste de ponta a ponta com a IA real (rede bloqueada para
+  `api.groq.com` no ambiente de desenvolvimento) — busca e parser foram
+  verificados direto contra o banco real; a chamada ao Groq que decide o
+  `activityId` não pôde ser reproduzida aqui.
+
+## Fase 5 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -198,10 +271,11 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 4. **Fatos permanentes explícitos da criança** (ex.: alergias,
    preferências) — próximo passo natural de memória, ainda sem
    embeddings.
-5. **Feedback do usuário real em `/quintal`** — hoje só o operador registra
-   "ajudou?" pela Inbox; a família não tem como avaliar a resposta que
-   recebeu.
+5. **Rehidratar `ActivityCard` no histórico** de `/quintal`, e atribuir
+   `activity_feedback` a família/criança.
 6. **Suporte real a múltiplas crianças** na experiência principal, não só
    no seletor.
 7. **Transação na criação de família** (`/comecar`) para eliminar o risco
    de registros órfãos.
+8. **`ActivityCard` em mais lugares** — home, uma lista de recomendações
+   proativas — hoje só existe dentro do chat.

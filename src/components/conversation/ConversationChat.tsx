@@ -4,10 +4,13 @@ import { useEffect, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import { Input, Label, Select, FieldError } from "@/components/ui/Field";
 import { TEST_ACCESS_COOKIE } from "@/lib/testAccess";
+import type { ActivitySummary } from "@/lib/activity";
+import ActivityCard from "./ActivityCard";
 
 export type ConversationTurn = {
   role: "user" | "assistant";
   content: string;
+  activity?: ActivitySummary | null;
 };
 
 type Child = {
@@ -33,7 +36,7 @@ export default function ConversationChat({
   onSend: (input: {
     childId: string | null;
     history: ConversationTurn[];
-  }) => Promise<{ reply: string }>;
+  }) => Promise<{ reply: string; activity: ActivitySummary | null }>;
   rememberDevice?: boolean;
 }) {
   // Auto-select when there's exactly one child — previously this stayed
@@ -74,8 +77,8 @@ export default function ConversationChat({
 
     startTransition(async () => {
       try {
-        const { reply } = await onSend({ childId: childId || null, history: nextHistory });
-        setMessages((current) => [...current, { role: "assistant", content: reply }]);
+        const { reply, activity } = await onSend({ childId: childId || null, history: nextHistory });
+        setMessages((current) => [...current, { role: "assistant", content: reply, activity }]);
       } catch {
         setError("Não foi possível enviar. Tente de novo.");
       }
@@ -109,7 +112,7 @@ export default function ConversationChat({
           messages.map((message, index) => (
             <div
               key={index}
-              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`flex flex-col gap-2 ${message.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
                 className={`max-w-[80%] rounded-md px-3 py-2 text-sm shadow-sm ${
@@ -118,6 +121,11 @@ export default function ConversationChat({
               >
                 <p className="whitespace-pre-wrap">{message.content}</p>
               </div>
+              {message.activity && (
+                <div className="w-full max-w-[80%]">
+                  <ActivityCard activity={message.activity} />
+                </div>
+              )}
             </div>
           ))
         )}

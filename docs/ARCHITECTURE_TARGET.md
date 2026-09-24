@@ -1,7 +1,8 @@
 # Arquitetura alvo — núcleo de conversa compartilhado
 
 > Escrito na Fase 2 (produtização do `/test`), 2026-09-25, com a seção
-> "ChildContext" adicionada na Fase 3 (memória da criança), 2026-09-25.
+> "ChildContext" adicionada na Fase 3 (memória da criança) e "Activity"
+> adicionada na Fase 4 (conteúdo como experiência), ambas em 2026-09-25.
 > Complementa `docs/CURRENT_STATE.md` (diagnóstico do estado anterior a
 > essas fases).
 
@@ -267,3 +268,171 @@ ambiente (rede bloqueada para `api.groq.com` no sandbox de
 desenvolvimento) — a montagem do prompt foi revisada por leitura de
 código, seguindo o mesmo padrão já usado (e já testado em produção) antes
 desta fase.
+
+## Activity (Fase 4) — conteúdo existente como experiência de produto
+
+### Diagnóstico do conteúdo (antes de codificar)
+
+`knowledge_chunks` já tinha tudo que essa fase precisava — nenhuma coluna
+nova nela, nenhuma tabela de biblioteca reconstruída. O que existe:
+
+- **531 linhas**, 10 categorias. Duas delas descrevem literalmente "coisas
+  para fazer com a criança": `brincadeiras` (84 linhas, prefixo `BRI-`) e
+  `materiais` (65 linhas, prefixo `MAT-`).
+- Cada linha tem `id`, `category`, `title`, `age_min_months`,
+  `age_max_months`, `tags` (colunas estruturadas) e `content` — um texto
+  com uma linha `"Cabeçalho: Valor"` por coluna que a planilha de origem
+  tinha para aquela aba (ver `scripts/knowledge-base/sync_knowledge_base.py`,
+  `CONFIGS`). Os cabeçalhos **são diferentes por categoria**:
+  - `brincadeiras`: `Nome, Tipo, Interesses, Como brincar, O que
+    desenvolve, Materiais, Onde, Segurança (às vezes ausente), Tags`.
+  - `materiais`: `Material, Categoria, Como conseguir / custo, Estilos de
+    brincadeira, Ideias de atividades por idade, Áreas de desenvolvimento,
+    Supervisão, Segurança, Tags`.
+- `Faixa etária` já é um rótulo humano pronto (`"6m+"`, `"4m–3a"`) —
+  reaproveitado tal qual, em vez de recalcular algo a partir de
+  `age_min_months`/`age_max_months` que poderia divergir do que a
+  planilha realmente escreveu.
+
+Conclusão do diagnóstico: dava para fazer tudo sem tabela nova para o
+conteúdo em si — só faltava (1) um jeito de ler esses campos de volta do
+`content` de forma estruturada e (2) dois lugares onde um dado de produto
+de verdade (não conteúdo de referência) precisava existir e não existia
+em lugar nenhum: a referência de "esta mensagem recomendou esta
+atividade" e o feedback da família sobre uma atividade.
+
+### `src/lib/activity.ts` — a abstração de "Activity"
+
+Sem tabela nova para o conteúdo. `getActivity(id)` busca a linha em
+`knowledge_chunks`, recusa (retorna `null`) se a categoria não for
+`brincadeiras`/`materiais`, e usa `parseContentFields` para reler as
+linhas `"Cabeçalho: Valor"` de `content` de volta para um mapa —
+exatamente os mesmos cabeçalhos que a planilha já usava, nenhum
+inventado. `mapFieldsToActivity` é o único lugar que sabe que os
+cabeçalhos diferem entre as duas categorias, e normaliza os dois formatos
+para o mesmo formato de saída:
+
+```ts
+Activity {
+  id, category, title
+  ageDisplayLabel      // "Faixa etária" da planilha, verbatim
+  ageMinMonths, ageMaxMonths, tags
+  why                  // brincadeiras: Interesses · materiais: Estilos de brincadeira
+  materials            // brincadeiras: Materiais · materiais: título + Como conseguir/custo
+  howTo                // brincadeiras: Como brincar · materiais: Ideias de atividades por idade
+  developmentAreas     // brincadeiras: O que desenvolve · materiais: Áreas de desenvolvimento
+  safety               // Segurança (quando existir na linha)
+  extra                // qualquer outro campo real (Tipo, Onde, Categoria, Supervisão) — nada é descartado
+}
+```
+
+Verificado manualmente contra duas linhas reais (`BRI-003` "Cabana" e
+`MAT-001` "Rolos de papel higiênico") traçando o parser à mão contra o
+`content` de verdade — todos os campos bateram, nada ficou vazio que não
+devesse, nada foi inventado.
+
+### `/atividades/[id]` — a página
+
+Pública (mesmo nível de `/comecar`/`/test` — conteúdo de referência, nada
+pessoal), gerada a partir de `getActivity`. Renderiza só as seções que
+`Activity` de fato preenche (uma linha de `brincadeiras` sem campo
+"Segurança" simplesmente não mostra a seção — nunca um "não informado").
+Estilo deliberadamente mais quente que o `Card`/`cardClassName` do `/ops`
+(`rounded-sm`, `bg-primary`, borda fina, pensado pra lista densa de
+operador): aqui, `rounded-lg`, fundo `bg-secondary` (o creme do próprio
+design system, não branco puro), sem borda, mais espaço — ainda usando os
+tokens existentes (`docs/design-system.md`), só com um tratamento
+diferente para a experiência de família. Tem também um controle de
+feedback ("essa atividade ajudou?") no fim da página.
+
+### `ActivityCard` — o componente reutilizável
+
+`src/components/conversation/ActivityCard.tsx` recebe só um
+`ActivitySummary` (`id`, `category`, `title`, `ageDisplayLabel` — o
+suficiente pra desenhar o card sem outra consulta ao banco) e linka para
+`/atividades/[id]`. Não depende de nada do chat — é por isso que também
+serve, sem alteração, numa futura home ou lista de recomendações, como
+pedido.
+
+### Como uma atividade chega da IA até a UI
+
+```
+suggestReply (Zod: {text, activityId})
+  ↓ activityId (ou null)
+conversation.ts → getActivity(activityId) → toActivitySummary
+  ↓
+messages.activity_id (persistido) + retorno de recordConversationTurn
+  ↓
+sendTestMessage / sendQuintalMessage (retornam {reply, activity})
+  ↓
+ConversationChat (estado local do turno) → <ActivityCard activity={...} />
+```
+
+Detalhes que valem registrar:
+
+- **`suggestReply` deixou de devolver uma string solta.** Agora devolve
+  `{ text, activityId }`, validado com Zod (`z.object({ text: z.string(),
+  activityId: z.string().nullable() })`), no mesmo padrão de
+  `response_format: json_object` + validação manual que `suggestEvent.ts`
+  já usava — não um schema novo de confiança duvidosa.
+- **A IA só pode citar um `activityId` que ela mesma recebeu como
+  candidato no prompt** (os resultados de `search_knowledge_chunks` que
+  são `brincadeiras`/`materiais`, listados explicitamente por id+título
+  num bloco à parte do restante da base de conhecimento). Se ela citar
+  qualquer outro valor, `suggestReply` descarta e devolve `null` — a
+  resposta em texto continua valendo, só sem o card. Isso evita um card
+  quebrado por alucinação, mas não impede a IA de mencionar uma atividade
+  pelo nome sem ID válido (nesse caso o texto cita, mas não há card —
+  aceitável para esta fase).
+- **A triagem manual da Inbox não usa `activityId`.** `suggestReplyDraft`
+  (em `/ops/inbox/[messageId]/actions.ts`) já tem revisão humana antes de
+  qualquer envio; estender esse fluxo para também anexar um card de
+  atividade à mensagem que sai pelo WhatsApp de verdade ficou fora do
+  escopo desta fase — deliberado, não esquecido.
+- **`messages.activity_id`** (nova coluna, nullable, `references
+  knowledge_chunks(id) on delete set null`) grava a referência junto com
+  a mensagem que a gerou. Serve para auditoria/analytics agora; **o
+  histórico recarregado em `/quintal` ainda não re-renderiza o card** a
+  partir dela (ver limitações).
+
+### `activity_feedback` — a nova tabela
+
+A única tabela nova desta fase. Não cabia em `knowledge_chunks`
+(conteúdo de referência, só leitura, sem policy de escrita para
+`authenticated`) nem em `events` (tipos fixos, sempre atrelado a uma
+criança, sem conceito de "sim/não"). RLS ligado, com policy de leitura
+para `authenticated` (visibilidade futura em `/ops`) e nenhuma de
+escrita — só o `service_role` grava, mesmo padrão de `ai_settings`.
+Deliberadamente não vinculada a família/criança nesta fase (ver
+limitações) — grava só `activity_id` + `helpful`.
+
+### O que NÃO foi feito nesta fase (por pedido explícito)
+
+Marketplace, comunidade, gamificação, assinatura, feed complexo, busca
+avançada — nada disso foi tocado. `ActivityCard` também não aparece ainda
+em nenhum lugar além do chat (home/recomendações ficaram como "capaz de",
+não "implementado").
+
+### Limitações
+
+- **Histórico recarregado não re-renderiza o card.** `messages.activity_id`
+  é gravado, mas `/quintal`'s hidratação de histórico (`page.tsx`) não
+  busca `activity_id` nem re-monta o `ActivitySummary` ao reabrir a
+  conversa — o texto da resposta continua lá, o card não. Passo natural
+  seguinte: selecionar `activity_id` junto do histórico e resolver os
+  `ActivitySummary` em lote.
+- **Feedback não é atribuído a família/criança.** `activity_feedback`
+  grava `child_id`/`caregiver_id` como `null` sempre nesta fase — o link
+  do `ActivityCard` não carrega essa informação. Só dá para ver
+  "quantas pessoas acharam essa atividade útil", não "esta família achou
+  útil esta atividade".
+- **Só `brincadeiras`/`materiais` viram "Activity".** As outras 8
+  categorias (alimentos, receitas, sono, higiene, passeios etc.)
+  continuam só como contexto textual em `suggestReply`, sem página
+  própria — decisão deliberada: elas não têm o mesmo formato de "coisa
+  concreta para fazer agora".
+- **Sem teste de ponta a ponta com a IA real** (mesma limitação de rede
+  das fases anteriores) — a busca (`search_knowledge_chunks`) e o parser
+  (`getActivity`) foram verificados diretamente contra o banco real com a
+  mensagem de teste pedida ("Ela está entediada..."); a chamada real ao
+  Groq que decide o `activityId` não pôde ser reproduzida neste ambiente.

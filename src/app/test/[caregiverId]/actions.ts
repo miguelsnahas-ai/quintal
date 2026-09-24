@@ -3,6 +3,7 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordConversationTurn } from "@/lib/conversation";
 import type { ConversationTurn } from "@/components/conversation/ConversationChat";
+import type { ActivitySummary } from "@/lib/activity";
 
 // No auth gate by design — this is the link a test caregiver opens on
 // their own phone/browser. It's scoped strictly to the caregiverId in the
@@ -16,7 +17,7 @@ export async function sendTestMessage(
     childId: string | null;
     history: ConversationTurn[];
   },
-): Promise<{ reply: string }> {
+): Promise<{ reply: string; activity: ActivitySummary | null }> {
   const supabase = createServiceClient();
 
   const lastUserMessage = [...input.history].reverse().find((turn) => turn.role === "user");
@@ -54,12 +55,12 @@ export async function sendTestMessage(
     }
   }
 
-  const { reply } = await recordConversationTurn(supabase, {
+  const { reply, activity } = await recordConversationTurn(supabase, {
     caregiverId,
     childId,
     messageBody: lastUserMessage.content,
     source: "test-link",
   });
 
-  return { reply };
+  return { reply, activity };
 }

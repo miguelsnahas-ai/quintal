@@ -4,6 +4,7 @@ import { getFamilySessionCaregiverId } from "@/lib/familySession";
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordConversationTurn } from "@/lib/conversation";
 import type { ConversationTurn } from "@/components/conversation/ConversationChat";
+import type { ActivitySummary } from "@/lib/activity";
 
 // This is the real product's send path. Unlike /test's action, the
 // caregiverId is never taken from the client — it's resolved here from
@@ -13,7 +14,7 @@ import type { ConversationTurn } from "@/components/conversation/ConversationCha
 export async function sendQuintalMessage(input: {
   childId: string | null;
   history: ConversationTurn[];
-}): Promise<{ reply: string }> {
+}): Promise<{ reply: string; activity: ActivitySummary | null }> {
   const caregiverId = await getFamilySessionCaregiverId();
   if (!caregiverId) {
     throw new Error("Sessão expirada. Atualize a página.");
@@ -40,12 +41,12 @@ export async function sendQuintalMessage(input: {
     }
   }
 
-  const { reply } = await recordConversationTurn(supabase, {
+  const { reply, activity } = await recordConversationTurn(supabase, {
     caregiverId,
     childId,
     messageBody: lastUserMessage.content,
     source: "quintal",
   });
 
-  return { reply };
+  return { reply, activity };
 }
