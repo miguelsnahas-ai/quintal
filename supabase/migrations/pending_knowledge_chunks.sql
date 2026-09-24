@@ -8,18 +8,22 @@
 -- tags/categoria como busca). Conteúdo de referência geral — não substitui
 -- avaliação profissional individual (pediatra, nutricionista etc.).
 
--- to_tsvector(regconfig, text) is only STABLE, not IMMUTABLE, so Postgres
--- rejects it directly inside a "generated always as ... stored" expression
--- (42P17). A `language sql` wrapper isn't enough on its own: trivial
--- single-SELECT SQL functions get inlined by the planner, which re-exposes
--- the underlying STABLE call once it's inside a multi-column expression
--- (exactly what this generated column does) and the immutability check
--- rejects it again. `language plpgsql` functions are never inlined, so the
--- `immutable` label actually sticks — safe here since we never change the
--- text search config at runtime.
-create function public.knowledge_chunks_tsvector(text) returns tsvector as $$
+-- Two STABLE (not IMMUTABLE) calls sit in this column's logic:
+-- to_tsvector(regconfig, text) and array_to_string(anyarray, text). Both
+-- get rejected (42P17) if they appear directly in a "generated always as
+-- ... stored" expression. Wrapping just to_tsvector in a `language sql`
+-- function isn't enough either — trivial single-SELECT SQL functions get
+-- inlined by the planner, which re-exposes any STABLE call still present
+-- in the (multi-column) argument expression. The fix that actually works:
+-- do the whole concatenation *inside* a `language plpgsql immutable`
+-- function (plpgsql bodies are opaque to the planner, so it trusts the
+-- outer `immutable` label instead of inlining and re-checking internals),
+-- and pass the source columns in as separate arguments rather than
+-- pre-concatenating them in the generated column's own expression.
+create function public.knowledge_chunks_tsvector(title text, content text, tags text[])
+returns tsvector as $$
 begin
-  return to_tsvector('portuguese', $1);
+  return to_tsvector('portuguese', title || ' ' || content || ' ' || coalesce(array_to_string(tags, ' '), ''));
 end;
 $$ language plpgsql immutable;
 
@@ -32,7 +36,7 @@ create table public.knowledge_chunks (
   tags text[],
   content text not null,
   search tsvector generated always as (
-    public.knowledge_chunks_tsvector(title || ' ' || content || ' ' || coalesce(array_to_string(tags, ' '), ''))
+    public.knowledge_chunks_tsvector(title, content, tags)
   ) stored,
   created_at timestamptz not null default now()
 );
