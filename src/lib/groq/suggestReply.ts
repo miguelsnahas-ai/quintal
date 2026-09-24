@@ -39,7 +39,6 @@ ${
     searchKnowledge({
       query: input.messageBody,
       ageMonths: input.childAgeMonths,
-      limit: 5,
     }).catch(() => []),
   ]);
 

@@ -13,6 +13,14 @@ export type KnowledgeChunk = {
 // pattern as ai-settings.ts, so this works from every call site
 // (authenticated playground, public /test chat, inbox triage) without
 // threading a Supabase client through suggestReply's callers.
+//
+// Delegates the actual matching to the search_knowledge_chunks() SQL
+// function (see supabase/migrations/20260924193755_*) rather than building
+// a PostgREST .textSearch()/.or() query here: getting this right needed an
+// IDF-weighted OR match plus title/category bonuses and a soft (not hard)
+// age filter — see that migration's comment for why the naive version
+// (websearch_to_tsquery + a hard age range filter) returned nothing for
+// realistic messages.
 export async function searchKnowledge(input: {
   query: string;
   ageMonths: number | null;
@@ -22,19 +30,12 @@ export async function searchKnowledge(input: {
   if (!query) return [];
 
   const supabase = createServiceClient();
-  let request = supabase
-    .from("knowledge_chunks")
-    .select("id, category, title, content")
-    .textSearch("search", query, { type: "websearch", config: "portuguese" })
-    .limit(input.limit ?? 5);
+  const { data, error } = await supabase.rpc("search_knowledge_chunks", {
+    message: query,
+    age_months: input.ageMonths ?? undefined,
+    result_limit: input.limit ?? 6,
+  });
 
-  if (input.ageMonths !== null) {
-    request = request
-      .or(`age_min_months.is.null,age_min_months.lte.${input.ageMonths}`)
-      .or(`age_max_months.is.null,age_max_months.gte.${input.ageMonths}`);
-  }
-
-  const { data, error } = await request;
   if (error) {
     console.error("searchKnowledge failed", error);
     return [];

@@ -203,6 +203,7 @@ export type Database = {
           content: string
           created_at?: string
           id: string
+          search?: unknown
           tags?: string[] | null
           title: string
         }
@@ -213,6 +214,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          search?: unknown
           tags?: string[] | null
           title?: string
         }
@@ -386,7 +388,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      knowledge_chunks_tsvector: {
+        Args: { content: string; tags: string[]; title: string }
+        Returns: unknown
+      }
+      search_knowledge_chunks: {
+        Args: { age_months?: number; message: string; result_limit?: number }
+        Returns: {
+          category: string
+          content: string
+          id: string
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
