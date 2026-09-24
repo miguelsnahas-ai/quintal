@@ -8,6 +8,15 @@
 -- tags/categoria como busca). Conteúdo de referência geral — não substitui
 -- avaliação profissional individual (pediatra, nutricionista etc.).
 
+-- to_tsvector(regconfig, text) is only STABLE, not IMMUTABLE, so Postgres
+-- rejects it directly inside a "generated always as ... stored" expression
+-- (42P17). Wrapping it in a SQL function hard-coded to 'portuguese' and
+-- declared immutable is the standard workaround — safe here because we
+-- never change the text search config at runtime.
+create function public.knowledge_chunks_tsvector(text) returns tsvector as $$
+  select to_tsvector('portuguese', $1)
+$$ language sql immutable;
+
 create table public.knowledge_chunks (
   id text primary key,
   category text not null,
@@ -17,7 +26,7 @@ create table public.knowledge_chunks (
   tags text[],
   content text not null,
   search tsvector generated always as (
-    to_tsvector('portuguese', title || ' ' || content || ' ' || coalesce(array_to_string(tags, ' '), ''))
+    public.knowledge_chunks_tsvector(title || ' ' || content || ' ' || coalesce(array_to_string(tags, ' '), ''))
   ) stored,
   created_at timestamptz not null default now()
 );
