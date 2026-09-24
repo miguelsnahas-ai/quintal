@@ -184,6 +184,40 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_chunks: {
+        Row: {
+          age_max_months: number | null
+          age_min_months: number | null
+          category: string
+          content: string
+          created_at: string
+          id: string
+          search: unknown
+          tags: string[] | null
+          title: string
+        }
+        Insert: {
+          age_max_months?: number | null
+          age_min_months?: number | null
+          category: string
+          content: string
+          created_at?: string
+          id: string
+          tags?: string[] | null
+          title: string
+        }
+        Update: {
+          age_max_months?: number | null
+          age_min_months?: number | null
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          tags?: string[] | null
+          title?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           body: string | null

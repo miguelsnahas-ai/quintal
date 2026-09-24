@@ -7,6 +7,7 @@ import { eventInputSchema } from "@/lib/validation/events";
 import { suggestEventFromMessage, type EventSuggestion } from "@/lib/groq/suggestEvent";
 import { suggestReply } from "@/lib/groq/suggestReply";
 import { sendWhatsAppTextMessage } from "@/lib/whatsapp/send";
+import { ageInMonths } from "@/lib/format";
 import type { Json } from "@/lib/supabase/types";
 
 export async function createEventFromMessage(formData: FormData) {
@@ -117,18 +118,23 @@ export async function suggestReplyDraft(formData: FormData) {
   const childAge = childAgeRaw ? String(childAgeRaw) : null;
 
   let recentEvents: { type: string; notes: string; occurredAt: string }[] = [];
+  let childAgeMonths: number | null = null;
   if (childId) {
-    const { data } = await supabase
-      .from("events")
-      .select("type, notes, occurred_at")
-      .eq("child_id", childId)
-      .order("occurred_at", { ascending: false })
-      .limit(10);
-    recentEvents = (data ?? []).map((event) => ({
+    const [{ data: events }, { data: child }] = await Promise.all([
+      supabase
+        .from("events")
+        .select("type, notes, occurred_at")
+        .eq("child_id", childId)
+        .order("occurred_at", { ascending: false })
+        .limit(10),
+      supabase.from("children").select("birth_date").eq("id", childId).maybeSingle(),
+    ]);
+    recentEvents = (events ?? []).map((event) => ({
       type: event.type,
       notes: event.notes,
       occurredAt: event.occurred_at,
     }));
+    childAgeMonths = child ? ageInMonths(child.birth_date) : null;
   }
 
   // Same reasoning as suggestEvent above: redirect() must stay outside
@@ -137,7 +143,7 @@ export async function suggestReplyDraft(formData: FormData) {
   let errorMessage: string | null = null;
 
   try {
-    draft = await suggestReply({ messageBody, childName, childAge, recentEvents });
+    draft = await suggestReply({ messageBody, childName, childAge, childAgeMonths, recentEvents });
   } catch (err) {
     console.error("OpenAI reply suggestion failed", err);
     errorMessage = "Não foi possível gerar a sugestão de resposta. Escreva manualmente.";

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { suggestEventFromMessage } from "@/lib/groq/suggestEvent";
 import { suggestReply } from "@/lib/groq/suggestReply";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
-import { ageLabel } from "@/lib/format";
+import { ageInMonths, ageLabel } from "@/lib/format";
 import type { Database, Json } from "@/lib/supabase/types";
 
 export type ConversationTurn = {
@@ -45,6 +45,7 @@ export async function recordConversationTurn(
 
   const childName = child?.name ?? null;
   const childAge = child ? ageLabel(child.birth_date) : null;
+  const childAgeMonths = child ? ageInMonths(child.birth_date) : null;
 
   const { data: recentEventsRaw } = child
     ? await supabase
@@ -94,6 +95,7 @@ export async function recordConversationTurn(
       messageBody: input.messageBody,
       childName,
       childAge,
+      childAgeMonths,
       recentEvents,
     }),
   ]);

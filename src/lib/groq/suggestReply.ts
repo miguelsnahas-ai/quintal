@@ -1,6 +1,7 @@
 import { createGroqClient } from "./client";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 import { getCustomInstructions } from "@/lib/ai-settings";
+import { searchKnowledge } from "@/lib/knowledge";
 
 // Same reasoning as suggestEvent.ts: openai/gpt-oss-120b, Groq's
 // recommended free-tier replacement for the deprecated
@@ -11,6 +12,7 @@ export async function suggestReply(input: {
   messageBody: string;
   childName: string | null;
   childAge: string | null;
+  childAgeMonths: number | null;
   recentEvents: { type: string; notes: string; occurredAt: string }[];
 }): Promise<string> {
   const client = createGroqClient();
@@ -32,7 +34,20 @@ ${
 }`
     : "Não há uma criança específica identificada para esta conversa.";
 
-  const customInstructions = await getCustomInstructions().catch(() => "");
+  const [customInstructions, knowledgeChunks] = await Promise.all([
+    getCustomInstructions().catch(() => ""),
+    searchKnowledge({
+      query: input.messageBody,
+      ageMonths: input.childAgeMonths,
+      limit: 5,
+    }).catch(() => []),
+  ]);
+
+  const knowledgeBlock = knowledgeChunks.length
+    ? `\n\nBase de conhecimento (materiais, brincadeiras, alimentação, sono, desenvolvimento, higiene, passeios) — use o que for relevante para enriquecer a resposta, adapte a linguagem ao tom de WhatsApp, não cite fontes, IDs ou nomes de categoria:\n${knowledgeChunks
+        .map((chunk) => `---\n${chunk.content}`)
+        .join("\n")}`
+    : "";
 
   const completion = await client.chat.completions.create({
     model: MODEL,
@@ -44,14 +59,15 @@ ${
 Escreva uma resposta curta (2 a 5 frases, tom de mensagem de WhatsApp), calorosa e prática, em português do Brasil, para a mensagem abaixo, usando o contexto da criança quando disponível.
 
 Regras importantes:
-- Baseie-se APENAS no que está no contexto e na mensagem. Nunca invente eventos, diagnósticos ou fatos que não foram informados.
+- Baseie-se APENAS no que está no contexto, na mensagem e na base de conhecimento abaixo (quando houver). Nunca invente eventos, diagnósticos ou fatos que não foram informados.
 - Não dê diagnóstico médico nem prometa resultados. Diante de sinais de saúde preocupantes, sugira conversar com o pediatra.
+- Segurança sempre tem prioridade sobre preferência da família: sono seguro (de barriga para cima, superfície firme, sem objetos soltos no berço), risco de engasgo com objetos/alimentos pequenos ou duros, nunca mel antes de 1 ano, supervisão constante perto de água, e qualquer sinal de alerta de saúde.
 - Seja acolhedor e específico à situação relatada, sem soar genérico ou robótico.
 - Responda só com o texto da mensagem em si, sem saudação de assinatura nem aspas ao redor.${
           customInstructions
             ? `\n\nInstruções adicionais definidas pela operadora:\n${customInstructions}`
             : ""
-        }`,
+        }${knowledgeBlock}`,
       },
       {
         role: "user",

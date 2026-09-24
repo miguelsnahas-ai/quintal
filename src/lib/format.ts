@@ -1,4 +1,4 @@
-export function ageLabel(birthDate: string | null): string | null {
+export function ageInMonths(birthDate: string | null): number | null {
   if (!birthDate) return null;
 
   const birth = new Date(birthDate);
@@ -8,7 +8,12 @@ export function ageLabel(birthDate: string | null): string | null {
     (now.getMonth() - birth.getMonth()) -
     (now.getDate() < birth.getDate() ? 1 : 0);
 
-  if (totalMonths < 0) return null;
+  return totalMonths < 0 ? null : totalMonths;
+}
+
+export function ageLabel(birthDate: string | null): string | null {
+  const totalMonths = ageInMonths(birthDate);
+  if (totalMonths === null) return null;
   if (totalMonths < 24) return `${totalMonths} ${totalMonths === 1 ? "mês" : "meses"}`;
 
   const years = Math.floor(totalMonths / 12);
