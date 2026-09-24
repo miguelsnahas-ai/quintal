@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createServiceClient } from "@/lib/supabase/service";
+import { getFamilySessionCaregiverId } from "@/lib/familySession";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, FieldError } from "@/components/ui/Field";
-import { TEST_ACCESS_COOKIE } from "@/lib/testAccess";
 import { startFamily } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Comece a testar o Quintal",
+  title: "Comece a usar o Quintal",
   robots: { index: false, follow: false },
 };
 
@@ -18,20 +16,10 @@ export default async function StartPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
-  const cookieStore = await cookies();
-  const rememberedCaregiverId = cookieStore.get(TEST_ACCESS_COOKIE)?.value;
 
-  if (rememberedCaregiverId) {
-    const supabase = createServiceClient();
-    const { data: caregiver } = await supabase
-      .from("caregivers")
-      .select("id")
-      .eq("id", rememberedCaregiverId)
-      .maybeSingle();
-
-    if (caregiver) {
-      redirect(`/test/${caregiver.id}`);
-    }
+  const existingCaregiverId = await getFamilySessionCaregiverId();
+  if (existingCaregiverId) {
+    redirect("/quintal");
   }
 
   return (
@@ -39,9 +27,9 @@ export default async function StartPage({
       <div className="mb-6 space-y-1 text-center">
         <h1 className="text-lg font-bold text-ink">Bem-vindo(a) ao Quintal</h1>
         <p className="text-sm text-ink-muted">
-          Conte um pouco sobre você para começar a conversar — leva menos de
-          um minuto, e a conversa continua de onde parou da próxima vez que
-          você abrir este link neste aparelho.
+          Conte um pouco sobre você e sobre a criança para começar — leva
+          menos de um minuto, e você volta direto para cá da próxima vez
+          que abrir este link neste aparelho.
         </p>
       </div>
 
@@ -62,15 +50,15 @@ export default async function StartPage({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="child_name">Nome do seu filho(a) (opcional)</Label>
-          <Input id="child_name" name="child_name" />
+          <Label htmlFor="child_name">Nome da criança</Label>
+          <Input id="child_name" name="child_name" required />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="child_birth_date">Data de nascimento (opcional)</Label>
-          <Input id="child_birth_date" name="child_birth_date" type="date" />
+          <Label htmlFor="child_birth_date">Data de nascimento</Label>
+          <Input id="child_birth_date" name="child_birth_date" type="date" required />
         </div>
         <Button type="submit" className="w-full">
-          Começar a conversar
+          Entrar no Quintal
         </Button>
       </form>
     </div>

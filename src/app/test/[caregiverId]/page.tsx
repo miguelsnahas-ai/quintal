@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
-import TestChat from "./TestChat";
+import ConversationChat from "@/components/conversation/ConversationChat";
+import { sendTestMessage } from "./actions";
 
 export const metadata: Metadata = {
   title: "Converse com o Quintal",
@@ -32,6 +33,8 @@ export default async function TestChatPage({
     .eq("family_id", caregiver.family_id)
     .order("name", { ascending: true });
 
+  const handleSend = sendTestMessage.bind(null, caregiver.id);
+
   return (
     <div className="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col px-4 py-6">
       <div className="mb-4 space-y-1">
@@ -42,9 +45,11 @@ export default async function TestChatPage({
           conversa fica salva para a equipe do Quintal revisar.
         </p>
       </div>
-      <TestChat
+      <ConversationChat
         caregiverId={caregiver.id}
         childrenList={childrenList ?? []}
+        onSend={handleSend}
+        rememberDevice
       />
     </div>
   );

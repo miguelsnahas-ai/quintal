@@ -2,20 +2,21 @@
 
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordConversationTurn } from "@/lib/conversation";
-
-export type TestChatTurn = {
-  role: "user" | "assistant";
-  content: string;
-};
+import type { ConversationTurn } from "@/components/conversation/ConversationChat";
 
 // No auth gate by design — this is the link a test caregiver opens on
 // their own phone/browser. It's scoped strictly to the caregiverId in the
 // URL (an unguessable UUID) and never exposes data from any other family.
-export async function sendTestMessage(input: {
-  caregiverId: string;
-  childId: string | null;
-  history: TestChatTurn[];
-}): Promise<{ reply: string }> {
+// This is an accepted tradeoff for an internal QA/pilot-link tool, not the
+// real product's access model — see /quintal for that (session-based,
+// documented in docs/ARCHITECTURE_TARGET.md).
+export async function sendTestMessage(
+  caregiverId: string,
+  input: {
+    childId: string | null;
+    history: ConversationTurn[];
+  },
+): Promise<{ reply: string }> {
   const supabase = createServiceClient();
 
   const lastUserMessage = [...input.history].reverse().find((turn) => turn.role === "user");
@@ -26,7 +27,7 @@ export async function sendTestMessage(input: {
   const { data: caregiver } = await supabase
     .from("caregivers")
     .select("id")
-    .eq("id", input.caregiverId)
+    .eq("id", caregiverId)
     .maybeSingle();
 
   if (!caregiver) {
@@ -46,7 +47,7 @@ export async function sendTestMessage(input: {
     const { data: caregiverFamily } = await supabase
       .from("caregivers")
       .select("family_id")
-      .eq("id", input.caregiverId)
+      .eq("id", caregiverId)
       .single();
     if (!child || child.family_id !== caregiverFamily?.family_id) {
       childId = null;
@@ -54,7 +55,7 @@ export async function sendTestMessage(input: {
   }
 
   const { reply } = await recordConversationTurn(supabase, {
-    caregiverId: input.caregiverId,
+    caregiverId,
     childId,
     messageBody: lastUserMessage.content,
     source: "test-link",

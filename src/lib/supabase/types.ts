@@ -36,6 +36,32 @@ export type Database = {
         }
         Relationships: []
       }
+      caregiver_sessions: {
+        Row: {
+          caregiver_id: string
+          created_at: string
+          token: string
+        }
+        Insert: {
+          caregiver_id: string
+          created_at?: string
+          token: string
+        }
+        Update: {
+          caregiver_id?: string
+          created_at?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caregiver_sessions_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       caregivers: {
         Row: {
           created_at: string

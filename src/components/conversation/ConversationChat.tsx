@@ -4,29 +4,56 @@ import { useEffect, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import { Input, Label, Select, FieldError } from "@/components/ui/Field";
 import { TEST_ACCESS_COOKIE } from "@/lib/testAccess";
-import { sendTestMessage, type TestChatTurn } from "./actions";
+
+export type ConversationTurn = {
+  role: "user" | "assistant";
+  content: string;
+};
 
 type Child = {
   id: string;
   name: string;
 };
 
-export default function TestChat({
+// Shared by /test/[caregiverId] (internal QA/pilot-link tool) and /quintal
+// (the real product experience) — same chat UI and client-side behavior,
+// wired to whatever server action each page passes in via `onSend`. Keeps
+// the two call sites from re-implementing the same message list, draft
+// state and pending/error handling twice.
+export default function ConversationChat({
   caregiverId,
   childrenList,
+  initialMessages = [],
+  onSend,
+  rememberDevice = false,
 }: {
   caregiverId: string;
   childrenList: Child[];
+  initialMessages?: ConversationTurn[];
+  onSend: (input: {
+    childId: string | null;
+    history: ConversationTurn[];
+  }) => Promise<{ reply: string }>;
+  rememberDevice?: boolean;
 }) {
-  const [childId, setChildId] = useState("");
-  const [messages, setMessages] = useState<TestChatTurn[]>([]);
+  // Auto-select when there's exactly one child — previously this stayed
+  // unset even with a single child (the selector only ever appeared for
+  // 2+), so the conversation silently ran with no child context at all
+  // for the single-child case, the most common one.
+  const [childId, setChildId] = useState(
+    childrenList.length === 1 ? childrenList[0].id : "",
+  );
+  const [messages, setMessages] = useState<ConversationTurn[]>(initialMessages);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Lets /comecar recognize this browser on a later visit and skip
   // straight back to this same chat instead of creating a new family.
+  // Only relevant for /test's own device-memory convenience — /quintal
+  // has a real session cookie instead and passes rememberDevice={false}.
   useEffect(() => {
+    if (!rememberDevice) return;
     try {
       const maxAgeSeconds = 60 * 60 * 24 * 180;
       document.cookie = `${TEST_ACCESS_COOKIE}=${caregiverId}; path=/; max-age=${maxAgeSeconds}; samesite=lax`;
@@ -34,7 +61,7 @@ export default function TestChat({
       // Cookie access can fail in some private-browsing contexts — losing
       // the "remember this device" convenience is fine, chat still works.
     }
-  }, [caregiverId]);
+  }, [rememberDevice, caregiverId]);
 
   function sendMessage() {
     const text = draft.trim();
@@ -42,16 +69,12 @@ export default function TestChat({
 
     setError(null);
     setDraft("");
-    const nextHistory: TestChatTurn[] = [...messages, { role: "user", content: text }];
+    const nextHistory: ConversationTurn[] = [...messages, { role: "user", content: text }];
     setMessages(nextHistory);
 
     startTransition(async () => {
       try {
-        const { reply } = await sendTestMessage({
-          caregiverId,
-          childId: childId || null,
-          history: nextHistory,
-        });
+        const { reply } = await onSend({ childId: childId || null, history: nextHistory });
         setMessages((current) => [...current, { role: "assistant", content: reply }]);
       } catch {
         setError("Não foi possível enviar. Tente de novo.");
