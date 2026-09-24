@@ -47,20 +47,36 @@ export async function recordConversationTurn(
   const childAge = child ? ageLabel(child.birth_date) : null;
   const childAgeMonths = child ? ageInMonths(child.birth_date) : null;
 
-  const { data: recentEventsRaw } = child
-    ? await supabase
-        .from("events")
-        .select("type, notes, occurred_at")
-        .eq("child_id", child.id)
-        .order("occurred_at", { ascending: false })
-        .limit(10)
-    : { data: null };
+  const [{ data: recentEventsRaw }, { data: recentMessagesRaw }] = await Promise.all([
+    child
+      ? supabase
+          .from("events")
+          .select("type, notes, occurred_at")
+          .eq("child_id", child.id)
+          .order("occurred_at", { ascending: false })
+          .limit(10)
+      : Promise.resolve({ data: null }),
+    // Fetched before this turn's inbound row is inserted below, so this is
+    // exactly "the conversation so far" — no need to exclude the current
+    // message from the window.
+    supabase
+      .from("messages")
+      .select("direction, body")
+      .eq("family_id", caregiver.family_id)
+      .not("body", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
 
   const recentEvents = (recentEventsRaw ?? []).map((event) => ({
     type: event.type,
     notes: event.notes,
     occurredAt: event.occurred_at,
   }));
+
+  const recentMessages = (recentMessagesRaw ?? [])
+    .reverse()
+    .map((message) => ({ direction: message.direction, body: message.body! }));
 
   // Real inbound record — same shape the WhatsApp webhook would produce,
   // marked "sim-" so it's flagged as not having come through the real
@@ -97,8 +113,31 @@ export async function recordConversationTurn(
       childAge,
       childAgeMonths,
       recentEvents,
+      recentMessages,
     }),
   ]);
+
+  // Auto-recorded only when the classifier is confident this message
+  // describes something concrete (see suggestEventFromMessage's
+  // isConcreteEvent) — this path has no human reviewing the suggestion
+  // before it's saved, unlike the inbox triage flow, so a vague/generic
+  // message (a greeting, a question) is deliberately left unlogged rather
+  // than polluting the child's event history.
+  let recordedEventTypeLabel: string | null = null;
+  if (suggestion?.isConcreteEvent && input.childId) {
+    const { error: eventError } = await supabase.from("events").insert({
+      child_id: input.childId,
+      type: suggestion.type,
+      notes: suggestion.notes,
+      source_message_id: inboundMessage.id,
+    });
+
+    if (eventError) {
+      console.error("Failed to auto-record event from conversation", eventError);
+    } else {
+      recordedEventTypeLabel = eventTypeLabels[suggestion.type as EventType];
+    }
+  }
 
   // Auto-saved as a real outbound record by design: this chat is meant to
   // flow like a live conversation. Nothing here calls the WhatsApp Cloud
@@ -126,7 +165,7 @@ export async function recordConversationTurn(
     .eq("id", inboundMessage.id);
 
   return {
-    eventTypeLabel: suggestion ? eventTypeLabels[suggestion.type as EventType] : null,
+    eventTypeLabel: recordedEventTypeLabel,
     reply,
     inboundMessageId: inboundMessage.id,
   };

@@ -14,6 +14,7 @@ export async function suggestReply(input: {
   childAge: string | null;
   childAgeMonths: number | null;
   recentEvents: { type: string; notes: string; occurredAt: string }[];
+  recentMessages: { direction: string; body: string }[];
 }): Promise<string> {
   const client = createGroqClient();
 
@@ -48,6 +49,15 @@ ${
         .join("\n")}`
     : "";
 
+  // Without this, each reply is generated blind to everything said earlier
+  // in the same conversation — a parent saying "ele fez de novo" has no
+  // "de novo" to point to unless it happens to already be a logged event.
+  const conversationHistoryBlock = input.recentMessages.length
+    ? `Histórico recente da conversa (mais antigas primeiro, para você entender o contexto — não repita nem resuma isso na resposta):\n${input.recentMessages
+        .map((message) => `${message.direction === "inbound" ? "Pai/mãe" : "Quintal"}: ${message.body}`)
+        .join("\n")}\n\n`
+    : "";
+
   const completion = await client.chat.completions.create({
     model: MODEL,
     messages: [
@@ -70,7 +80,7 @@ Regras importantes:
       },
       {
         role: "user",
-        content: `${contextBlock}\n\nMensagem do pai/mãe: "${input.messageBody}"`,
+        content: `${conversationHistoryBlock}${contextBlock}\n\nMensagem atual do pai/mãe: "${input.messageBody}"`,
       },
     ],
   });

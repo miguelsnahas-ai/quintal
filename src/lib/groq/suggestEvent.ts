@@ -13,6 +13,7 @@ const MODEL = "openai/gpt-oss-120b";
 const suggestionSchema = z.object({
   type: z.enum(eventTypes),
   notes: z.string(),
+  isConcreteEvent: z.boolean(),
 });
 
 export type EventSuggestion = z.infer<typeof suggestionSchema>;
@@ -43,9 +44,11 @@ ${categoriesList}
 
 Também escreva "notes": uma reescrita curta e fiel da mensagem, em português, preservando os fatos relevantes (o que aconteceu, quando, como a criança reagiu). Nunca invente informação que não esteja na mensagem — se ela já for curta e clara, pode mantê-la quase como está.
 
-Sua sugestão é sempre revisada por um humano antes de ser salva. Na dúvida entre dois tipos, escolha o mais provável.
+Também avalie "isConcreteEvent": true SOMENTE se a mensagem descreve algo concreto que realmente aconteceu (um episódio de sono, uma refeição, uma reação, um marco de desenvolvimento, algo observado). Use false para cumprimentos, perguntas genéricas, agradecimentos, dúvidas sem relato de fato, ou qualquer mensagem vaga demais para virar um registro útil — mesmo assim escolha o "type" mais provável nesses casos, já que o campo é obrigatório.
 
-Responda APENAS com um objeto JSON no formato exato: {"type": "<um dos tipos acima>", "notes": "<string>"}. Nenhum texto fora do JSON.${
+Em alguns fluxos sua sugestão é revisada por um humano antes de ser salva; em outros (quando "isConcreteEvent" for true) ela é salva automaticamente — por isso o critério de "isConcreteEvent" precisa ser conservador. Na dúvida entre dois tipos, escolha o mais provável.
+
+Responda APENAS com um objeto JSON no formato exato: {"type": "<um dos tipos acima>", "notes": "<string>", "isConcreteEvent": <true|false>}. Nenhum texto fora do JSON.${
           customInstructions
             ? `\n\nInstruções adicionais definidas pela operadora:\n${customInstructions}`
             : ""

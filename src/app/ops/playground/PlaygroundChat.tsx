@@ -148,7 +148,7 @@ export default function PlaygroundChat({
                 }`}
               >
                 {message.role === "assistant" && message.eventTypeLabel && (
-                  <Badge className="mb-1">{message.eventTypeLabel}</Badge>
+                  <Badge className="mb-1">Evento registrado: {message.eventTypeLabel}</Badge>
                 )}
                 <p className="whitespace-pre-wrap">{message.content}</p>
               </div>

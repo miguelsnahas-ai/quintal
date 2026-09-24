@@ -137,13 +137,40 @@ export async function suggestReplyDraft(formData: FormData) {
     childAgeMonths = child ? ageInMonths(child.birth_date) : null;
   }
 
+  let recentMessages: { direction: string; body: string }[] = [];
+  const { data: currentMessage } = await supabase
+    .from("messages")
+    .select("family_id")
+    .eq("id", messageId)
+    .maybeSingle();
+  if (currentMessage?.family_id) {
+    const { data: messages } = await supabase
+      .from("messages")
+      .select("direction, body")
+      .eq("family_id", currentMessage.family_id)
+      .neq("id", messageId)
+      .not("body", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(8);
+    recentMessages = (messages ?? [])
+      .reverse()
+      .map((message) => ({ direction: message.direction, body: message.body! }));
+  }
+
   // Same reasoning as suggestEvent above: redirect() must stay outside
   // this try/catch.
   let draft: string | null = null;
   let errorMessage: string | null = null;
 
   try {
-    draft = await suggestReply({ messageBody, childName, childAge, childAgeMonths, recentEvents });
+    draft = await suggestReply({
+      messageBody,
+      childName,
+      childAge,
+      childAgeMonths,
+      recentEvents,
+      recentMessages,
+    });
   } catch (err) {
     console.error("OpenAI reply suggestion failed", err);
     errorMessage = "Não foi possível gerar a sugestão de resposta. Escreva manualmente.";
