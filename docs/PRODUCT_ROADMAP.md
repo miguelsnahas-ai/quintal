@@ -98,10 +98,89 @@ autenticação completo, sem novas features grandes.
   falha no meio pode deixar uma família órfã sem criança. Não foi
   corrigido aqui por estar fora do escopo pedido para a Fase 2.
 
-## Fase 3 — candidatos (não implementados)
+## Fase 3 — ChildContext / memória da criança (concluída)
 
-Nenhum destes foi tocado nesta fase, por pedido explícito. Em ordem
-sugerida de valor/risco:
+Objetivo: o Quintal deixar de responder só com base na última mensagem e
+passar a considerar o contexto recente da criança — sem arquitetura de
+memória complexa, sem embeddings, sem vector database, sem tabelas novas.
+
+### O que foi entregue
+
+1. **`getChildContext(supabase, childId)`** (`src/lib/childContext.ts`) —
+   a única porta pela qual `suggestEventFromMessage` e `suggestReply`
+   enxergam dados de uma criança. Substitui três cópias quase idênticas
+   da mesma lógica ad hoc que existiam em `conversation.ts` e nas duas
+   actions da triagem (`suggestEvent`, `suggestReplyDraft`).
+2. **Distinção conceitual** entre histórico (mensagens, escopo família),
+   memória (dados permanentes da criança + observações/decisões
+   recentes), evento (o que aconteceu) e decisão (o que foi decidido) —
+   detalhada em `docs/ARCHITECTURE_TARGET.md`.
+3. **Limites determinísticos e documentados**: 10 eventos de atividade
+   (sono/rotina/livre-brincar/desenvolvimento), 5 observações, 5 decisões,
+   8 mensagens de histórico — tudo hardcoded e comentado em código, nada
+   configurável ainda.
+4. **`suggestReply`/`suggestEventFromMessage` não conhecem mais tabelas**
+   — recebem um `ChildContext` já pronto; quem sabe transformar isso em
+   texto de prompt é `formatChildContextForPrompt`, não a função de IA.
+5. **Isolamento entre crianças da mesma família testado e confirmado**
+   (ver "Testes realizados" em `docs/ARCHITECTURE_TARGET.md`).
+
+### Mudanças de banco
+
+Nenhuma. `events` já tinha tudo que era necessário (`type`, `notes`,
+`occurred_at`, `child_id`) — esta fase só mudou como o código consulta
+essa tabela, não o schema.
+
+### Arquivos principais alterados
+
+- `src/lib/childContext.ts` (novo) — o serviço em si + o formatador de
+  prompt.
+- `src/lib/conversation.ts` — passou a chamar `getChildContext` em vez de
+  buscar eventos/idade diretamente; exporta `RECENT_MESSAGES_LIMIT`.
+- `src/lib/groq/suggestReply.ts` e `suggestEvent.ts` — assinatura trocada
+  de campos soltos (`childName`, `childAge`, `recentEvents`...) para
+  `childContext: ChildContext | null`.
+- `src/app/ops/inbox/[messageId]/actions.ts` e `page.tsx` — as duas
+  actions de IA da triagem agora usam `getChildContext` também; campos
+  hidden `child_name`/`child_age` (que ficaram sem uso) foram removidos
+  do formulário.
+
+### Como testar manualmente
+
+Sem framework de testes automatizados no repositório. Verificação feita
+diretamente contra o schema real (Supabase `izattwaiqjzhydzhxlns`), numa
+transação `begin`/`rollback` — nenhum dado de teste ficou no banco. Os
+quatro casos pedidos (criança sem eventos; criança com eventos recentes;
+criança com muitos eventos antigos; duas crianças na mesma família sem
+contaminação) estão detalhados, com os números exatos obtidos, em
+`docs/ARCHITECTURE_TARGET.md` → "ChildContext (Fase 3)" → "Testes
+realizados". Para reproduzir localmente com a IA de verdade (não
+disponível no sandbox de desenvolvimento, rede bloqueada para
+`api.groq.com`): cadastrar uma criança com alguns eventos de tipos
+diferentes em `/ops/children/[id]`, depois conversar sobre ela em
+`/ops/playground`, `/test/[caregiverId]` ou `/quintal` e confirmar que a
+resposta reflete esse histórico.
+
+### Limitações conhecidas desta fase
+
+- **Histórico de mensagens continua por família, não por criança** —
+  `messages` não tem coluna `child_id`. Numa família com duas crianças, a
+  IA pode ver mensagens sobre a outra criança na seção de "histórico da
+  conversa" (que fica fora do `ChildContext`, deliberadamente — ver
+  ARCHITECTURE_TARGET.md). Eventos/observações/decisões, por outro lado,
+  são 100% isolados por criança.
+- **Sem memória permanente explícita** — "memória" nesta fase é só
+  observação/decisão recente; não há uma tabela de fatos duráveis (ex.:
+  "tem alergia a X") fora do que já existe em `events`/`children.notes`.
+- **Limites fixos no código**, não ajustáveis por configuração.
+- **Sem teste de ponta a ponta com a IA real** — a montagem do prompt foi
+  revisada por leitura de código; a chamada real ao Groq não pôde ser
+  reproduzida neste ambiente de desenvolvimento (mesma limitação de rede
+  de sempre).
+
+## Fase 4 — candidatos (não implementados)
+
+Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
 1. **Autenticação real de família** (provavelmente via WhatsApp
    verificado) — resolve a limitação de "só funciona neste aparelho" e
@@ -111,11 +190,18 @@ sugerida de valor/risco:
    `docs/ARCHITECTURE_TARGET.md`. Decisão de produto pendente: resposta
    100% automática, rascunho com aprovação do operador, ou só para uma
    lista fechada de números-piloto (ver a proposta já dada ao usuário
-   antes desta fase).
-3. **Feedback do usuário real em `/quintal`** — hoje só o operador registra
+   antes da Fase 2).
+3. **Mensagens vinculadas a uma criança específica** (`child_id` em
+   `messages`, ou tabela de junção) — remove a limitação de histórico
+   "por família" descrita acima e permite `ChildContext` incluir
+   conversa de forma 100% isolada.
+4. **Fatos permanentes explícitos da criança** (ex.: alergias,
+   preferências) — próximo passo natural de memória, ainda sem
+   embeddings.
+5. **Feedback do usuário real em `/quintal`** — hoje só o operador registra
    "ajudou?" pela Inbox; a família não tem como avaliar a resposta que
    recebeu.
-4. **Suporte real a múltiplas crianças** na experiência principal, não só
+6. **Suporte real a múltiplas crianças** na experiência principal, não só
    no seletor.
-5. **Transação na criação de família** (`/comecar`) para eliminar o risco
+7. **Transação na criação de família** (`/comecar`) para eliminar o risco
    de registros órfãos.

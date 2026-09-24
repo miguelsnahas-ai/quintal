@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { suggestEventFromMessage } from "@/lib/groq/suggestEvent";
 import { suggestReply } from "@/lib/groq/suggestReply";
+import { getChildContext } from "@/lib/childContext";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
-import { ageInMonths, ageLabel } from "@/lib/format";
 import type { Database, Json } from "@/lib/supabase/types";
 
 export type ConversationTurn = {
@@ -12,10 +12,19 @@ export type ConversationTurn = {
   eventTypeLabel?: string;
 };
 
-// Shared by the authenticated playground (/ops/playground) and the public
-// test-user chat (/test/[caregiverId]) — same recording logic, just called
-// with a different Supabase client (session-scoped vs. service-role) and a
-// different `source` tag on raw_payload for auditing.
+// How many recent family messages count as conversational "histórico" —
+// distinct from ChildContext's own limits (see src/lib/childContext.ts),
+// since messages have no child_id in the current schema and are
+// inherently family-scoped, not child-scoped. Shared with the inbox
+// triage's own suggestReplyDraft action so both call sites agree on the
+// same window.
+export const RECENT_MESSAGES_LIMIT = 8;
+
+// Shared by the authenticated playground (/ops/playground), the public
+// test-user chat (/test/[caregiverId]) and the real product experience
+// (/quintal) — same recording logic, just called with a different
+// Supabase client (session-scoped vs. service-role) and a different
+// `source` tag on raw_payload for auditing.
 export async function recordConversationTurn(
   supabase: SupabaseClient<Database>,
   input: {
@@ -35,44 +44,22 @@ export async function recordConversationTurn(
     throw new Error("Cuidador não encontrado.");
   }
 
-  const { data: child } = input.childId
-    ? await supabase
-        .from("children")
-        .select("id, name, birth_date")
-        .eq("id", input.childId)
-        .maybeSingle()
-    : { data: null };
-
-  const childName = child?.name ?? null;
-  const childAge = child ? ageLabel(child.birth_date) : null;
-  const childAgeMonths = child ? ageInMonths(child.birth_date) : null;
-
-  const [{ data: recentEventsRaw }, { data: recentMessagesRaw }] = await Promise.all([
-    child
-      ? supabase
-          .from("events")
-          .select("type, notes, occurred_at")
-          .eq("child_id", child.id)
-          .order("occurred_at", { ascending: false })
-          .limit(10)
-      : Promise.resolve({ data: null }),
+  const [childContext, { data: recentMessagesRaw }] = await Promise.all([
+    input.childId ? getChildContext(supabase, input.childId) : Promise.resolve(null),
     // Fetched before this turn's inbound row is inserted below, so this is
     // exactly "the conversation so far" — no need to exclude the current
-    // message from the window.
+    // message from the window. Scoped by family, not by child: `messages`
+    // has no child_id column, so in a family with more than one child this
+    // window can include messages about a sibling — see
+    // docs/ARCHITECTURE_TARGET.md.
     supabase
       .from("messages")
       .select("direction, body")
       .eq("family_id", caregiver.family_id)
       .not("body", "is", null)
       .order("created_at", { ascending: false })
-      .limit(8),
+      .limit(RECENT_MESSAGES_LIMIT),
   ]);
-
-  const recentEvents = (recentEventsRaw ?? []).map((event) => ({
-    type: event.type,
-    notes: event.notes,
-    occurredAt: event.occurred_at,
-  }));
 
   const recentMessages = (recentMessagesRaw ?? [])
     .reverse()
@@ -104,15 +91,11 @@ export async function recordConversationTurn(
   const [suggestion, reply] = await Promise.all([
     suggestEventFromMessage({
       messageBody: input.messageBody,
-      childName: childName ?? "Criança não identificada",
-      childAge,
+      childContext,
     }).catch(() => null),
     suggestReply({
       messageBody: input.messageBody,
-      childName,
-      childAge,
-      childAgeMonths,
-      recentEvents,
+      childContext,
       recentMessages,
     }),
   ]);

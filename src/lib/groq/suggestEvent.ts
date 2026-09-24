@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createGroqClient } from "./client";
 import { eventTypeLabels, eventTypes } from "@/lib/validation/events";
 import { getCustomInstructions } from "@/lib/ai-settings";
+import type { ChildContext } from "@/lib/childContext";
 
 // llama-3.3-70b-versatile (used here previously) was deprecated by Groq
 // in June 2026; openai/gpt-oss-120b is their recommended free-tier
@@ -20,10 +21,11 @@ export type EventSuggestion = z.infer<typeof suggestionSchema>;
 
 export async function suggestEventFromMessage(input: {
   messageBody: string;
-  childName: string;
-  childAge: string | null;
+  childContext: ChildContext | null;
 }): Promise<EventSuggestion> {
   const client = createGroqClient();
+  const childName = input.childContext?.child.name ?? "Criança não identificada";
+  const childAge = input.childContext?.age.label ?? null;
 
   const categoriesList = eventTypes
     .map((type) => `- ${type}: ${eventTypeLabels[type]}`)
@@ -56,7 +58,7 @@ Responda APENAS com um objeto JSON no formato exato: {"type": "<um dos tipos aci
       },
       {
         role: "user",
-        content: `Criança: ${input.childName}${input.childAge ? ` (${input.childAge})` : ""}\nMensagem recebida: "${input.messageBody}"`,
+        content: `Criança: ${childName}${childAge ? ` (${childAge})` : ""}\nMensagem recebida: "${input.messageBody}"`,
       },
     ],
   });

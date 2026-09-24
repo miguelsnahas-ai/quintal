@@ -211,8 +211,6 @@ export default async function TriageMessagePage({
                       <input type="hidden" name="message_id" value={message.id} />
                       <input type="hidden" name="child_id" value={selectedChild.id} />
                       <input type="hidden" name="message_body" value={message.body ?? ""} />
-                      <input type="hidden" name="child_name" value={selectedChild.name} />
-                      <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
                       <Button type="submit" variant="secondary" className="px-3 py-1.5 text-xs">
                         <Sparkles className="h-3.5 w-3.5" aria-hidden />
                         Sugerir com IA
@@ -282,8 +280,6 @@ export default async function TriageMessagePage({
                     <input type="hidden" name="message_id" value={message.id} />
                     <input type="hidden" name="child_id" value={selectedChild?.id ?? ""} />
                     <input type="hidden" name="message_body" value={message.body ?? ""} />
-                    <input type="hidden" name="child_name" value={selectedChild?.name ?? ""} />
-                    <input type="hidden" name="child_age" value={selectedChildAge ?? ""} />
                     <Button type="submit" variant="secondary" className="px-3 py-1.5 text-xs">
                       <Sparkles className="h-3.5 w-3.5" aria-hidden />
                       Sugerir resposta com IA

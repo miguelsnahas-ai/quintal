@@ -1,7 +1,7 @@
 import { createGroqClient } from "./client";
-import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 import { getCustomInstructions } from "@/lib/ai-settings";
 import { searchKnowledge } from "@/lib/knowledge";
+import { formatChildContextForPrompt, type ChildContext } from "@/lib/childContext";
 
 // Same reasoning as suggestEvent.ts: openai/gpt-oss-120b, Groq's
 // recommended free-tier replacement for the deprecated
@@ -10,36 +10,20 @@ const MODEL = "openai/gpt-oss-120b";
 
 export async function suggestReply(input: {
   messageBody: string;
-  childName: string | null;
-  childAge: string | null;
-  childAgeMonths: number | null;
-  recentEvents: { type: string; notes: string; occurredAt: string }[];
+  childContext: ChildContext | null;
   recentMessages: { direction: string; body: string }[];
 }): Promise<string> {
   const client = createGroqClient();
 
-  const contextBlock = input.childName
-    ? `Criança: ${input.childName}${input.childAge ? ` (${input.childAge})` : ""}
-
-Histórico recente:
-${
-  input.recentEvents.length
-    ? input.recentEvents
-        .map((event) => {
-          const label = eventTypeLabels[event.type as EventType] ?? event.type;
-          const date = new Date(event.occurredAt).toLocaleDateString("pt-BR");
-          return `- [${label}] ${date}: ${event.notes}`;
-        })
-        .join("\n")
-    : "Nenhum evento registrado ainda."
-}`
+  const contextBlock = input.childContext
+    ? formatChildContextForPrompt(input.childContext)
     : "Não há uma criança específica identificada para esta conversa.";
 
   const [customInstructions, knowledgeChunks] = await Promise.all([
     getCustomInstructions().catch(() => ""),
     searchKnowledge({
       query: input.messageBody,
-      ageMonths: input.childAgeMonths,
+      ageMonths: input.childContext?.age.months ?? null,
     }).catch(() => []),
   ]);
 

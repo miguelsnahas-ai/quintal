@@ -7,7 +7,8 @@ import { eventInputSchema } from "@/lib/validation/events";
 import { suggestEventFromMessage, type EventSuggestion } from "@/lib/groq/suggestEvent";
 import { suggestReply } from "@/lib/groq/suggestReply";
 import { sendWhatsAppTextMessage } from "@/lib/whatsapp/send";
-import { ageInMonths } from "@/lib/format";
+import { getChildContext } from "@/lib/childContext";
+import { RECENT_MESSAGES_LIMIT } from "@/lib/conversation";
 import type { Json } from "@/lib/supabase/types";
 
 export async function createEventFromMessage(formData: FormData) {
@@ -72,9 +73,6 @@ export async function suggestEvent(formData: FormData) {
   const messageId = String(formData.get("message_id") ?? "");
   const childId = String(formData.get("child_id") ?? "");
   const messageBody = String(formData.get("message_body") ?? "");
-  const childName = String(formData.get("child_name") ?? "");
-  const childAgeRaw = formData.get("child_age");
-  const childAge = childAgeRaw ? String(childAgeRaw) : null;
 
   // The redirect below must happen outside this try/catch: redirect()
   // works by throwing, and a catch here would otherwise treat a
@@ -83,7 +81,8 @@ export async function suggestEvent(formData: FormData) {
   let errorMessage: string | null = null;
 
   try {
-    suggestion = await suggestEventFromMessage({ messageBody, childName, childAge });
+    const childContext = childId ? await getChildContext(supabase, childId) : null;
+    suggestion = await suggestEventFromMessage({ messageBody, childContext });
   } catch (err) {
     console.error("OpenAI event suggestion failed", err);
     errorMessage = "Não foi possível gerar a sugestão. Tente novamente ou preencha manualmente.";
@@ -113,29 +112,8 @@ export async function suggestReplyDraft(formData: FormData) {
   const messageId = String(formData.get("message_id") ?? "");
   const childId = formData.get("child_id") ? String(formData.get("child_id")) : null;
   const messageBody = String(formData.get("message_body") ?? "");
-  const childName = formData.get("child_name") ? String(formData.get("child_name")) : null;
-  const childAgeRaw = formData.get("child_age");
-  const childAge = childAgeRaw ? String(childAgeRaw) : null;
 
-  let recentEvents: { type: string; notes: string; occurredAt: string }[] = [];
-  let childAgeMonths: number | null = null;
-  if (childId) {
-    const [{ data: events }, { data: child }] = await Promise.all([
-      supabase
-        .from("events")
-        .select("type, notes, occurred_at")
-        .eq("child_id", childId)
-        .order("occurred_at", { ascending: false })
-        .limit(10),
-      supabase.from("children").select("birth_date").eq("id", childId).maybeSingle(),
-    ]);
-    recentEvents = (events ?? []).map((event) => ({
-      type: event.type,
-      notes: event.notes,
-      occurredAt: event.occurred_at,
-    }));
-    childAgeMonths = child ? ageInMonths(child.birth_date) : null;
-  }
+  const childContext = childId ? await getChildContext(supabase, childId) : null;
 
   let recentMessages: { direction: string; body: string }[] = [];
   const { data: currentMessage } = await supabase
@@ -151,7 +129,7 @@ export async function suggestReplyDraft(formData: FormData) {
       .neq("id", messageId)
       .not("body", "is", null)
       .order("created_at", { ascending: false })
-      .limit(8);
+      .limit(RECENT_MESSAGES_LIMIT);
     recentMessages = (messages ?? [])
       .reverse()
       .map((message) => ({ direction: message.direction, body: message.body! }));
@@ -165,10 +143,7 @@ export async function suggestReplyDraft(formData: FormData) {
   try {
     draft = await suggestReply({
       messageBody,
-      childName,
-      childAge,
-      childAgeMonths,
-      recentEvents,
+      childContext,
       recentMessages,
     });
   } catch (err) {
