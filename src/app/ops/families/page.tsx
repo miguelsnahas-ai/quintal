@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { headers } from "next/headers";
+import { Send, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/Button";
 import { Card, cardClassName } from "@/components/ui/Card";
@@ -13,6 +14,8 @@ export default async function FamiliesPage({
 }) {
   const { error } = await searchParams;
   const supabase = await createClient();
+  const headersList = await headers();
+  const origin = `${headersList.get("x-forwarded-proto") ?? "https"}://${headersList.get("host")}`;
   const { data: families } = await supabase
     .from("families")
     .select("id, name, notes, created_at")
@@ -26,6 +29,21 @@ export default async function FamiliesPage({
           Cadastro das famílias atendidas pelo concierge.
         </p>
       </div>
+
+      <section className={cardClassName("space-y-2 p-4")}>
+        <div className="flex items-center gap-1.5 text-sm font-medium text-ink">
+          <Send className="h-4 w-4 text-tertiary" aria-hidden />
+          Link para pais testarem sozinhos
+        </div>
+        <p className="text-sm text-ink-muted">
+          Mande este link para quem você quer que teste o Quintal — a pessoa
+          cadastra a própria família e já começa a conversar, sem precisar
+          de nada feito aqui antes.
+        </p>
+        <p className="truncate rounded-sm border border-neutral bg-secondary/40 px-3 py-2 text-sm text-ink">
+          {origin}/comecar
+        </p>
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-ink">Adicionar família</h2>

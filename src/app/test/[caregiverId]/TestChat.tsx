@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import { Input, Label, Select, FieldError } from "@/components/ui/Field";
+import { TEST_ACCESS_COOKIE } from "@/lib/testAccess";
 import { sendTestMessage, type TestChatTurn } from "./actions";
 
 type Child = {
@@ -22,6 +23,18 @@ export default function TestChat({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Lets /comecar recognize this browser on a later visit and skip
+  // straight back to this same chat instead of creating a new family.
+  useEffect(() => {
+    try {
+      const maxAgeSeconds = 60 * 60 * 24 * 180;
+      document.cookie = `${TEST_ACCESS_COOKIE}=${caregiverId}; path=/; max-age=${maxAgeSeconds}; samesite=lax`;
+    } catch {
+      // Cookie access can fail in some private-browsing contexts — losing
+      // the "remember this device" convenience is fine, chat still works.
+    }
+  }, [caregiverId]);
 
   function sendMessage() {
     const text = draft.trim();
