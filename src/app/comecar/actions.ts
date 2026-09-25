@@ -40,6 +40,34 @@ export async function startFamily(formData: FormData) {
 
   const supabase = createServiceClient();
 
+  // Checked before creating anything: a phone that already has a
+  // caregiver record would otherwise reach the family/caregiver inserts
+  // below, fail on caregivers.phone_number's unique constraint, and leave
+  // behind an orphaned `families` row (the family insert succeeds before
+  // the caregiver insert fails) — exactly the bug reported 2026-09-25,
+  // reproduced 3x in a row because the generic error gave no way out of
+  // retrying with the same phone. Instead, treat "this number is already
+  // registered" as a welcome-back: open a session for the existing
+  // caregiver and skip straight to /quintal.
+  const { data: existingCaregiver } = await supabase
+    .from("caregivers")
+    .select("id")
+    .eq("phone_number", phone)
+    .maybeSingle();
+
+  if (existingCaregiver) {
+    try {
+      await createFamilySession(existingCaregiver.id);
+    } catch {
+      redirect(
+        `/comecar?error=${encodeURIComponent(
+          "Esse WhatsApp já está cadastrado, mas não foi possível abrir sua sessão. Tente de novo.",
+        )}`,
+      );
+    }
+    redirect("/quintal");
+  }
+
   const { data: family, error: familyError } = await supabase
     .from("families")
     .insert({
