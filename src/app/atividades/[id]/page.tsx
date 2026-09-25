@@ -34,6 +34,15 @@ export default async function ActivityPage({
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-8">
+      {activity.imageUrl && (
+        // External Drive-hosted URL, not a local/optimizable asset (see activity.ts).
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={activity.imageUrl}
+          alt={activity.title}
+          className="aspect-[4/3] w-full rounded-lg object-cover"
+        />
+      )}
       <div className="space-y-1">
         <h1 className="text-xl font-bold text-ink">{activity.title}</h1>
         {activity.ageDisplayLabel && (

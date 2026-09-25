@@ -251,6 +251,83 @@ conteúdo em si.
   verificados direto contra o banco real; a chamada ao Groq que decide o
   `activityId` não pôde ser reproduzida aqui.
 
+## Fase 4.1 — banco de imagens de atividades (concluída)
+
+Não uma fase pedida como bloco fechado — resposta a um pedido pontual: a
+usuária começou a montar, à mão, um banco de imagens no Google Drive
+(pastas `materiais`/`brincadeiras`, arquivos nomeados pelo id da linha —
+`mat-031.png`, `bri-001.png`) e pediu para essas imagens aparecerem na
+interface.
+
+### O que foi entregue
+
+1. **`knowledge_chunks.image_url`** (coluna nova, nullable) — o mesmo
+   padrão de "coluna mínima, não tabela nova" já usado em
+   `messages.activity_id`.
+2. **`scripts/knowledge-base/sync_activity_images.py`** — script reutilizável
+   que transforma uma lista `filename,fileId` (montada a partir de uma
+   busca no Drive) em `UPDATE` SQL, no mesmo espírito do
+   `sync_knowledge_base.py` já existente. Necessário porque o banco de
+   imagens é pequeno e vai crescer aos poucos — não faz sentido automatizar
+   o lado do Drive, só o último passo (gerar e aplicar o SQL) precisa ser
+   repetível.
+3. **17 imagens sincronizadas** (15 de `materiais`, 2 de `brincadeiras` —
+   todas as que existiam no Drive nesta data) via esse script.
+4. **`ActivitySummary`/`Activity`** ganharam `imageUrl`. `ActivityCard`
+   mostra a foto como avatar circular quando existe (ícone padrão quando
+   não); `/atividades/[id]` mostra a foto em destaque no topo da página.
+
+### Por que Google Drive e não Supabase Storage
+
+Arquiteturalmente, Supabase Storage seria o destino consistente com o
+resto do projeto (tudo mais passa por Supabase). Não foi usado porque
+subir os bytes de uma imagem para o Storage exige uma chamada à API REST
+própria do Storage, e o ambiente de desenvolvimento usado nesta sessão
+bloqueia chamadas HTTPS diretas para `*.supabase.co` (só as ferramentas
+MCP do Supabase, que são só Postgres, passam por essa restrição) — não há
+ferramenta MCP que exponha o upload de objetos do Storage. O Google Drive,
+por outro lado, é acessível via suas próprias ferramentas MCP, então
+`image_url` guarda por enquanto um link do tipo "thumbnail" do Drive
+(`https://drive.google.com/thumbnail?id=<fileId>&sz=w1000`), que funciona
+para qualquer arquivo compartilhado como "qualquer pessoa com o link" — e
+a pasta já está assim.
+
+Isso é uma decisão interina, não definitiva: nada na aplicação sabe que a
+URL é do Drive especificamente, ela só consome o que estiver em
+`image_url`. Migrar para Supabase Storage no futuro é trocar o valor
+gravado nessa coluna, não mudar código de app.
+
+### Como testar manualmente
+
+1. `select id, image_url from knowledge_chunks where image_url is not null`
+   deve retornar 17 linhas.
+2. Abrir `/atividades/MAT-031` ou `/atividades/BRI-001` → deve mostrar a
+   foto no topo da página.
+3. Em `/quintal` ou `/test/[caregiverId]`, uma recomendação que caia num
+   desses 17 ids mostra a foto como avatar do `ActivityCard`.
+
+### Limitações
+
+- **Não verificado visualmente nesta sessão**: o ambiente de
+  desenvolvimento bloqueia acesso de rede a domínios arbitrários (inclusive
+  `google.com`), então não foi possível confirmar por aqui que a URL do
+  Drive realmente carrega uma imagem num navegador real — só que a URL foi
+  montada corretamente a partir do `fileId` certo e que o arquivo tem
+  permissão "qualquer pessoa com o link". Vale um clique manual de
+  conferência.
+- **Link do Drive, não um asset da aplicação**: sujeito à política de
+  compartilhamento do Drive e a eventuais limites de uso do endpoint de
+  thumbnail do Google — aceitável para 17 imagens num MVP, não é o destino
+  final recomendado em produção com volume maior.
+- **Sincronização é manual**: cada novo lote de imagens no Drive exige
+  rodar o script de novo (listar as pastas, montar o CSV, aplicar o SQL) —
+  não há automação de "arquivo novo no Drive → `image_url` atualizado
+  sozinho".
+- **Sem cobertura de todas as categorias**: só `brincadeiras`/`materiais`
+  têm `image_url` (mesmo escopo de "Activity" da Fase 4) — as outras 8
+  categorias de `knowledge_chunks` não têm essa coluna populada nem
+  interface para exibi-la.
+
 ## Fase 5 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:

@@ -27,6 +27,9 @@ export type ActivitySummary = {
   category: ActivityCategory;
   title: string;
   ageDisplayLabel: string | null;
+  // Drive-hosted for now (see scripts/knowledge-base/sync_activity_images.py) —
+  // null for the rows that don't have a photo yet, which is most of them.
+  imageUrl: string | null;
 };
 
 export type Activity = ActivitySummary & {
@@ -49,6 +52,7 @@ type KnowledgeChunkRow = {
   age_max_months: number | null;
   tags: string[] | null;
   content: string;
+  image_url: string | null;
 };
 
 // knowledge_chunks.content is "Header: Value" lines, one per column the
@@ -127,6 +131,7 @@ function toActivity(row: KnowledgeChunkRow): Activity | null {
     ageMinMonths: row.age_min_months,
     ageMaxMonths: row.age_max_months,
     tags: row.tags ?? [],
+    imageUrl: row.image_url,
     ...mapped,
   };
 }
@@ -135,7 +140,7 @@ export async function getActivity(id: string): Promise<Activity | null> {
   const supabase = createServiceClient();
   const { data } = await supabase
     .from("knowledge_chunks")
-    .select("id, category, title, age_min_months, age_max_months, tags, content")
+    .select("id, category, title, age_min_months, age_max_months, tags, content, image_url")
     .eq("id", id)
     .maybeSingle();
 
@@ -149,5 +154,6 @@ export function toActivitySummary(activity: Activity): ActivitySummary {
     category: activity.category,
     title: activity.title,
     ageDisplayLabel: activity.ageDisplayLabel,
+    imageUrl: activity.imageUrl,
   };
 }

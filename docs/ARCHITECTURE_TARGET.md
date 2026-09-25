@@ -436,3 +436,49 @@ não "implementado").
   (`getActivity`) foram verificados diretamente contra o banco real com a
   mensagem de teste pedida ("Ela está entediada..."); a chamada real ao
   Groq que decide o `activityId` não pôde ser reproduzida neste ambiente.
+
+## Imagens de atividades (Fase 4.1) — por que Drive e não Storage
+
+A usuária mantém, à mão, um banco de imagens no Google Drive
+correlacionado por id (`mat-031.png` → `MAT-031`, `bri-001.png` →
+`BRI-001`). `knowledge_chunks` ganhou uma coluna `image_url text`
+nullable — mesmo padrão de coluna mínima de `messages.activity_id`, sem
+tabela nova.
+
+O ponto que vale registrar é a escolha do destino da URL. Supabase
+Storage seria a opção consistente com o resto do projeto, mas subir bytes
+de imagem para lá exige uma chamada à API REST do Storage, e:
+
+- Esse ambiente de desenvolvimento bloqueia chamadas HTTPS diretas a
+  `*.supabase.co` (confirmado de novo nesta fase: `curl` para o projeto
+  fecha com `CONNECT tunnel failed, response 403` via o proxy de saída) —
+  só as ferramentas MCP do Supabase passam, e elas são só Postgres
+  (`execute_sql`/`apply_migration`/`generate_typescript_types`/...), sem
+  nada equivalente a "subir um objeto no Storage".
+- O Google Drive, ao contrário, tem ferramentas MCP de leitura completas
+  neste ambiente (`search_files`, `get_file_permissions`, etc.).
+
+Dado isso, `image_url` guarda por enquanto o link "thumbnail" do próprio
+Drive (`https://drive.google.com/thumbnail?id=<fileId>&sz=w1000`), que
+serve qualquer arquivo compartilhado como "qualquer pessoa com o link" —
+confirmado que a pasta já está assim (`get_file_permissions` retornou uma
+permissão `{"type":"anyone","role":"writer"}` no arquivo checado). Nenhum
+código da aplicação sabe que a URL é do Drive: `ActivityCard` e
+`/atividades/[id]` só renderizam `activity.imageUrl` como está. Trocar a
+origem por Supabase Storage no futuro é reescrever o valor gravado na
+coluna (um novo passo de sync que baixa do Drive e sobe pro Storage), não
+mudar a UI.
+
+`scripts/knowledge-base/sync_activity_images.py` é o passo repetível:
+recebe uma lista `filename,fileId` (montada a partir de uma busca no
+Drive feita por uma sessão com acesso MCP) e gera as instruções
+`update ... set image_url = ...` a aplicar via `execute_sql`. Documentado
+no próprio arquivo, mesmo padrão de "como rodar" do
+`sync_knowledge_base.py`.
+
+**Não verificado visualmente**: o mesmo bloqueio de rede que impede testar
+Supabase também impede testar `google.com` a partir deste ambiente (a
+mesma consulta ao proxy mostrou `CONNECT` rejeitado para
+`www.google.com`), então a URL do Drive não pôde ser carregada num
+navegador real por aqui — só confirmada como bem formada (fileId correto)
+e como apontando para um arquivo com permissão pública de leitura.

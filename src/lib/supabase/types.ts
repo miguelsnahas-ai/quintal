@@ -267,6 +267,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          image_url: string | null
           search: unknown
           tags: string[] | null
           title: string
@@ -278,6 +279,7 @@ export type Database = {
           content: string
           created_at?: string
           id: string
+          image_url?: string | null
           search?: unknown
           tags?: string[] | null
           title: string
@@ -289,6 +291,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          image_url?: string | null
           search?: unknown
           tags?: string[] | null
           title?: string

@@ -15,9 +15,19 @@ export default function ActivityCard({ activity }: { activity: ActivitySummary }
       className="block rounded-lg bg-secondary p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)]"
     >
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
-          <Sparkles className="h-4 w-4 text-ink" aria-hidden />
-        </span>
+        {activity.imageUrl ? (
+          // External Drive-hosted URL, not a local/optimizable asset (see activity.ts).
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={activity.imageUrl}
+            alt=""
+            className="h-9 w-9 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
+            <Sparkles className="h-4 w-4 text-ink" aria-hidden />
+          </span>
+        )}
         <div className="min-w-0 space-y-0.5">
           <p className="font-semibold text-ink">{activity.title}</p>
           {activity.ageDisplayLabel && (
