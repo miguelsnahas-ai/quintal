@@ -482,3 +482,228 @@ mesma consulta ao proxy mostrou `CONNECT` rejeitado para
 `www.google.com`), então a URL do Drive não pôde ser carregada num
 navegador real por aqui — só confirmada como bem formada (fileId correto)
 e como apontando para um arquivo com permissão pública de leitura.
+
+## Recommendation Engine (Fase 5) — a primeira recomendação contextual
+
+### Objetivo
+
+Até a Fase 4, uma recomendação de atividade era um efeito colateral de
+`suggestReply`: a mesma chamada que escrevia a resposta também escolhia
+(ou não) um `activityId` entre os resultados da busca textual, sem
+nenhuma regra de segurança etária nem memória de "isso já foi sugerido".
+Esta fase separa essa decisão num serviço próprio,
+`src/lib/recommendation.ts`, com uma pipeline explícita e regras simples
+e auditáveis — sem scoring, sem ranking próprio (a única ordenação usada
+é a que `search_knowledge_chunks` já produz).
+
+### Pipeline
+
+```
+Mensagem do pai/mãe
+  ↓
+detectActivityRequest (Groq)         — "isso é uma situação para sugerir
+  ↓  wantsActivitySuggestion?          atividade?" + situationSummary
+  │
+  ├─ false → { kind: "none" }         → conversation.ts cai para o
+  │                                      suggestReply de sempre
+  │
+  └─ true
+      ↓
+     ChildContext.age.months          — sem idade conhecida, nunca
+      │                                  recomenda (ver Limitações)
+      ↓
+     searchKnowledge(situationSummary, ageMonths)   — RAG existente
+      ↓
+     candidatos = resultados em brincadeiras/materiais
+      ↓
+     getActivity(id) por candidato    — para ter age_min/age_max reais
+      ↓
+     filtro 1: adequação etária (obrigatório, é segurança)
+      ↓
+     filtro 2: não recomendada recentemente PARA ESTA CRIANÇA
+      ↓
+     decisão = primeiro sobrevivente (ordem de relevância preservada)
+      │
+      ├─ nenhum sobrevivente → { kind: "clarify", question: <fixa> }
+      │
+      └─ existe → explainRecommendation (Groq, REDAÇÃO)
+                    ↓
+                  activity_recommendations (INSERT — histórico)
+                    ↓
+                  { kind: "activity", activity, reason }
+                    ↓
+     conversation.ts: reply = reason; activity = decisão
+                    ↓
+     UI: bolha de texto (reason) + "Uma ideia para agora" + ActivityCard
+```
+
+### DECISÃO vs. REDAÇÃO — por que são duas chamadas separadas
+
+- **`decideActivity`** (função pura de `src/lib/recommendation.ts`, sem
+  LLM) escolhe QUAL atividade recomendar. Só examina dados reais
+  (resultado da busca, `age_min_months`/`age_max_months` de
+  `knowledge_chunks`, histórico em `activity_recommendations`) — nenhum
+  texto livre de IA entra nessa decisão.
+- **`explainRecommendation`** (`src/lib/groq/explainRecommendation.ts`,
+  com LLM) só escreve o texto que explica a escolha JÁ FEITA. O prompt
+  nomeia a atividade decidida uma única vez e instrui explicitamente a
+  não sugerir nenhuma outra — o modelo nunca vê uma lista de opções para
+  escolher, então não tem como substituir a decisão por outra atividade
+  (inventada ou não). Se essa chamada falhar, a decisão não se perde: um
+  texto padrão (`defaultReason`) assume o lugar da explicação.
+
+Essa separação é o que garante "a IA não deve ter liberdade irrestrita
+para inventar atividades", pedido explicitamente nesta fase — a única
+forma de uma atividade aparecer no card é ter sido resolvida por
+`getActivity(id)` a partir de uma linha real de `knowledge_chunks`.
+
+### Regra de decisão (sem scoring)
+
+1. `search_knowledge_chunks(situationSummary, ageMonths, limit=8)` — a
+   mesma função RAG das fases anteriores, já ordenada por relevância.
+2. Filtra só `brincadeiras`/`materiais` (as únicas categorias que viram
+   "Activity", ver Fase 4).
+3. **Filtro de segurança (obrigatório):** descarta qualquer atividade cuja
+   `age_min_months`/`age_max_months` seja incompatível com a idade real
+   da criança (`ChildContext.age.months`). Este filtro nunca é
+   flexibilizado.
+4. **Filtro de repetição:** descarta as últimas
+   `RECENT_RECOMMENDATIONS_LIMIT` (5) atividades já recomendadas para
+   ESTA criança (`activity_recommendations`, filtrado por `child_id`).
+5. A decisão é o primeiro item que sobrou (ou seja: o resultado
+   etariamente seguro mais relevante que ainda não foi recomendado
+   recentemente). Se o filtro de repetição zerar tudo mas ainda existir
+   opção etariamente segura, a mais relevante é repetida mesmo assim —
+   deliberado: melhor repetir uma sugestão do que não sugerir nada,
+   enquanto a idade nunca é flexibilizada da mesma forma.
+6. Se nem o filtro de segurança sobrar nada, a resposta é `{ kind:
+   "clarify" }`, nunca uma atividade forçada.
+
+### Por que não repete uma recomendação recente
+
+`activity_recommendations` (tabela nova, ver migração
+`20260925150000_create_activity_recommendations.sql`) grava
+`child_id` + `activity_id` + `created_at` toda vez que o passo 5 acima
+decide uma atividade. `child_id` é obrigatório de propósito: diferente de
+`messages` (que só tem `family_id`), isso permite consultar "o que já foi
+recomendado para a Laura" sem misturar com o que foi recomendado para um
+irmão na mesma família — mesmo princípio de isolamento por criança já
+estabelecido em `ChildContext` (Fase 3). Verificado nesta fase: inserir
+uma recomendação para a criança A e consultar a recência da criança B
+retorna vazio.
+
+### Quando não há contexto suficiente
+
+Duas situações diferentes, tratadas diferente:
+
+- **Sem `childId`/idade conhecida**: `recommendActivity` retorna `{ kind:
+  "none" }` imediatamente, sem chamar `detectActivityRequest` nem buscar
+  nada — não há como checar segurança etária sem idade, então o Quintal
+  simplesmente não entra no fluxo de recomendação (a conversa segue pelo
+  `suggestReply` de sempre).
+- **Idade conhecida, mas nenhuma atividade sobrevive aos filtros** (ex.:
+  recém-nascido de 0 meses, onde a maioria do conteúdo pede idade
+  mínima maior): `{ kind: "clarify", question: <pergunta fixa> }`. A
+  pergunta é uma string fixa no código
+  (`GENERIC_CLARIFYING_QUESTION`), não gerada por LLM — pedir uma
+  pergunta a um modelo arriscaria a mesma invenção de preferências que
+  esta fase pede para evitar.
+
+### Arquivos e tabelas alterados
+
+- **Novo** `src/lib/recommendation.ts` — `recommendActivity`,
+  `decideActivity`, filtros de idade/repetição, registro do histórico.
+- **Novo** `src/lib/groq/detectActivityRequest.ts` — intent + resumo da
+  situação (passo 1 da pipeline).
+- **Novo** `src/lib/groq/explainRecommendation.ts` — redação (passo final
+  antes da UI).
+- **Nova tabela** `activity_recommendations` (`child_id`, `activity_id`,
+  `created_at`) — histórico mínimo de recomendação, RLS ligado, só
+  leitura para `authenticated`, mesmo padrão de `activity_feedback`.
+- **`src/lib/groq/suggestReply.ts`** — simplificado: não escolhe mais
+  `activityId` (campo removido do schema/retorno); volta a ser só a
+  resposta conversacional geral, usada quando o Recommendation Engine
+  decide que a mensagem não é uma dessas situações.
+- **`src/lib/conversation.ts`** — chama `recommendActivity` em paralelo a
+  `suggestEventFromMessage`; só chama `suggestReply` quando a
+  recomendação volta `{ kind: "none" }`. O retorno de
+  `recordConversationTurn` não mudou de forma (`{eventTypeLabel, reply,
+  inboundMessageId, activity}`) — só a origem interna de `activity`
+  mudou.
+- **`src/components/conversation/ConversationChat.tsx`** — rótulo "Uma
+  ideia para agora" acima do `ActivityCard` quando a resposta trouxer uma
+  atividade.
+
+### Testes realizados (contra o banco real, sem chamar o Groq — ver
+limitações)
+
+Mesma metodologia das fases anteriores: rede bloqueada para
+`api.groq.com` neste ambiente, então `detectActivityRequest`/
+`explainRecommendation` (as duas chamadas de IA) não puderam ser
+exercitadas de ponta a ponta. As regras determinísticas — que são o
+núcleo desta fase — foram verificadas diretamente contra dados reais:
+
+1. **Criança pequena (4 meses), "criança entediada, sem saber o que
+   fazer"**: busca retorna `BRI-001` (4–36m) e `BRI-052` (9–48m). Filtro
+   de idade corretamente mantém só `BRI-001` (4 ≥ 4) e descarta `BRI-052`
+   (4 < 9).
+2. **Criança maior (24 meses), mesma situação**: 3 candidatos
+   sobrevivem ao filtro de idade (`BRI-001`, `BRI-052`, `MAT-020`).
+   Decisão = o primeiro (`BRI-001`, mais relevante).
+3. **Atividade recomendada recentemente**: gravando `BRI-001` como
+   recomendação recente da criança de 24 meses, a decisão passa a ser
+   `BRI-052` (segundo mais relevante) — confirma que o filtro de
+   repetição de fato troca a escolha, não só a registra.
+4. **Repetição como único caminho seguro**: para a criança de 4 meses
+   (onde só `BRI-001` é etariamente seguro), gravar `BRI-001` como
+   recomendação recente e reconsultar mostra que ele seria excluído pelo
+   filtro de repetição — confirmando que, sem alternativa etariamente
+   segura, o código recai em `ageAppropriate[0]` (repete) em vez de
+   `{ kind: "clarify" }`.
+5. **Sem contexto suficiente (recém-nascido, 0 meses)**: mesma busca
+   retorna só `BRI-001` (4–36m) como candidato de atividade — que o
+   filtro de idade descarta (0 < 4). Zero sobreviventes → o código cairia
+   em `{ kind: "clarify" }`.
+6. **Isolamento entre irmãos**: gravar uma recomendação para a criança A
+   e consultar a recência da criança B retorna vazio — confirma que
+   `activity_recommendations` é escopada por criança, não por família.
+7. **Sem `childId`/idade**: verificado por leitura de código — o guard
+   `!childContext || childContext.age.months === null` retorna `{ kind:
+   "none" }` antes de qualquer chamada de rede (nem `detectActivityRequest`
+   nem `searchKnowledge` rodam).
+8. **Atividade inexistente**: verificado por leitura de código —
+   `decideActivity` descarta `null`s de `getActivity` via `.filter(...)`,
+   o mesmo guard já usado (e testado) desde a Fase 4 para ids
+   alucinados/removidos.
+
+### Limitações
+
+- **Sem chamada real ao Groq nesta sessão** (mesma limitação de rede das
+  fases anteriores) — `detectActivityRequest` e `explainRecommendation`
+  não puderam ser exercitadas de ponta a ponta; a lógica determinística
+  (a parte que decide QUAL atividade, que é o núcleo do pedido desta
+  fase) foi verificada diretamente, como listado acima.
+- **`getActivity` por candidato (N+1)**: para ter `age_min_months`/
+  `age_max_months` reais (a função RPC de busca não devolve esses
+  campos), cada candidato da busca é buscado individualmente. Aceitável
+  para uma lista pequena (até 8 por turno), mas não escala — se o volume
+  de conteúdo crescer muito, vale considerar devolver idade direto de
+  `search_knowledge_chunks`.
+- **Sem feedback loop completo** (pedido explícito desta fase): a
+  recomendação é registrada em `activity_recommendations`, mas não há
+  ainda ligação entre essa linha e o `activity_feedback` (thumbs
+  up/down) já existente da Fase 4 — não dá para responder ainda "essa
+  recomendação específica ajudou?", só "quantas pessoas acharam essa
+  atividade útil" (mesma limitação de atribuição da Fase 4).
+- **Pergunta de esclarecimento é única e fixa**: `GENERIC_CLARIFYING_QUESTION`
+  é a mesma pergunta para qualquer situação sem candidato seguro — não
+  varia por idade nem por situação relatada. Evita inventar preferências
+  à custa de generalidade.
+- **Intent detection é uma classificação binária simples**: mensagens
+  ambíguas (nem claramente "sugira uma atividade" nem claramente outra
+  coisa) dependem inteiramente do julgamento do modelo em
+  `detectActivityRequest` — não há uma segunda camada de verificação
+  além do isolamento entre decisão e redação já descrito.
+- **Histórico de recomendação não é exposto em `/ops`** ainda — a tabela
+  existe e é populada, mas não há tela de operador para visualizá-la
+  nesta fase (fora de escopo, listado no roadmap).

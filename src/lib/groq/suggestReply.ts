@@ -3,7 +3,6 @@ import { createGroqClient } from "./client";
 import { getCustomInstructions } from "@/lib/ai-settings";
 import { searchKnowledge } from "@/lib/knowledge";
 import { formatChildContextForPrompt, type ChildContext } from "@/lib/childContext";
-import { isActivityCategory } from "@/lib/activity";
 
 // Same reasoning as suggestEvent.ts: openai/gpt-oss-120b, Groq's
 // recommended free-tier replacement for the deprecated
@@ -12,10 +11,18 @@ const MODEL = "openai/gpt-oss-120b";
 
 const replySchema = z.object({
   text: z.string(),
-  activityId: z.string().nullable(),
 });
 
 export type ReplySuggestion = z.infer<typeof replySchema>;
+
+// This is the general conversational reply — used whenever the message
+// ISN'T a situation the Recommendation Engine decides to act on (see
+// src/lib/recommendation.ts, which now owns deciding+explaining a
+// specific activity recommendation end to end). Before Fase 5, this
+// function also picked and returned an `activityId`; that responsibility
+// moved out on purpose ("não colocar toda essa lógica dentro de
+// suggestReply") so there's exactly one place in the codebase that
+// decides which activity to recommend, not two.
 
 export async function suggestReply(input: {
   messageBody: string;
@@ -39,19 +46,6 @@ export async function suggestReply(input: {
   const knowledgeBlock = knowledgeChunks.length
     ? `\n\nBase de conhecimento (materiais, brincadeiras, alimentação, sono, desenvolvimento, higiene, passeios) — use o que for relevante para enriquecer a resposta, adapte a linguagem ao tom de WhatsApp, não cite fontes, IDs ou nomes de categoria:\n${knowledgeChunks
         .map((chunk) => `---\n${chunk.content}`)
-        .join("\n")}`
-    : "";
-
-  // Only brincadeiras/materiais rows are "activities" a family can open
-  // and follow step by step (see src/lib/activity.ts) — everything else
-  // in knowledgeBlock above is background context, not something with its
-  // own page. Listing candidates by id here, separately, is what lets the
-  // model attach a real activityId instead of the reply just trailing off
-  // into "você pode brincar de X" with nothing to open.
-  const activityCandidates = knowledgeChunks.filter((chunk) => isActivityCategory(chunk.category));
-  const activityBlock = activityCandidates.length
-    ? `\n\nAtividades específicas disponíveis para recomendar agora (preencha "activityId" com um destes IDs SOMENTE se sua resposta estiver recomendando diretamente uma delas; nunca invente um id fora desta lista; use null se nenhuma se aplica ou se você não está recomendando uma atividade específica):\n${activityCandidates
-        .map((chunk) => `- id "${chunk.id}": ${chunk.title}`)
         .join("\n")}`
     : "";
 
@@ -79,14 +73,13 @@ Regras importantes:
 - Não dê diagnóstico médico nem prometa resultados. Diante de sinais de saúde preocupantes, sugira conversar com o pediatra.
 - Segurança sempre tem prioridade sobre preferência da família: sono seguro (de barriga para cima, superfície firme, sem objetos soltos no berço), risco de engasgo com objetos/alimentos pequenos ou duros, nunca mel antes de 1 ano, supervisão constante perto de água, e qualquer sinal de alerta de saúde.
 - Seja acolhedor e específico à situação relatada, sem soar genérico ou robótico.
-- Se você recomendar uma atividade específica da lista abaixo, mencione-a pelo nome no texto (ex.: "que tal a brincadeira X?"), mas não descreva o passo a passo completo — a família vai abrir a atividade para ver os detalhes.
 - "text" deve conter só o texto da mensagem em si, sem saudação de assinatura nem aspas ao redor.${
           customInstructions
             ? `\n\nInstruções adicionais definidas pela operadora:\n${customInstructions}`
             : ""
-        }${knowledgeBlock}${activityBlock}
+        }${knowledgeBlock}
 
-Responda APENAS com um objeto JSON no formato exato: {"text": "<sua resposta>", "activityId": "<um dos ids listados acima, ou null>"}. Nenhum texto fora do JSON.`,
+Responda APENAS com um objeto JSON no formato exato: {"text": "<sua resposta>"}. Nenhum texto fora do JSON.`,
       },
       {
         role: "user",
@@ -105,12 +98,5 @@ Responda APENAS com um objeto JSON no formato exato: {"text": "<sua resposta>", 
     throw new Error("A IA não retornou uma resposta válida.");
   }
 
-  // Guard against a hallucinated/stale id that isn't actually one of the
-  // candidates just offered — drop the reference rather than trust it
-  // blindly; a plain reply beats a broken activity link.
-  const activityId = activityCandidates.some((chunk) => chunk.id === parsed.data.activityId)
-    ? parsed.data.activityId
-    : null;
-
-  return { text: parsed.data.text.trim(), activityId };
+  return { text: parsed.data.text.trim() };
 }

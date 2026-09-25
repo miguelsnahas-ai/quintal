@@ -64,6 +64,42 @@ export type Database = {
           },
         ]
       }
+      activity_recommendations: {
+        Row: {
+          activity_id: string
+          child_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          activity_id: string
+          child_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          activity_id?: string
+          child_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_recommendations_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendations_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_settings: {
         Row: {
           custom_instructions: string

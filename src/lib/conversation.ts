@@ -3,7 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { suggestEventFromMessage } from "@/lib/groq/suggestEvent";
 import { suggestReply } from "@/lib/groq/suggestReply";
 import { getChildContext } from "@/lib/childContext";
-import { getActivity, toActivitySummary, type ActivitySummary } from "@/lib/activity";
+import { recommendActivity, type RecommendationResult } from "@/lib/recommendation";
+import type { ActivitySummary } from "@/lib/activity";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 import type { Database, Json } from "@/lib/supabase/types";
 
@@ -94,27 +95,40 @@ export async function recordConversationTurn(
     throw new Error(inboundError?.message ?? "Falha ao registrar a mensagem.");
   }
 
-  const [suggestion, replySuggestion] = await Promise.all([
+  // The Recommendation Engine (src/lib/recommendation.ts) decides, on its
+  // own, whether this message is a situation worth recommending an
+  // activity for. suggestEventFromMessage runs alongside it (independent
+  // question, same raw message); suggestReply only runs afterward, and
+  // only when the recommendation engine says this turn isn't one of its
+  // situations — see docs/ARCHITECTURE_TARGET.md, "Recommendation Engine
+  // (Fase 5)" for why these aren't both run unconditionally.
+  const [suggestion, recommendation] = await Promise.all([
     suggestEventFromMessage({
       messageBody: input.messageBody,
       childContext,
     }).catch(() => null),
-    suggestReply({
+    recommendActivity({
+      childContext,
+      situation: input.messageBody,
+      recentConversation: recentMessages,
+    }).catch((): RecommendationResult => ({ kind: "none" })),
+  ]);
+
+  let reply: string;
+  let activity: ActivitySummary | null = null;
+
+  if (recommendation.kind === "activity") {
+    reply = recommendation.reason;
+    activity = recommendation.activity;
+  } else if (recommendation.kind === "clarify") {
+    reply = recommendation.question;
+  } else {
+    const replySuggestion = await suggestReply({
       messageBody: input.messageBody,
       childContext,
       recentMessages,
-    }),
-  ]);
-
-  const reply = replySuggestion.text;
-
-  // Resolved through activity.ts (not just trusted as an id) so a stale or
-  // since-removed knowledge_chunks row never gets persisted as a
-  // reference — see suggestReply's own guard for the hallucination case.
-  let activity: ActivitySummary | null = null;
-  if (replySuggestion.activityId) {
-    const fullActivity = await getActivity(replySuggestion.activityId).catch(() => null);
-    activity = fullActivity ? toActivitySummary(fullActivity) : null;
+    });
+    reply = replySuggestion.text;
   }
 
   // Auto-recorded only when the classifier is confident this message

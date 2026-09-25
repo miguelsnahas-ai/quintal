@@ -122,7 +122,8 @@ export default function ConversationChat({
                 <p className="whitespace-pre-wrap">{message.content}</p>
               </div>
               {message.activity && (
-                <div className="w-full max-w-[80%]">
+                <div className="w-full max-w-[80%] space-y-1">
+                  <p className="text-xs font-medium text-ink-muted">Uma ideia para agora</p>
                   <ActivityCard activity={message.activity} />
                 </div>
               )}

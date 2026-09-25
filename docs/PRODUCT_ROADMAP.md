@@ -328,7 +328,65 @@ gravado nessa coluna, não mudar código de app.
   categorias de `knowledge_chunks` não têm essa coluna populada nem
   interface para exibi-la.
 
-## Fase 5 — candidatos (não implementados)
+## Fase 5 — primeira recomendação contextual (concluída)
+
+Objetivo: criar o primeiro momento realmente diferencial do Quintal — a
+família relata uma situação cotidiana ("a Laura está entediada") e o
+Quintal recomenda uma atividade real considerando idade, contexto
+recente e o que já foi sugerido antes, explicando de forma natural por
+que aquela sugestão faz sentido.
+
+### O que foi entregue
+
+1. **`src/lib/recommendation.ts`** — o Recommendation Engine, serviço
+   separado de `suggestReply` (por pedido explícito desta fase). Pipeline
+   completo: detecção de intenção → `ChildContext` → busca no
+   conhecimento → candidatos → filtro de segurança etária → filtro de
+   repetição → decisão → redação (LLM) → registro do histórico. Ver
+   `docs/ARCHITECTURE_TARGET.md`, "Recommendation Engine (Fase 5)", para
+   o desenho completo e a separação explícita entre DECISÃO (regra
+   determinística, sem LLM) e REDAÇÃO (LLM, sem liberdade para escolher
+   outra atividade).
+2. **`activity_recommendations`** (tabela nova) — histórico mínimo de
+   "esta atividade foi recomendada para esta criança, nesta hora",
+   escopado por `child_id` (não por família), usado para não repetir uma
+   recomendação recente para a mesma criança.
+3. **`suggestReply` simplificado** — não escolhe mais atividade; volta a
+   ser só a resposta conversacional geral, usada quando o Recommendation
+   Engine decide que a mensagem não pede uma recomendação.
+4. **UI**: rótulo "Uma ideia para agora" acima do `ActivityCard` quando a
+   resposta da conversa trouxer uma atividade recomendada.
+
+### Como testar manualmente
+
+1. Numa conversa em `/quintal` ou `/test/[caregiverId]`, com uma criança
+   com idade cadastrada, escrever algo como "ela está entediada" — se
+   houver conteúdo etariamente adequado ainda não recomendado
+   recentemente, a resposta explica por que aquela atividade pode fazer
+   sentido, com o card logo abaixo.
+2. Repetir a mesma situação daí a pouco (mesma criança) — a recomendação
+   deve, quando houver alternativa etariamente segura, trocar para uma
+   atividade diferente das últimas recomendadas.
+3. Perguntar algo que não descreve uma situação de "preciso de uma
+   atividade" (ex.: um relato de sono) — não deve aparecer card nenhum, a
+   conversa segue normal.
+4. `select * from activity_recommendations order by created_at desc` deve
+   mostrar uma linha nova por atividade de fato recomendada.
+
+### Limitações conhecidas desta fase
+
+- Sem chamada real ao Groq nesta sessão (rede bloqueada para
+  `api.groq.com` no ambiente de desenvolvimento) — a lógica
+  determinística de decisão (o núcleo desta fase) foi verificada
+  diretamente contra o banco real; ver os testes detalhados em
+  `docs/ARCHITECTURE_TARGET.md`.
+- Sem feedback loop completo (pedido explícito desta fase): não há ainda
+  ligação entre `activity_recommendations` e `activity_feedback`.
+- Pergunta de esclarecimento ("não há contexto suficiente") é única e
+  fixa, não varia por situação.
+- Sem tela de operador para visualizar `activity_recommendations`.
+
+## Fase 6 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -349,10 +407,16 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    preferências) — próximo passo natural de memória, ainda sem
    embeddings.
 5. **Rehidratar `ActivityCard` no histórico** de `/quintal`, e atribuir
-   `activity_feedback` a família/criança.
-6. **Suporte real a múltiplas crianças** na experiência principal, não só
+   `activity_feedback`/`activity_recommendations` a família/criança de
+   forma mais rica.
+6. **Feedback loop completo** — ligar `activity_recommendations` a
+   `activity_feedback` (saber se ESSA recomendação específica ajudou, não
+   só "quantas pessoas acharam essa atividade útil").
+7. **Suporte real a múltiplas crianças** na experiência principal, não só
    no seletor.
-7. **Transação na criação de família** (`/comecar`) para eliminar o risco
+8. **Transação na criação de família** (`/comecar`) para eliminar o risco
    de registros órfãos.
-8. **`ActivityCard` em mais lugares** — home, uma lista de recomendações
+9. **`ActivityCard` em mais lugares** — home, uma lista de recomendações
    proativas — hoje só existe dentro do chat.
+10. **Tela de operador para `activity_recommendations`** — visibilidade
+    do histórico de recomendações em `/ops`.
