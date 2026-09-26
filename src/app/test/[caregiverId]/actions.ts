@@ -2,6 +2,7 @@
 
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordConversationTurn } from "@/lib/conversation";
+import { submitRecommendationFeedback, type RecommendationFeedback } from "@/lib/recommendation";
 import type { ConversationTurn } from "@/components/conversation/ConversationChat";
 import type { ActivitySummary } from "@/lib/activity";
 
@@ -17,7 +18,7 @@ export async function sendTestMessage(
     childId: string | null;
     history: ConversationTurn[];
   },
-): Promise<{ reply: string; activity: ActivitySummary | null }> {
+): Promise<{ reply: string; activity: ActivitySummary | null; recommendationId: string | null }> {
   const supabase = createServiceClient();
 
   const lastUserMessage = [...input.history].reverse().find((turn) => turn.role === "user");
@@ -55,12 +56,22 @@ export async function sendTestMessage(
     }
   }
 
-  const { reply, activity } = await recordConversationTurn(supabase, {
+  const { reply, activity, recommendationId } = await recordConversationTurn(supabase, {
     caregiverId,
     childId,
     messageBody: lastUserMessage.content,
     source: "test-link",
   });
 
-  return { reply, activity };
+  return { reply, activity, recommendationId };
+}
+
+// Same reasoning as sendQuintalRecommendationFeedback (/quintal/actions.ts):
+// a thin, ungated wrapper around the shared feedback recorder.
+export async function sendTestRecommendationFeedback(input: {
+  recommendationId: string;
+  feedback: RecommendationFeedback;
+  note?: string;
+}): Promise<void> {
+  await submitRecommendationFeedback(input);
 }

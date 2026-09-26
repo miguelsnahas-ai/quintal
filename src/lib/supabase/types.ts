@@ -64,24 +64,82 @@ export type Database = {
           },
         ]
       }
+      activity_recommendation_feedback: {
+        Row: {
+          activity_id: string
+          child_id: string
+          created_at: string
+          feedback: string
+          id: string
+          note: string | null
+          recommendation_id: string
+        }
+        Insert: {
+          activity_id: string
+          child_id: string
+          created_at?: string
+          feedback: string
+          id?: string
+          note?: string | null
+          recommendation_id: string
+        }
+        Update: {
+          activity_id?: string
+          child_id?: string
+          created_at?: string
+          feedback?: string
+          id?: string
+          note?: string | null
+          recommendation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_recommendation_feedback_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendation_feedback_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendation_feedback_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "activity_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_recommendations: {
         Row: {
           activity_id: string
           child_id: string
           created_at: string
           id: string
+          opened_at: string | null
+          source_message_id: string | null
         }
         Insert: {
           activity_id: string
           child_id: string
           created_at?: string
           id?: string
+          opened_at?: string | null
+          source_message_id?: string | null
         }
         Update: {
           activity_id?: string
           child_id?: string
           created_at?: string
           id?: string
+          opened_at?: string | null
+          source_message_id?: string | null
         }
         Relationships: [
           {
@@ -96,6 +154,13 @@ export type Database = {
             columns: ["child_id"]
             isOneToOne: false
             referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendations_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]

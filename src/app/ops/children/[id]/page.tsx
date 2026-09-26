@@ -21,7 +21,7 @@ export default async function ChildDetailPage({
   const { error } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: child }, { data: events }] = await Promise.all([
+  const [{ data: child }, { data: events }, { data: recommendations }] = await Promise.all([
     supabase
       .from("children")
       .select("id, name, birth_date, family_id, families(name)")
@@ -33,6 +33,20 @@ export default async function ChildDetailPage({
       .eq("child_id", childId)
       .order("occurred_at", { ascending: false })
       .limit(50),
+    // Fase 6: o Concierge precisa ver recomendação + feedback + observação
+    // juntos, sem precisar cruzar tabelas manualmente. knowledge_chunks
+    // dá o título; activity_recommendation_feedback é 1:N de propósito
+    // (uma recomendação pode nunca receber feedback, ou receber mais de
+    // um ao longo do tempo) — nunca sobrescreve a linha de
+    // activity_recommendations em si.
+    supabase
+      .from("activity_recommendations")
+      .select(
+        "id, created_at, opened_at, knowledge_chunks(title), activity_recommendation_feedback(feedback, note, created_at)",
+      )
+      .eq("child_id", childId)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (!child) {
@@ -123,6 +137,64 @@ export default async function ChildDetailPage({
           </div>
         )}
       </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-ink">
+          Recomendações de atividade ({recommendations?.length ?? 0})
+        </h2>
+        {!recommendations || recommendations.length === 0 ? (
+          <p className="text-sm text-ink-muted">Nenhuma recomendação registrada ainda.</p>
+        ) : (
+          <div className="space-y-2">
+            {recommendations.map((recommendation) => (
+              <Card key={recommendation.id} className="space-y-1 p-3">
+                <div className="flex items-center justify-between text-xs text-ink-muted">
+                  <span className="font-medium text-ink">
+                    {recommendation.knowledge_chunks?.title ?? "Atividade removida"}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    {new Date(recommendation.created_at).toLocaleString("pt-BR")}
+                    {recommendation.opened_at && (
+                      <Badge variant="accent">aberta</Badge>
+                    )}
+                  </span>
+                </div>
+                {recommendation.activity_recommendation_feedback.length === 0 ? (
+                  <p className="text-xs text-ink-muted">Sem feedback ainda.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {recommendation.activity_recommendation_feedback.map((feedback, index) => (
+                      <div key={index} className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge
+                          variant={
+                            feedback.feedback === "worked"
+                              ? "success"
+                              : feedback.feedback === "did_not_work"
+                                ? "decorative"
+                                : "neutral"
+                          }
+                        >
+                          {feedbackLabels[feedback.feedback] ?? feedback.feedback}
+                        </Badge>
+                        {feedback.note && <span className="text-ink">“{feedback.note}”</span>}
+                        <span className="text-ink-muted">
+                          {new Date(feedback.created_at).toLocaleString("pt-BR")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
+
+const feedbackLabels: Record<string, string> = {
+  worked: "Funcionou",
+  did_not_work: "Não funcionou",
+  wants_another: "Quis outra ideia",
+};

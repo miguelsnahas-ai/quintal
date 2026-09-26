@@ -7,7 +7,7 @@ import ConversationChat, {
   type ConversationTurn,
 } from "@/components/conversation/ConversationChat";
 import ChildHeader from "@/components/conversation/ChildHeader";
-import { sendQuintalMessage } from "./actions";
+import { sendQuintalMessage, sendQuintalRecommendationFeedback } from "./actions";
 
 export const metadata: Metadata = {
   title: "Quintal",
@@ -78,6 +78,7 @@ export default async function QuintalPage() {
         childrenList={childrenList ?? []}
         initialMessages={initialMessages}
         onSend={sendQuintalMessage}
+        onFeedback={sendQuintalRecommendationFeedback}
       />
     </div>
   );

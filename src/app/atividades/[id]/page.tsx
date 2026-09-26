@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getActivity, type ActivityDetail } from "@/lib/activity";
+import { markRecommendationOpened } from "@/lib/recommendation";
 import ActivityFeedback from "./ActivityFeedback";
 
 // Public by design — this is the page a family opens straight from a
@@ -22,14 +23,27 @@ export async function generateMetadata({
 
 export default async function ActivityPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ rec?: string }>;
 }) {
   const { id } = await params;
+  const { rec: recommendationId } = await searchParams;
   const activity = await getActivity(id);
 
   if (!activity) {
     notFound();
+  }
+
+  // "recommendation_opened" (Fase 6) — only recorded when this page was
+  // reached via a specific recommendation's ActivityCard link (?rec=...).
+  // markRecommendationOpened re-checks that the id in the URL actually
+  // belongs to THIS activity before writing anything, so a
+  // tampered/mismatched query param is silently ignored rather than
+  // corrupting another recommendation's event.
+  if (recommendationId) {
+    await markRecommendationOpened(recommendationId, activity.id);
   }
 
   return (

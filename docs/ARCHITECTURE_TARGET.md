@@ -706,4 +706,224 @@ núcleo desta fase — foram verificadas diretamente contra dados reais:
   além do isolamento entre decisão e redação já descrito.
 - **Histórico de recomendação não é exposto em `/ops`** ainda — a tabela
   existe e é populada, mas não há tela de operador para visualizá-la
+  **(resolvido na Fase 6, ver abaixo — `/ops/children/[id]` agora mostra
+  recomendação + feedback + observação).**
+
+## Feedback e aprendizado (Fase 6) — fechando o loop
+
+### O loop
+
+```
+Context (ChildContext)
+  ↓
+Recommendation (activity_recommendations — Fase 5, imutável depois de criada)
+  ↓
+Outcome (a família abre a atividade → activity_recommendations.opened_at)
+  ↓
+Feedback (activity_recommendation_feedback — nova tabela, nunca sobrescreve
+           a recomendação; um evento novo, não uma edição do antigo)
+  ↓
+Context (a próxima chamada a decideActivity já enxerga esse feedback ao
+          decidir a próxima recomendação para a MESMA criança)
+```
+
+O "aprendizado" desta fase é literalmente isso: dado estruturado (uma
+linha em `activity_recommendation_feedback`) + regra simples (excluir a
+atividade das próximas sugestões por um tempo) + contexto pro LLM (a
+explicação da próxima recomendação continua vindo de
+`explainRecommendation`, sem qualquer treinamento de modelo). Nenhum
+modelo é treinado, ajustado ou fica sabendo do feedback de forma alguma —
+só o Postgres.
+
+### Por que RECOMMENDATION e RECOMMENDATION_FEEDBACK são tabelas diferentes
+
+`activity_recommendations` (Fase 5) é a decisão em si: qual atividade,
+para qual criança, quando, a partir de qual mensagem. Depois de criada,
+nunca é sobrescrita por um feedback — só ganha, no máximo, um
+`opened_at` (ver abaixo), que é a própria recomendação registrando que
+foi vista, não uma reinterpretação do que foi decidido.
+
+`activity_recommendation_feedback` (nova) é informação que só existe
+DEPOIS da recomendação, potencialmente muito depois, e que pode nem
+existir (nem toda recomendação recebe feedback) ou existir mais de uma
+vez (a família pode reagir de novo mais tarde). Cada linha aponta para
+uma recomendação específica via `recommendation_id` — nunca "esta
+atividade em geral", mas "esta sugestão específica, nesta conversa,
+naquele momento". `child_id`/`activity_id` também aparecem na própria
+linha de feedback (cópias do momento do insert, a partir de
+`recommendation_id`) só para consultas simples sem join — a fonte da
+verdade continua sendo `recommendation_id`.
+
+### Schema
+
+```sql
+-- Fase 5, agora com dois campos de evento a mais:
+alter table activity_recommendations
+  add column source_message_id uuid references messages(id) on delete set null,
+  add column opened_at timestamptz;
+
+-- Nova:
+create table activity_recommendation_feedback (
+  id uuid primary key default gen_random_uuid(),
+  recommendation_id uuid not null references activity_recommendations(id) on delete cascade,
+  child_id uuid not null references children(id) on delete cascade,
+  activity_id text not null references knowledge_chunks(id) on delete cascade,
+  feedback text not null check (feedback in ('worked', 'did_not_work', 'wants_another')),
+  note text,
+  created_at timestamptz not null default now()
+);
+```
+
+`activity_feedback` (Fase 4, thumbs up/down avulso em `/atividades/[id]`)
+continua existindo, sem alteração — é um mecanismo diferente (feedback
+sobre o CONTEÚDO, de qualquer visitante da página pública, sem saber se
+veio de uma recomendação) do que `activity_recommendation_feedback`
+(feedback sobre UMA recomendação específica dentro de uma conversa). Os
+dois convivem de propósito.
+
+### Analytics: os três eventos pedidos, sem plataforma nova
+
+- **`recommendation_created`** = o INSERT em `activity_recommendations`
+  (já existia desde a Fase 5; `source_message_id` só enriquece esse
+  registro).
+- **`recommendation_opened`** = `activity_recommendations.opened_at`,
+  setado por `markRecommendationOpened` na primeira vez que
+  `/atividades/[id]?rec=<id>` é aberto a partir daquele card específico
+  (`.is("opened_at", null)` faz disso um "primeira vez", não "última
+  vez").
+- **`recommendation_feedback`** = o INSERT em
+  `activity_recommendation_feedback`.
+
+Nenhuma tabela genérica de eventos foi criada — os três "eventos" pedidos
+já são, cada um, uma escrita com significado próprio numa tabela que já
+faz sentido sozinha, mesmo padrão de `messages.handled_at` já usado no
+projeto.
+
+### Arquivos alterados
+
+- **`src/lib/recommendation.ts`**:
+  - `recordRecommendation` agora recebe `sourceMessageId` e retorna o
+    `id` da linha criada (antes não precisava retornar nada).
+  - `decideActivity` troca "descarta recomendado recentemente" por
+    "descarta o que deve ser evitado por enquanto" —
+    `getActivityIdsToAvoidForNow`, união de `getRecentlyRecommendedIds`
+    (já existia) com a nova `getRecentNegativeFeedbackActivityIds`.
+  - Novo: `submitRecommendationFeedback` (grava a linha de feedback,
+    resolvendo `child_id`/`activity_id` a partir da recomendação).
+  - Novo: `markRecommendationOpened` (seta `opened_at`, validando que o
+    `activityId` da URL bate com o da recomendação antes de gravar).
+  - `RecommendationResult`'s `{kind: "activity"}` ganhou
+    `recommendationId`.
+- **`src/lib/groq/detectActivityRequest.ts`, `explainRecommendation.ts`**:
+  sem mudanças — o feedback nunca entra no prompt destas chamadas
+  (permanece decisão + redação puras, ver Fase 5).
+- **`src/lib/conversation.ts`**: passa `sourceMessageId: inboundMessage.id`
+  para `recommendActivity`; `recordConversationTurn` retorna
+  `recommendationId` além de `activity`.
+- **`src/components/conversation/ConversationChat.tsx`**: `ConversationTurn`
+  ganhou `recommendationId`; novo prop opcional `onFeedback`; renderiza
+  `<RecommendationFeedback>` abaixo do `ActivityCard` quando há uma
+  recomendação.
+- **Novo `src/components/conversation/RecommendationFeedback.tsx`**: os
+  três botões (Funcionou / Não funcionou / Quero outra ideia) + campo de
+  observação opcional, discreto, sem estrelas/notas.
+- **`src/components/conversation/ActivityCard.tsx`**: aceita
+  `recommendationId` opcional, usado para montar
+  `/atividades/[id]?rec=<id>`.
+- **`src/app/atividades/[id]/page.tsx`**: lê `?rec=` e chama
+  `markRecommendationOpened` quando presente.
+- **`src/app/quintal/actions.ts`, `src/app/test/[caregiverId]/actions.ts`**:
+  cada um ganhou um `sendXRecommendationFeedback`, wrapper fino em cima de
+  `submitRecommendationFeedback` — mesmo padrão de duplicação mínima já
+  usado para `sendXMessage`.
+- **`src/app/ops/children/[id]/page.tsx`**: nova seção "Recomendações de
+  atividade" — junta `activity_recommendations` (com `knowledge_chunks`
+  para o título) e `activity_recommendation_feedback` (1:N) numa lista só,
+  sem exigir que o Concierge cruze tabelas manualmente.
+
+### Como o feedback afeta as próximas recomendações
+
+Só através de `getActivityIdsToAvoidForNow`, dentro de `decideActivity` —
+em nenhum outro lugar do código o feedback é lido. A regra:
+
+1. As últimas 5 recomendações da criança (qualquer feedback) continuam
+   bloqueadas por um turno (Fase 5, inalterado).
+2. AGORA TAMBÉM: as últimas 5 atividades com feedback
+   `did_not_work`/`wants_another` daquela criança ficam bloqueadas,
+   mesmo que já tenham saído da janela de "recomendado recentemente" —
+   é o sinal explícito da família pesando mais do que só o tempo.
+3. Feedback `worked` NÃO adiciona bloqueio nenhum — uma atividade que
+   funcionou pode voltar a ser sugerida assim que sair da janela de
+   repetição simples do item 1. Verificado: inserir feedback `worked`
+   para uma atividade e consultar o conjunto de "evitar por feedback"
+   retorna vazio para ela.
+4. As duas janelas (item 1 e 2) são contagens fixas (5), não permanentes
+   — uma atividade excluída por feedback antigo volta a ser candidata
+   assim que outras 5 mais recentes a empurram para fora da janela.
+   Verificado com 6 feedbacks negativos inseridos em ordem: o mais antigo
+   (6h atrás) não aparece mais na consulta com `limit 5`.
+5. Se o filtro do item 1+2 zerar todas as opções etariamente seguras, a
+   mais relevante é repetida mesmo assim (mesma regra de fallback da
+   Fase 5) — a idade nunca cede, a preferência da família, no limite, sim.
+
+Isso é deliberadamente O OPOSTO de inferir uma preferência permanente:
+não existe em lugar nenhum do código uma tabela ou campo do tipo
+"child_dislikes_activity" que persista para sempre. Um "não funcionou"
+hoje só significa "não recomende de novo nos próximos ~5 feedbacks/turnos
+dessa criança" — depois disso, a atividade volta ao pool normal de
+candidatos, exatamente como se o feedback nunca tivesse existido. Essa
+distinção foi verificada diretamente (item 4 acima).
+
+### Testes realizados (contra o banco real, mesma limitação de rede das fases anteriores)
+
+1. **Feedback positivo**: inserida uma recomendação de `BRI-001` com
+   feedback `worked` + observação "Ela adorou" — confirmado que `BRI-001`
+   NÃO aparece na consulta de "evitar por feedback negativo" (contagem
+   zero).
+2. **Feedback negativo**: inserida uma recomendação de `BRI-052` com
+   feedback `did_not_work` — confirmado que `BRI-052` aparece na consulta
+   de "evitar por feedback negativo" para aquela criança.
+3. **Feedback textual**: a observação "Ela adorou" foi persistida e lida
+   de volta sem erro (coluna `note`, nullable, sem transformação).
+4. **Duas crianças diferentes (isolamento)**: com o feedback negativo de
+   `BRI-052` gravado para a criança A, a mesma consulta para a criança B
+   retorna vazio — feedback de uma criança nunca influencia a outra.
+5. **Feedback antigo vs. recente**: 6 feedbacks negativos inseridos para
+   a mesma criança, em ordem cronológica — a consulta com `limit 5`
+   (réplica exata de `getRecentNegativeFeedbackActivityIds`) retorna
+   exatamente os 5 mais recentes; o mais antigo (6h atrás) fica de fora,
+   confirmando que o bloqueio por feedback tem janela, não é permanente.
+6. **Atividade recomendada novamente**: réplica completa de
+   `decideActivity` para a situação "criança de 24 meses, entediada"
+   (candidatos `BRI-001`, `BRI-052`, `MAT-020`, ordem de relevância já
+   verificada na Fase 5) com `BRI-001` carregando feedback
+   `did_not_work` — a decisão corretamente recai em `BRI-052`, o próximo
+   mais relevante, em vez de insistir em `BRI-001`.
+
+### Limitações
+
+- **Sem chamada real ao Groq nesta sessão** (mesma limitação de rede das
+  fases anteriores) — `detectActivityRequest`/`explainRecommendation`
+  não mudaram nesta fase e não puderam ser reexercitados de ponta a
+  ponta; toda a lógica nova (que é puramente determinística, sem LLM)
+  foi verificada diretamente contra o banco real, como listado acima.
+- **Feedback é por botão, não por texto livre na conversa**: se a família
+  disser "não funcionou" digitando na conversa normal (em vez de tocar no
+  botão), isso não é reconhecido como `RECOMMENDATION_FEEDBACK` — vira
+  só uma mensagem comum, sem nenhum detector de intenção de feedback
+  dedicado (decisão deliberada, para não adicionar mais uma chamada de
+  IA nesta fase).
+- **`recommendation_opened` só cobre o clique no card**: se a família abre
+  `/atividades/[id]` de outra forma (ex.: um link salvo antigo sem
+  `?rec=`), esse acesso não conta como abertura de nenhuma recomendação
+  específica — comportamento esperado, não um bug.
+- **Janelas de 5 são fixas e compartilhadas entre todas as famílias** —
+  não configuráveis por criança/família nesta fase, mesmo estilo de
+  constante simples já usado em `RECENT_RECOMMENDATIONS_LIMIT` (Fase 5).
+- **`activity_feedback` (Fase 4) e `activity_recommendation_feedback`
+  (Fase 6) não são unificados** — um relatório que quisesse "todo
+  feedback sobre atividades" precisaria consultar as duas tabelas
+  separadamente. Deliberado (motivos diferentes de existir, ver acima),
+  mas vale registrar como ponto de atenção para uma eventual tela de
+  analytics mais completa.
   nesta fase (fora de escopo, listado no roadmap).

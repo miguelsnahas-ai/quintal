@@ -5,12 +5,19 @@ import { Send } from "lucide-react";
 import { Input, Label, Select, FieldError } from "@/components/ui/Field";
 import { TEST_ACCESS_COOKIE } from "@/lib/testAccess";
 import type { ActivitySummary } from "@/lib/activity";
+import type { RecommendationFeedback as FeedbackValue } from "@/lib/recommendation";
 import ActivityCard from "./ActivityCard";
+import RecommendationFeedback from "./RecommendationFeedback";
 
 export type ConversationTurn = {
   role: "user" | "assistant";
   content: string;
   activity?: ActivitySummary | null;
+  // Present only alongside `activity`, when it came from a specific
+  // Recommendation Engine decision (Fase 6) — lets the feedback control
+  // and the activity link (?rec=) attach to that exact occurrence rather
+  // than "this activity" in the abstract.
+  recommendationId?: string | null;
 };
 
 type Child = {
@@ -28,6 +35,7 @@ export default function ConversationChat({
   childrenList,
   initialMessages = [],
   onSend,
+  onFeedback,
   rememberDevice = false,
 }: {
   caregiverId: string;
@@ -36,7 +44,14 @@ export default function ConversationChat({
   onSend: (input: {
     childId: string | null;
     history: ConversationTurn[];
-  }) => Promise<{ reply: string; activity: ActivitySummary | null }>;
+  }) => Promise<{ reply: string; activity: ActivitySummary | null; recommendationId: string | null }>;
+  // Optional so callers that don't wire it up (none currently) degrade to
+  // simply not rendering the feedback control, rather than crashing.
+  onFeedback?: (input: {
+    recommendationId: string;
+    feedback: FeedbackValue;
+    note?: string;
+  }) => Promise<void>;
   rememberDevice?: boolean;
 }) {
   // Auto-select when there's exactly one child — previously this stayed
@@ -77,8 +92,14 @@ export default function ConversationChat({
 
     startTransition(async () => {
       try {
-        const { reply, activity } = await onSend({ childId: childId || null, history: nextHistory });
-        setMessages((current) => [...current, { role: "assistant", content: reply, activity }]);
+        const { reply, activity, recommendationId } = await onSend({
+          childId: childId || null,
+          history: nextHistory,
+        });
+        setMessages((current) => [
+          ...current,
+          { role: "assistant", content: reply, activity, recommendationId },
+        ]);
       } catch {
         setError("Não foi possível enviar. Tente de novo.");
       }
@@ -122,9 +143,15 @@ export default function ConversationChat({
                 <p className="whitespace-pre-wrap">{message.content}</p>
               </div>
               {message.activity && (
-                <div className="w-full max-w-[80%] space-y-1">
+                <div className="w-full max-w-[80%] space-y-1.5">
                   <p className="text-xs font-medium text-ink-muted">Uma ideia para agora</p>
-                  <ActivityCard activity={message.activity} />
+                  <ActivityCard activity={message.activity} recommendationId={message.recommendationId} />
+                  {onFeedback && message.recommendationId && (
+                    <RecommendationFeedback
+                      recommendationId={message.recommendationId}
+                      onSubmit={onFeedback}
+                    />
+                  )}
                 </div>
               )}
             </div>

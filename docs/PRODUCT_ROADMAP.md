@@ -386,7 +386,65 @@ que aquela sugestão faz sentido.
   fixa, não varia por situação.
 - Sem tela de operador para visualizar `activity_recommendations`.
 
-## Fase 6 — candidatos (não implementados)
+## Fase 6 — feedback e aprendizado (concluída)
+
+Objetivo: fechar o loop `contexto → recomendação → experiência →
+feedback → próxima recomendação melhor contextualizada`, sem treinar
+nenhum modelo — só dado estruturado + regras simples + contexto pro LLM.
+
+### O que foi entregue
+
+1. **`activity_recommendation_feedback`** (tabela nova) — RECOMMENDATION_FEEDBACK,
+   deliberadamente separada de RECOMMENDATION (`activity_recommendations`,
+   que nunca é sobrescrita): três valores possíveis (`worked`,
+   `did_not_work`, `wants_another`) + observação textual opcional.
+2. **`activity_recommendations` ganhou dois campos de evento**:
+   `source_message_id` (qual mensagem gerou a recomendação) e
+   `opened_at` (quando a família de fato abriu a atividade a partir do
+   card — "recommendation_opened").
+3. **`decideActivity` agora evita, por um tempo, atividades com feedback
+   negativo recente** para aquela criança especificamente — não
+   permanentemente, e sem nunca inferir "essa criança não gosta disso"
+   como fato fixo. Ver `docs/ARCHITECTURE_TARGET.md`, "Feedback e
+   aprendizado (Fase 6)", para a regra exata e os testes que a
+   comprovam.
+4. **UI discreta na conversa**: três botões (Funcionou / Não funcionou /
+   Quero outra ideia) + observação opcional, abaixo do `ActivityCard`
+   sempre que uma recomendação específica aparece.
+5. **`/ops/children/[id]`** ganhou uma seção "Recomendações de
+   atividade" — o Concierge vê, para cada recomendação, o título da
+   atividade, quando foi feita, se foi aberta, e todo o feedback (com
+   observação) recebido.
+
+### Como testar manualmente
+
+1. Numa conversa em `/quintal` ou `/test/[caregiverId]`, receber uma
+   recomendação → aparecem os três botões de feedback logo abaixo do
+   card.
+2. Tocar em "Não funcionou" (com ou sem observação) → substitui os
+   botões por um agradecimento; a mesma atividade não deve voltar a ser
+   recomendada para essa criança nas próximas sugestões (enquanto o
+   feedback estiver dentro da janela recente).
+3. Abrir `/ops/children/<id>` de uma criança que já recebeu
+   recomendações → seção "Recomendações de atividade" mostra cada uma,
+   com badge "aberta" quando o card foi clicado, e o feedback (se
+   houver) com sua observação.
+
+### Limitações conhecidas desta fase
+
+- Sem chamada real ao Groq nesta sessão (mesma limitação de rede das
+  fases anteriores) — a lógica de decisão (determinística) foi validada
+  direto contra o banco.
+- Feedback só via os três botões — uma família que digitar "não
+  funcionou" na conversa normal não é reconhecida como feedback (sem
+  detector de intenção dedicado nesta fase).
+- Janelas de repetição/feedback são contagens fixas (5), iguais para
+  todas as famílias, não configuráveis.
+- `activity_feedback` (Fase 4, avulso) e `activity_recommendation_feedback`
+  (Fase 6, ligado a uma recomendação específica) continuam sendo tabelas
+  separadas, não unificadas.
+
+## Fase 7 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -405,18 +463,22 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    conversa de forma 100% isolada.
 4. **Fatos permanentes explícitos da criança** (ex.: alergias,
    preferências) — próximo passo natural de memória, ainda sem
-   embeddings.
+   embeddings. Distinto de propósito do feedback da Fase 6, que é sempre
+   temporário/contextual, nunca um fato permanente.
 5. **Rehidratar `ActivityCard` no histórico** de `/quintal`, e atribuir
    `activity_feedback`/`activity_recommendations` a família/criança de
    forma mais rica.
-6. **Feedback loop completo** — ligar `activity_recommendations` a
-   `activity_feedback` (saber se ESSA recomendação específica ajudou, não
-   só "quantas pessoas acharam essa atividade útil").
-7. **Suporte real a múltiplas crianças** na experiência principal, não só
+6. **Detectar feedback por texto livre na conversa** (ex.: a família
+   digita "ela adorou" em vez de tocar no botão) — exigiria um detector
+   de intenção dedicado, deliberadamente fora do escopo da Fase 6.
+7. **Unificar `activity_feedback` e `activity_recommendation_feedback`**
+   numa visão só, para uma eventual tela de analytics mais completa.
+8. **Suporte real a múltiplas crianças** na experiência principal, não só
    no seletor.
-8. **Transação na criação de família** (`/comecar`) para eliminar o risco
-   de registros órfãos.
-9. **`ActivityCard` em mais lugares** — home, uma lista de recomendações
-   proativas — hoje só existe dentro do chat.
-10. **Tela de operador para `activity_recommendations`** — visibilidade
-    do histórico de recomendações em `/ops`.
+9. **Transação de verdade na criação de família** (`/comecar`) — a
+   verificação de telefone duplicado adicionada em 2026-09-25 já evita a
+   causa mais comum de registros órfãos, mas não é uma transação real
+   (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
+   família sem cuidador).
+10. **`ActivityCard` em mais lugares** — home, uma lista de recomendações
+    proativas — hoje só existe dentro do chat.

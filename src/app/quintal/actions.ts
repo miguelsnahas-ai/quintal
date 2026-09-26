@@ -3,6 +3,7 @@
 import { getFamilySessionCaregiverId } from "@/lib/familySession";
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordConversationTurn } from "@/lib/conversation";
+import { submitRecommendationFeedback, type RecommendationFeedback } from "@/lib/recommendation";
 import type { ConversationTurn } from "@/components/conversation/ConversationChat";
 import type { ActivitySummary } from "@/lib/activity";
 
@@ -14,7 +15,7 @@ import type { ActivitySummary } from "@/lib/activity";
 export async function sendQuintalMessage(input: {
   childId: string | null;
   history: ConversationTurn[];
-}): Promise<{ reply: string; activity: ActivitySummary | null }> {
+}): Promise<{ reply: string; activity: ActivitySummary | null; recommendationId: string | null }> {
   const caregiverId = await getFamilySessionCaregiverId();
   if (!caregiverId) {
     throw new Error("Sessão expirada. Atualize a página.");
@@ -41,12 +42,26 @@ export async function sendQuintalMessage(input: {
     }
   }
 
-  const { reply, activity } = await recordConversationTurn(supabase, {
+  const { reply, activity, recommendationId } = await recordConversationTurn(supabase, {
     caregiverId,
     childId,
     messageBody: lastUserMessage.content,
     source: "quintal",
   });
 
-  return { reply, activity };
+  return { reply, activity, recommendationId };
+}
+
+// Thin wrapper around the Recommendation Engine's own feedback recorder
+// (src/lib/recommendation.ts) — no session/caregiver check here on
+// purpose, same reasoning as /atividades/[id]'s existing
+// submitActivityFeedback: the recommendationId itself is an unguessable
+// UUID the family only has because it was in their own conversation, and
+// feedback isn't sensitive data worth gating behind the session.
+export async function sendQuintalRecommendationFeedback(input: {
+  recommendationId: string;
+  feedback: RecommendationFeedback;
+  note?: string;
+}): Promise<void> {
+  await submitRecommendationFeedback(input);
 }

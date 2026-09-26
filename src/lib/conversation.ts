@@ -40,6 +40,7 @@ export async function recordConversationTurn(
   reply: string;
   inboundMessageId: string;
   activity: ActivitySummary | null;
+  recommendationId: string | null;
 }> {
   const { data: caregiver, error: caregiverError } = await supabase
     .from("caregivers")
@@ -111,15 +112,18 @@ export async function recordConversationTurn(
       childContext,
       situation: input.messageBody,
       recentConversation: recentMessages,
+      sourceMessageId: inboundMessage.id,
     }).catch((): RecommendationResult => ({ kind: "none" })),
   ]);
 
   let reply: string;
   let activity: ActivitySummary | null = null;
+  let recommendationId: string | null = null;
 
   if (recommendation.kind === "activity") {
     reply = recommendation.reason;
     activity = recommendation.activity;
+    recommendationId = recommendation.recommendationId;
   } else if (recommendation.kind === "clarify") {
     reply = recommendation.question;
   } else {
@@ -184,5 +188,6 @@ export async function recordConversationTurn(
     reply,
     inboundMessageId: inboundMessage.id,
     activity,
+    recommendationId,
   };
 }

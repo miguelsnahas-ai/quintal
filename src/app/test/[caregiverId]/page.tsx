@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import ConversationChat from "@/components/conversation/ConversationChat";
-import { sendTestMessage } from "./actions";
+import { sendTestMessage, sendTestRecommendationFeedback } from "./actions";
 
 export const metadata: Metadata = {
   title: "Converse com o Quintal",
@@ -49,6 +49,7 @@ export default async function TestChatPage({
         caregiverId={caregiver.id}
         childrenList={childrenList ?? []}
         onSend={handleSend}
+        onFeedback={sendTestRecommendationFeedback}
         rememberDevice
       />
     </div>
