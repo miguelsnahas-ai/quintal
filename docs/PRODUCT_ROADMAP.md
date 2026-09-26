@@ -444,7 +444,83 @@ nenhum modelo — só dado estruturado + regras simples + contexto pro LLM.
   (Fase 6, ligado a uma recomendação específica) continuam sendo tabelas
   separadas, não unificadas.
 
-## Fase 7 — candidatos (não implementados)
+## Fase 7 — Dashboard da família (concluída)
+
+Objetivo: o Quintal deixa de ser só uma conversa e ganha uma Home — o
+ponto central de entrada, respondendo rápido "como está o dia, o que já
+aconteceu, o que vem a seguir, o que o Quintal recomenda". O chat
+continua existindo por inteiro, só deixou de ser a única tela.
+
+### O que foi entregue
+
+1. **`/quintal` virou o Dashboard** (era o chat). A conversa se mudou
+   para **`/quintal/chat`** — mesmo componente `ConversationChat`, mesmas
+   server actions, mesmo comportamento, só num caminho novo. `/comecar`
+   continua redirecionando para `/quintal`, então uma família nova já cai
+   direto na Home, não mais direto na conversa.
+2. **Header do Dashboard** (`DashboardHeader`, novo): nome da criança
+   (link para o perfil), data de hoje, idade, e um botão de chat sempre
+   visível — nunca mais que um toque de distância.
+3. **"Hoje"**: grade de 4 cards compactos (`SummaryCard`, novo) — Sono,
+   Alimentação, Brincadeiras, Rotina. Sono/Brincadeiras/Rotina usam
+   contagens reais de `events` (tipos `sleep`/`free_play`/`routine`, já
+   existentes desde as fases anteriores); Alimentação mostra um estado
+   vazio elegante e permanente por enquanto — **não existe tipo de evento
+   de alimentação no schema ainda**, então nenhum número foi inventado
+   para preenchê-lo.
+4. **"Para hoje"**: reaproveita o `ActivityCard` já existente (Fase 4/5)
+   para mostrar as recomendações de `activity_recommendations` feitas
+   hoje para a criança — zero componente novo de card, só uma lista
+   nova que já sabia desenhar.
+5. **Timeline de hoje** (`Timeline`, novo): os eventos de hoje
+   (sleep/routine/free_play/development, mesmo recorte que `ChildContext`
+   já usava) em ordem cronológica, com um estado vazio quando não há
+   nada ainda.
+6. **`/quintal/perfil`** (novo, mínimo): visão só-leitura dos dados da
+   criança/família já existentes em `children`/`families` — existe só
+   para o "acesso ao perfil" do header ter um destino real, não é o
+   módulo completo de perfil do roadmap maior.
+
+### Como testar manualmente
+
+1. Entrar em `/quintal` (ou se cadastrar em `/comecar`) → cai na Home,
+   não na conversa.
+2. Sem nenhum evento/recomendação hoje → os 4 cards, a seção "Para hoje"
+   e a timeline mostram estados vazios elegantes, nunca números
+   inventados.
+3. Registrar eventos de hoje (`sleep`, `routine`, `free_play`) via
+   `/ops/children/[id]` ou pela própria conversa → os cards e a timeline
+   passam a refletir isso na próxima visita ao Dashboard.
+4. Tocar no botão de chat do header, ou no botão "Conversar com o
+   Quintal" no fim da página → abre `/quintal/chat`, que tem um link "←
+   Quintal" de volta para a Home.
+5. Tocar no nome da criança no header → abre `/quintal/perfil`.
+
+### Limitações conhecidas desta fase
+
+- **Alimentação não tem dado real algum** — não existe tipo de evento de
+  alimentação no schema (`sleep`, `routine`, `free_play`, `development`,
+  `observation`, `decision` são os únicos). O card é um placeholder
+  honesto até essa etapa ("Alimentação") ser desenvolvida de verdade.
+- **Sem duração de sono** — só contagem de sonecas (`sleep` não tem
+  campo de início/fim), não "1h42" como no exemplo ilustrativo do
+  briefing — inventar uma duração a partir de dado que não existe
+  contrariaria a regra de não inventar conteúdo.
+- **"Rotina" mostra o último evento do dia, não o "próximo"** — não há
+  agenda/rotina programada no schema, só o que já foi registrado.
+- **Feedback de recomendação não aparece no Dashboard**, só no chat (onde
+  a recomendação foi originada) — deliberado, para manter a Home leve e
+  majoritariamente estática.
+- **Continua assumindo uma criança por família** (a primeira cadastrada)
+  — mesma simplificação já feita pelo chat e por `ChildHeader`; suporte
+  real a múltiplas crianças continua um candidato de fase futura.
+- Sem teste em navegador real de ponta a ponta (mesma limitação de rede
+  das fases anteriores) — a lógica de contagem/timeline foi verificada
+  direto contra o banco real; a responsividade foi validada pelas
+  classes Tailwind usadas (mobile-first, com breakpoints `sm`/`lg`), não
+  visualmente numa tela real.
+
+## Fase 8 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -465,9 +541,9 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    preferências) — próximo passo natural de memória, ainda sem
    embeddings. Distinto de propósito do feedback da Fase 6, que é sempre
    temporário/contextual, nunca um fato permanente.
-5. **Rehidratar `ActivityCard` no histórico** de `/quintal`, e atribuir
-   `activity_feedback`/`activity_recommendations` a família/criança de
-   forma mais rica.
+5. **Rehidratar `ActivityCard` no histórico** de `/quintal/chat`, e
+   atribuir `activity_feedback`/`activity_recommendations` a
+   família/criança de forma mais rica.
 6. **Detectar feedback por texto livre na conversa** (ex.: a família
    digita "ela adorou" em vez de tocar no botão) — exigiria um detector
    de intenção dedicado, deliberadamente fora do escopo da Fase 6.
@@ -480,5 +556,12 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    causa mais comum de registros órfãos, mas não é uma transação real
    (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
    família sem cuidador).
-10. **`ActivityCard` em mais lugares** — home, uma lista de recomendações
-    proativas — hoje só existe dentro do chat.
+10. **Módulos completos de Alimentação, Sono, Brincadeiras, Materiais e
+    Rotina** — o Dashboard (Fase 7) já reserva o espaço visual e usa
+    dado real onde existe; cada um desses vira seu próprio sistema
+    (registro estruturado, não só leitura de `events`) numa fase
+    dedicada.
+11. **Perfil completo da criança** — `/quintal/perfil` (Fase 7) é
+    deliberadamente só-leitura; edição, foto, múltiplas crianças geridas
+    ali, etc. ficam para quando o módulo de Perfil for desenvolvido de
+    verdade.

@@ -11,7 +11,7 @@
 ```
 UI (ConversationChat)
   ↓
-server action (por canal: sendTestMessage, sendQuintalMessage, futuro sendWhatsAppMessage)
+server action (por canal: sendTestMessage, sendQuintalMessage [em /quintal/chat desde a Fase 7], futuro sendWhatsAppMessage)
   ↓
 conversation core (recordConversationTurn, em src/lib/conversation.ts)
   ↓
@@ -32,7 +32,7 @@ IA — e é chamado por três canais hoje:
 |---|---|---|---|
 | Ferramenta interna (operador testando manualmente) | `/ops/playground` | `sendPlaygroundMessage(input)` | da sessão de operador (Supabase Auth) |
 | Ferramenta interna (QA/link enviado pelo operador) | `/test/[caregiverId]` | `sendTestMessage(caregiverId, input)` | **da URL**, sem sessão |
-| Produto real | `/quintal` | `sendQuintalMessage(input)` | **da sessão** (`caregiver_sessions`), nunca do cliente |
+| Produto real | `/quintal/chat` (desde a Fase 7 — `/quintal` é a Home/Dashboard) | `sendQuintalMessage(input)` | **da sessão** (`caregiver_sessions`), nunca do cliente |
 
 Um quarto canal (WhatsApp) é o próximo candidato natural — quando existir,
 será uma nova server action fina chamando o mesmo `recordConversationTurn`,
@@ -52,7 +52,7 @@ lista é enviada ao navegador ao carregar a página) e alimentar o contexto
 de IA daquela família — sem sessão, sem verificação nenhuma além de "esse
 `caregiver_id` existe".
 
-Para o produto real (`/quintal`), isso não é aceitável: precisa ser
+Para o produto real (`/quintal/chat`), isso não é aceitável: precisa ser
 impossível trocar de família só editando a URL ou um cookie legível por
 JavaScript.
 
@@ -67,7 +67,7 @@ login completo:
   (`quintal_caregiver_id`, legível por `document.cookie`, só uma
   conveniência de "lembrar o último link" — continua existindo, mas só
   para o `/test`).
-- `/quintal` e a action `sendQuintalMessage` **nunca leem `caregiverId` do
+- `/quintal/chat` e a action `sendQuintalMessage` **nunca leem `caregiverId` do
   cliente**. O servidor resolve a identidade lendo o cookie e validando
   contra `caregiver_sessions`. Um cookie forjado ou um token que não existe
   na tabela simplesmente não resolve ninguém — testado manualmente (ver
@@ -111,9 +111,9 @@ ser substituída por ele.
 | Arquivo | Papel |
 |---|---|
 | `src/lib/familySession.ts` | cria/lê a sessão mínima acima |
-| `src/components/conversation/ConversationChat.tsx` | UI de chat compartilhada por `/test` e `/quintal` (extraída de `TestChat.tsx`, que foi removido) |
+| `src/components/conversation/ConversationChat.tsx` | UI de chat compartilhada por `/test` e `/quintal/chat` (extraída de `TestChat.tsx`, que foi removido) |
 | `src/components/conversation/ChildHeader.tsx` | cabeçalho "Quintal de {criança}" — puramente apresentacional, todo dado é real |
-| `src/app/quintal/page.tsx` + `actions.ts` | a experiência de produto |
+| `src/app/quintal/chat/page.tsx` + `actions.ts` | a experiência de produto: conversa (desde a Fase 7, `/quintal` em si é a Home/Dashboard — ver seção própria) |
 | `supabase/migrations/20260925120000_create_caregiver_sessions.sql` | a tabela de sessão |
 
 ### Bug encontrado e corrigido durante a extração
@@ -392,8 +392,8 @@ Detalhes que valem registrar:
 - **`messages.activity_id`** (nova coluna, nullable, `references
   knowledge_chunks(id) on delete set null`) grava a referência junto com
   a mensagem que a gerou. Serve para auditoria/analytics agora; **o
-  histórico recarregado em `/quintal` ainda não re-renderiza o card** a
-  partir dela (ver limitações).
+  histórico recarregado em `/quintal/chat` (o chat mudou de caminho na
+  Fase 7) ainda não re-renderiza o card** a partir dela (ver limitações).
 
 ### `activity_feedback` — a nova tabela
 
@@ -416,8 +416,9 @@ não "implementado").
 ### Limitações
 
 - **Histórico recarregado não re-renderiza o card.** `messages.activity_id`
-  é gravado, mas `/quintal`'s hidratação de histórico (`page.tsx`) não
-  busca `activity_id` nem re-monta o `ActivitySummary` ao reabrir a
+  é gravado, mas a hidratação de histórico do chat (`/quintal/chat/page.tsx`
+  desde a Fase 7) não busca `activity_id` nem re-monta o `ActivitySummary`
+  ao reabrir a
   conversa — o texto da resposta continua lá, o card não. Passo natural
   seguinte: selecionar `activity_id` junto do histórico e resolver os
   `ActivitySummary` em lote.
@@ -832,7 +833,8 @@ projeto.
   `/atividades/[id]?rec=<id>`.
 - **`src/app/atividades/[id]/page.tsx`**: lê `?rec=` e chama
   `markRecommendationOpened` quando presente.
-- **`src/app/quintal/actions.ts`, `src/app/test/[caregiverId]/actions.ts`**:
+- **`src/app/quintal/actions.ts`** (hoje `src/app/quintal/chat/actions.ts`
+  — o arquivo se mudou junto com o chat na Fase 7)**, `src/app/test/[caregiverId]/actions.ts`**:
   cada um ganhou um `sendXRecommendationFeedback`, wrapper fino em cima de
   `submitRecommendationFeedback` — mesmo padrão de duplicação mínima já
   usado para `sendXMessage`.
@@ -926,4 +928,108 @@ distinção foi verificada diretamente (item 4 acima).
   separadamente. Deliberado (motivos diferentes de existir, ver acima),
   mas vale registrar como ponto de atenção para uma eventual tela de
   analytics mais completa.
-  nesta fase (fora de escopo, listado no roadmap).
+
+## Dashboard da família (Fase 7) — `/quintal` deixa de ser o chat
+
+### O que mudou estruturalmente
+
+Até a Fase 6, `/quintal` ERA a conversa: uma única página que montava
+`ChildHeader` + `ConversationChat` direto. Esta fase introduz a ideia de
+que o produto tem mais de uma tela, e a conversa é só uma delas — então:
+
+```
+/quintal              → Home/Dashboard (novo — esta fase)
+/quintal/chat          → a conversa (o que /quintal era antes, movido
+                          sem alterar lógica nenhuma)
+/quintal/perfil         → visão só-leitura da criança/família (novo, mínimo)
+```
+
+`recordConversationTurn`, `recommendActivity`, `suggestReply`,
+`ChildContext` — o núcleo inteiro descrito no topo deste documento — não
+mudou uma linha. Só o "endereço" da tela que fala com ele mudou. Isso foi
+possível porque a UI de chat sempre foi um componente (`ConversationChat`)
+consumido por uma página fina, não uma página monolítica — mover a
+conversa foi só copiar `page.tsx`/`actions.ts` para `chat/`. Nenhum
+`redirect` precisou mudar: `/comecar` sempre apontava para `"/quintal"`,
+e continua apontando — só o que existe nesse endereço mudou de conversa
+para Dashboard, que é exatamente o efeito pretendido ("`/quintal` vira o
+ponto central de entrada").
+
+### `src/lib/dashboard.ts` — a única fonte de dado do Dashboard
+
+Mesmo padrão de `getChildContext`/`getActivity`/`recommendActivity`:
+toda a lógica de "o que mostrar hoje" vive numa função de lib
+(`getDashboardSummary(childId)`), a página só renderiza o que ela
+devolve. Duas queries, ambas filtradas por `child_id` e por "hoje" (meia-
+noite no horário local do servidor — mesma simplificação de fuso já
+assumida em `toDatetimeLocalValue`, `src/lib/format.ts`, e sem
+tratamento de fuso por família em nenhum lugar do projeto ainda):
+
+1. `events` do dia, filtrados pelos mesmos tipos que `ChildContext` já
+   trata como "atividade do dia a dia" (`ACTIVITY_EVENT_TYPES`, agora
+   exportada de `childContext.ts` para não duplicar essa lista) — vira a
+   timeline E as contagens de Sono/Brincadeiras/Rotina.
+2. `activity_recommendations` de hoje — reaproveita `getActivity` (o
+   mesmo helper que `recommendActivity`/`/atividades/[id]` já usam) para
+   virar `ActivitySummary[]`, consumido pelo `ActivityCard` já existente.
+
+Nenhuma tabela nova. Nenhum campo novo. O Dashboard é, deliberadamente,
+uma nova forma de olhar para dado que a Fase 3, 4 e 5/6 já produziam.
+
+### Por que "Alimentação" é sempre um estado vazio
+
+`eventTypes` (`src/lib/validation/events.ts`) só tem `sleep`, `routine`,
+`free_play`, `development`, `observation`, `decision` — não existe (e
+não foi criado nesta fase, de propósito) um tipo de evento de
+alimentação. O card de Alimentação no Dashboard mostra sempre o estado
+vazio ("Em breve por aqui"), nunca um número — inventar uma contagem a
+partir de um dado que não existe seria exatamente o tipo de "conteúdo
+inventado" que o pedido desta fase proibiu. Quando o módulo de
+Alimentação for desenvolvido (candidato de fase futura,
+`docs/PRODUCT_ROADMAP.md`), este card passa a ler dado real do mesmo
+jeito que Sono/Brincadeiras/Rotina já leem.
+
+Pelo mesmo motivo, o card de Sono mostra só a CONTAGEM de sonecas
+(`sleep` não tem campo de início/fim, só `occurred_at` + `notes` livre) —
+não uma duração como "1h42" (exemplo ilustrativo do briefing). E o card
+de Rotina mostra o ÚLTIMO evento de rotina já registrado hoje, não um
+"próximo evento" (não existe agenda/rotina programada no schema — só
+histórico do que já aconteceu).
+
+### Componentes novos, todos em `src/components/dashboard/`
+
+- **`DashboardHeader`**: nome da criança (link para `/quintal/perfil`),
+  data de hoje, idade, botão de chat (`/quintal/chat`) sempre visível.
+  Deliberadamente um componente novo, não uma extensão de `ChildHeader`
+  — `ChildHeader` continua servindo só o chat, sem ganhar campos que não
+  fazem sentido lá (data, link de perfil).
+- **`SummaryCard`**: a peça repetida da grade "Hoje" — ícone, rótulo,
+  valor real OU texto de estado vazio. Puramente apresentacional, quem
+  decide "tem dado ou não" é sempre `getDashboardSummary`, nunca o
+  componente.
+- **`Timeline`**: lista cronológica dos eventos de hoje, com o mesmo
+  estado vazio elegante quando não há nenhum.
+
+`ActivityCard` (Fase 4) não foi tocado — é reaproveitado tal como já
+existia na seção "Para hoje", primeira vez que aparece fora do chat,
+exatamente como o roadmap já previa ("`ActivityCard` em mais lugares").
+
+### Testado
+
+Mesma limitação de rede das fases anteriores (sem navegador real contra
+o Supabase de produção neste ambiente) — a lógica de `getDashboardSummary`
+foi verificada direto contra o banco: eventos de hoje de
+sleep/routine/free_play/observation inseridos numa transação de teste
+(com rollback), confirmando que (1) a timeline traz exatamente os quatro
+tipos de atividade em ordem cronológica e exclui `observation`, (2) a
+contagem de sono/brincadeiras bate com o número de linhas de cada tipo,
+(3) "último evento de rotina" pega corretamente o mais recente do dia
+(não o primeiro), e (4) a recomendação do dia aparece na consulta
+filtrada por `child_id` + "hoje". Responsividade validada pelas classes
+Tailwind usadas (mobile-first com breakpoints `sm`/`lg`, grade 2→4
+colunas), não visualmente numa tela real.
+
+### Limitações
+
+- Ver a seção "Limitações conhecidas desta fase" em
+  `docs/PRODUCT_ROADMAP.md`, Fase 7 — mesma lista, sem duplicar aqui.

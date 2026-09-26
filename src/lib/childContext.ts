@@ -14,8 +14,10 @@ const RECENT_DECISIONS_LIMIT = 5; // type = 'decision'
 // frequent, low-stakes logs (what happened) — kept in recentEvents.
 // observation/decision are conceptually more durable ("things that keep
 // mattering"), so they get their own smaller, separate buckets instead of
-// being buried in a shared list of 10 mixed-type rows.
-const ACTIVITY_EVENT_TYPES: EventType[] = ["sleep", "routine", "free_play", "development"];
+// being buried in a shared list of 10 mixed-type rows. Exported so the
+// dashboard's "hoje" summary (src/lib/dashboard.ts) filters by the exact
+// same set instead of redefining it.
+export const ACTIVITY_EVENT_TYPES: EventType[] = ["sleep", "routine", "free_play", "development"];
 
 export type ChildContextEvent = {
   type: EventType;
