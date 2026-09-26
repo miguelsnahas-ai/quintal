@@ -36,12 +36,17 @@ export async function createEventFromMessage(formData: FormData) {
     );
   }
 
+  // O conteúdo do evento vem de uma mensagem real de WhatsApp (a
+  // operadora só confirma/ajusta) — origin "chat" (Fase 8), mesmo
+  // critério já usado pelo badge "via WhatsApp" desta tela
+  // (source_message_id não nulo).
   const { error: eventError } = await supabase.from("events").insert({
     child_id: parsed.data.child_id,
     type: parsed.data.type,
     notes: parsed.data.notes,
     occurred_at: new Date(parsed.data.occurred_at).toISOString(),
     source_message_id: parsed.data.source_message_id,
+    origin: "chat",
     created_by: user.id,
   });
 

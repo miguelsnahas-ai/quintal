@@ -148,6 +148,12 @@ export async function recordConversationTurn(
       type: suggestion.type,
       notes: suggestion.notes,
       source_message_id: inboundMessage.id,
+      // Gerado a partir do texto da própria mensagem — "chat" (Fase 8).
+      // duration_minutes fica null aqui de propósito: suggestEventFromMessage
+      // ainda não extrai duração/horário estruturado da mensagem (ver
+      // docs/ARCHITECTURE_TARGET.md, "Camada de contexto estruturado
+      // (Fase 8)" — a extração automática é trabalho futuro, não desta fase).
+      origin: "chat",
     });
 
     if (eventError) {

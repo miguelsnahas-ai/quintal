@@ -256,6 +256,7 @@ export type Database = {
           created_at: string
           family_id: string
           id: string
+          interests: string[]
           name: string
           notes: string | null
           sex: string | null
@@ -265,6 +266,7 @@ export type Database = {
           created_at?: string
           family_id: string
           id?: string
+          interests?: string[]
           name: string
           notes?: string | null
           sex?: string | null
@@ -274,6 +276,7 @@ export type Database = {
           created_at?: string
           family_id?: string
           id?: string
+          interests?: string[]
           name?: string
           notes?: string | null
           sex?: string | null
@@ -293,9 +296,11 @@ export type Database = {
           child_id: string
           created_at: string
           created_by: string | null
+          duration_minutes: number | null
           id: string
           notes: string
           occurred_at: string
+          origin: string
           payload: Json
           source_message_id: string | null
           type: string
@@ -304,9 +309,11 @@ export type Database = {
           child_id: string
           created_at?: string
           created_by?: string | null
+          duration_minutes?: number | null
           id?: string
           notes: string
           occurred_at?: string
+          origin?: string
           payload?: Json
           source_message_id?: string | null
           type: string
@@ -315,9 +322,11 @@ export type Database = {
           child_id?: string
           created_at?: string
           created_by?: string | null
+          duration_minutes?: number | null
           id?: string
           notes?: string
           occurred_at?: string
+          origin?: string
           payload?: Json
           source_message_id?: string | null
           type?: string
@@ -359,6 +368,44 @@ export type Database = {
           notes?: string | null
         }
         Relationships: []
+      }
+      family_preferences: {
+        Row: {
+          family_id: string
+          feeding_notes: string | null
+          interaction_style: string | null
+          materials_notes: string | null
+          play_notes: string | null
+          routine_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          family_id: string
+          feeding_notes?: string | null
+          interaction_style?: string | null
+          materials_notes?: string | null
+          play_notes?: string | null
+          routine_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          family_id?: string
+          feeding_notes?: string | null
+          interaction_style?: string | null
+          materials_notes?: string | null
+          play_notes?: string | null
+          routine_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_preferences_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: true
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       knowledge_chunks: {
         Row: {

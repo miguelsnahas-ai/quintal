@@ -21,6 +21,7 @@ export async function createEvent(formData: FormData) {
     type: formData.get("type"),
     occurred_at: formData.get("occurred_at"),
     notes: formData.get("notes"),
+    duration_minutes: formData.get("duration_minutes"),
   });
 
   if (!parsed.success) {
@@ -29,11 +30,15 @@ export async function createEvent(formData: FormData) {
     );
   }
 
+  // A operadora digitou isso direto no formulário — nenhuma mensagem
+  // envolvida, então "manual" (Fase 8) é o origin correto aqui.
   const { error } = await supabase.from("events").insert({
     child_id: parsed.data.child_id,
     type: parsed.data.type,
     notes: parsed.data.notes,
     occurred_at: new Date(parsed.data.occurred_at).toISOString(),
+    duration_minutes: parsed.data.duration_minutes,
+    origin: "manual",
     created_by: user.id,
   });
 

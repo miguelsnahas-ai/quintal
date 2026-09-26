@@ -58,6 +58,7 @@ export default async function QuintalDashboardPage() {
     ? await getDashboardSummary(primaryChild.id)
     : {
         sleepCount: 0,
+        mealCount: 0,
         freePlayCount: 0,
         routineCount: 0,
         lastRoutine: null,
@@ -110,8 +111,12 @@ export default async function QuintalDashboardPage() {
               <SummaryCard
                 icon={Utensils}
                 label="Alimentação"
-                value={null}
-                empty="Em breve por aqui."
+                value={
+                  summary.mealCount > 0
+                    ? `${summary.mealCount} ${summary.mealCount === 1 ? "refeição" : "refeições"} hoje`
+                    : null
+                }
+                empty="Nenhum registro ainda hoje."
               />
               <SummaryCard
                 icon={Blocks}

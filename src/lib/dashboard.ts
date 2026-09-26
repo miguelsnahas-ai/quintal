@@ -23,12 +23,12 @@ export type DashboardEvent = {
 export type DashboardSummary = {
   // Today's counts, split the same way the events table itself already
   // splits day-to-day activity — no new taxonomy invented for the
-  // dashboard. "Alimentação" isn't listed here on purpose: there is no
-  // feeding event type in the schema yet (see eventTypes in
-  // src/lib/validation/events.ts), so it has nothing real to count —
-  // the dashboard shows it as an honest empty state instead of
-  // fabricating a number.
+  // dashboard. mealCount became real data in the Fase 8 structured
+  // context layer (the "meal" event type didn't exist when this
+  // dashboard first shipped in Fase 7 — its Alimentação card was an
+  // honest permanent empty state until then).
   sleepCount: number;
+  mealCount: number;
   freePlayCount: number;
   routineCount: number;
   lastRoutine: DashboardEvent | null;
@@ -97,6 +97,7 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
 
   return {
     sleepCount: timeline.filter((event) => event.type === "sleep").length,
+    mealCount: timeline.filter((event) => event.type === "meal").length,
     freePlayCount: timeline.filter((event) => event.type === "free_play").length,
     routineCount: routineEvents.length,
     lastRoutine: routineEvents[routineEvents.length - 1] ?? null,

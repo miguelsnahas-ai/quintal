@@ -520,7 +520,74 @@ continua existindo por inteiro, só deixou de ser a única tela.
   classes Tailwind usadas (mobile-first, com breakpoints `sm`/`lg`), não
   visualmente numa tela real.
 
-## Fase 8 — candidatos (não implementados)
+## Fase 8 — camada de contexto estruturado (concluída)
+
+Objetivo: o Quintal deixa de depender só do histórico textual da
+conversa (e do texto livre em `children.notes`) para saber o que uma
+família precisa — família/criança ganham uma camada de dados
+estruturados, reutilizável pelo Dashboard, pelo chat e por features
+futuras.
+
+### O que foi entregue
+
+1. **`children.interests`** (coluna nova, `text[]`) — interesses
+   observados da criança, editável em `/quintal/perfil`.
+2. **`family_preferences`** (tabela nova, uma linha por família, criada
+   sob demanda) — preferências de alimentação, rotina, brincadeiras,
+   materiais e estilo de interação, também editável em `/quintal/perfil`.
+3. **`events` ganhou `origin`** (`manual`/`chat`/`system`/`recommendation`)
+   e **`duration_minutes`** — prepara o schema para uma futura extração
+   automática a partir do chat (ex.: "ela dormiu das 14h às 15h20" virar
+   um evento com duração), sem implementar essa extração ainda.
+4. **Dois tipos de evento novos**: `meal` (alimentação) e `outing`
+   (passeio) — preenchem uma lacuna que o Dashboard da Fase 7 já
+   documentava (não existia tipo de evento de alimentação). Os tipos
+   existentes NÃO foram renomeados nem removidos.
+5. **`getChildContext` (Fase 3) agora inclui interesses e preferências**
+   da família no prompt da IA — o chat passa a usar dado estruturado
+   real em vez de depender só do histórico da conversa, sem nenhuma
+   automação de IA nova.
+6. **`/quintal/perfil` (Fase 7) virou editável** — essenciais (nome,
+   nascimento, interesses) por criança sempre visíveis, preferências da
+   família atrás de um "Configurações avançadas" recolhido por padrão
+   (progressive disclosure, sem JavaScript extra — um `<details>` nativo).
+7. **Dashboard (Fase 7) atualizado**: o card de Alimentação, que era um
+   estado vazio permanente, agora mostra a contagem real de refeições do
+   dia.
+
+Ver `docs/ARCHITECTURE_TARGET.md`, "Camada de contexto estruturado (Fase
+8)", para o desenho completo, os testes realizados e as limitações.
+
+### Como testar manualmente
+
+1. Abrir `/quintal/perfil` → editar os interesses de uma criança (ex.:
+   "carros, música") e salvar → a mensagem de sucesso aparece, e reabrir
+   a página mostra o valor salvo.
+2. Abrir "Configurações avançadas" → preencher alguma preferência (ex.:
+   alimentação) e salvar.
+3. Conversar em `/quintal/chat` sobre algo relacionado ao interesse/
+   preferência salvo — a resposta da IA passa a ter esse contexto
+   disponível (não há como observar isso diretamente sem acesso à IA
+   real neste ambiente, mas o dado chega ao prompt — ver testes na
+   arquitetura).
+4. Registrar um evento tipo "Alimentação" em `/ops/children/[id]` → o
+   card de Alimentação em `/quintal` passa a mostrar a contagem real.
+
+### Limitações conhecidas desta fase
+
+- Extração automática de eventos a partir do texto do chat (o exemplo
+  "ela dormiu das 14h às 15h20") não foi implementada — só o schema
+  (`origin`, `duration_minutes`) está pronto para receber esse dado.
+- Feedback por texto livre não vira evento nem preferência
+  automaticamente — tudo em `/quintal/perfil` é editado manualmente pela
+  família.
+- Perfil continua sem edição de cuidadores, foto, ou múltiplas famílias
+  — só o essencial de cada criança e as preferências da família.
+- Sem teste em navegador real de ponta a ponta (mesma limitação de rede
+  das fases anteriores) — lógica de schema/dados verificada direto no
+  banco.
+
+## Fase 9 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -537,31 +604,34 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    `messages`, ou tabela de junção) — remove a limitação de histórico
    "por família" descrita acima e permite `ChildContext` incluir
    conversa de forma 100% isolada.
-4. **Fatos permanentes explícitos da criança** (ex.: alergias,
-   preferências) — próximo passo natural de memória, ainda sem
-   embeddings. Distinto de propósito do feedback da Fase 6, que é sempre
-   temporário/contextual, nunca um fato permanente.
-5. **Rehidratar `ActivityCard` no histórico** de `/quintal/chat`, e
+4. **Extração automática de eventos a partir do chat** (Fase 8 preparou
+   o schema — `origin`, `duration_minutes` — mas não implementou a
+   extração) — o próximo passo natural de "deixar de depender só de
+   texto livre".
+5. **Fatos permanentes explícitos e sensíveis da criança** (ex.:
+   alergias) — deliberadamente fora da Fase 8 ("não criar campos médicos
+   ou sensíveis desnecessários"); exigiria decisão própria sobre
+   segurança/privacidade antes de existir.
+6. **Rehidratar `ActivityCard` no histórico** de `/quintal/chat`, e
    atribuir `activity_feedback`/`activity_recommendations` a
    família/criança de forma mais rica.
-6. **Detectar feedback por texto livre na conversa** (ex.: a família
+7. **Detectar feedback por texto livre na conversa** (ex.: a família
    digita "ela adorou" em vez de tocar no botão) — exigiria um detector
    de intenção dedicado, deliberadamente fora do escopo da Fase 6.
-7. **Unificar `activity_feedback` e `activity_recommendation_feedback`**
+8. **Unificar `activity_feedback` e `activity_recommendation_feedback`**
    numa visão só, para uma eventual tela de analytics mais completa.
-8. **Suporte real a múltiplas crianças** na experiência principal, não só
-   no seletor.
-9. **Transação de verdade na criação de família** (`/comecar`) — a
-   verificação de telefone duplicado adicionada em 2026-09-25 já evita a
-   causa mais comum de registros órfãos, mas não é uma transação real
-   (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
-   família sem cuidador).
-10. **Módulos completos de Alimentação, Sono, Brincadeiras, Materiais e
-    Rotina** — o Dashboard (Fase 7) já reserva o espaço visual e usa
-    dado real onde existe; cada um desses vira seu próprio sistema
-    (registro estruturado, não só leitura de `events`) numa fase
-    dedicada.
-11. **Perfil completo da criança** — `/quintal/perfil` (Fase 7) é
-    deliberadamente só-leitura; edição, foto, múltiplas crianças geridas
-    ali, etc. ficam para quando o módulo de Perfil for desenvolvido de
-    verdade.
+9. **Suporte real a múltiplas crianças** na experiência principal, não só
+   no seletor (nem no novo formulário de perfil, que já lista todas mas
+   trata cada uma independentemente).
+10. **Transação de verdade na criação de família** (`/comecar`) — a
+    verificação de telefone duplicado adicionada em 2026-09-25 já evita a
+    causa mais comum de registros órfãos, mas não é uma transação real
+    (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
+    família sem cuidador).
+11. **Módulos completos de Alimentação, Sono, Brincadeiras, Materiais e
+    Rotina** — a Fase 8 deu a cada um um tipo de evento real e um lugar
+    no Dashboard; virar um sistema próprio (registro estruturado por
+    tipo, não só notas livres — ex.: o que foi comido, quanto tempo
+    durou o sono) é trabalho de uma fase dedicada por área.
+12. **Edição de cuidadores e foto no perfil** — `/quintal/perfil` (Fase
+    8) edita só os essenciais da criança e as preferências da família.

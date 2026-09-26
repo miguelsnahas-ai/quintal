@@ -12,6 +12,8 @@ const TIMELINE_VERBS: Partial<Record<string, string>> = {
   routine: "Rotina",
   free_play: "Brincadeira",
   development: "Desenvolvimento",
+  meal: "Refeição",
+  outing: "Passeio",
 };
 
 export default function Timeline({ events }: { events: DashboardEvent[] }) {

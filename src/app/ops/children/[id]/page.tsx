@@ -29,7 +29,7 @@ export default async function ChildDetailPage({
       .maybeSingle(),
     supabase
       .from("events")
-      .select("id, type, occurred_at, notes, source_message_id")
+      .select("id, type, occurred_at, notes, source_message_id, duration_minutes, origin")
       .eq("child_id", childId)
       .order("occurred_at", { ascending: false })
       .limit(50),
@@ -100,6 +100,10 @@ export default async function ChildDetailPage({
               defaultValue={toDatetimeLocalValue(new Date())}
             />
           </div>
+          <div className="space-y-1">
+            <Label>Duração em minutos (opcional)</Label>
+            <Input type="number" name="duration_minutes" min={1} placeholder="Ex.: 90" />
+          </div>
           <div className="space-y-1 sm:col-span-2">
             <Label>Notas</Label>
             <Textarea name="notes" required rows={3} />
@@ -118,10 +122,13 @@ export default async function ChildDetailPage({
           <div className="space-y-2">
             {events.map((event) => (
               <Card key={event.id} className="space-y-1 p-3">
-                <div className="flex items-center justify-between text-xs text-ink-muted">
-                  <Badge variant="accent">
-                    {eventTypeLabels[event.type as keyof typeof eventTypeLabels] ?? event.type}
-                  </Badge>
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-ink-muted">
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="accent">
+                      {eventTypeLabels[event.type as keyof typeof eventTypeLabels] ?? event.type}
+                    </Badge>
+                    {event.duration_minutes && <span>{event.duration_minutes} min</span>}
+                  </div>
                   <span className="flex items-center gap-1">
                     {new Date(event.occurred_at).toLocaleString("pt-BR")}
                     {event.source_message_id && (

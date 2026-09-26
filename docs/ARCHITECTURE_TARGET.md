@@ -1033,3 +1033,147 @@ colunas), não visualmente numa tela real.
 
 - Ver a seção "Limitações conhecidas desta fase" em
   `docs/PRODUCT_ROADMAP.md`, Fase 7 — mesma lista, sem duplicar aqui.
+
+## Camada de contexto estruturado (Fase 8)
+
+### Objetivo
+
+Até aqui, "o que sabemos sobre uma família" vivia em três lugares
+diferentes e nenhum era realmente estruturado: `children.notes` (texto
+livre), o histórico de mensagens (texto livre, escopado por família, não
+por criança — ver "O núcleo permanece único" acima), e `events.notes`
+(texto livre, por criança). Esta fase adiciona a peça que faltava: dados
+estruturados e editáveis pela própria família, que tanto o Dashboard
+quanto o chat conseguem consumir sem precisar reinterpretar texto.
+
+### O que já existia e o que é novo
+
+| Conceito pedido | Já existia como | O que a Fase 8 adicionou |
+|---|---|---|
+| Family | `families` | nada — já servia |
+| Child | `children` | `interests text[]` |
+| Caregiver | `caregivers` | nada — já servia, sem UI de edição no perfil da família (deliberado, ver limitações) |
+| Preferences | nada | `family_preferences` (tabela nova) |
+| Child Interests | nada | `children.interests` (mesma coluna acima) |
+| Events (genérico) | `events` (6 tipos) | +`meal`, +`outing`, +`origin`, +`duration_minutes` |
+
+Nada foi renomeado ou removido — critério de aceite explícito desta fase
+("nenhuma funcionalidade existente foi quebrada").
+
+### `events`: por que somar tipos em vez de renomear
+
+O pedido desta fase listava tipos conceituais `sleep`/`meal`/`play`/
+`outing`/`routine`/`note`. Comparando com o que já existia
+(`sleep`/`routine`/`free_play`/`development`/`observation`/`decision`):
+`play` e `note` já tinham exatamente esse papel, só com nomes diferentes
+(`free_play`/`observation`) — e esses nomes já estão espalhados por
+`eventTypeLabels`, `ChildContext.ACTIVITY_EVENT_TYPES`, o formulário de
+`/ops/children/[id]`, o prompt de classificação de `suggestEvent.ts`, e
+dados já gravados no banco. Renomear quebraria tudo isso sem nenhum
+ganho real — a arquitetura já tinha o conceito, só com outro rótulo. Só
+`meal` e `outing` eram lacunas de verdade (nenhum tipo existente cobria
+"alimentação" ou "passeio"), então só esses dois foram somados à
+constraint `events_type_check`.
+
+`meal`/`outing` entraram também em `ACTIVITY_EVENT_TYPES`
+(`src/lib/childContext.ts`) — o mesmo grupo "dia a dia, frequente,
+baixo risco" que `sleep`/`routine`/`free_play`/`development` já
+formavam. Automaticamente, isso significa: (1) entram na timeline e nas
+contagens do Dashboard (que já reusa essa constante — ver Fase 7), e (2)
+entram no bloco "Atividades recentes" do prompt da IA, sem precisar
+tocar em `getChildContext` ou em `formatChildContextForPrompt` para
+isso.
+
+### `origin` e `duration_minutes`: preparação, não extração
+
+O pedido é explícito: o chat deve poder gerar eventos estruturados no
+futuro (ex.: "ela dormiu das 14h às 15h20" virando
+`{type: sleep, duration_minutes: 80, origin: chat}`), mas esta fase NÃO
+implementa essa extração — só prepara o schema para recebê-la:
+
+- **`origin`** (`manual`/`chat`/`system`/`recommendation`, default
+  `'manual'`) grava explicitamente de onde um evento veio, em vez de só
+  poder inferir isso indiretamente de `source_message_id` (que só diz
+  "veio de alguma mensagem", não "veio de uma extração automática").
+  Backfill aplicado na migração: linhas com `source_message_id` não nulo
+  viraram `origin = 'chat'` (é literalmente o que já significavam).
+  `'system'`/`'recommendation'` ainda não são emitidos por nenhum
+  código — ficam modelados para quando fizer sentido (ex.: um evento
+  gerado ao aceitar uma recomendação).
+- **`duration_minutes`** (nullable, `> 0` quando presente) — hoje só
+  preenchível manualmente em `/ops/children/[id]` (campo novo no
+  formulário). `suggestEventFromMessage` (`src/lib/groq/suggestEvent.ts`)
+  **não foi alterado** — continua sem extrair duração/horário
+  estruturado de uma mensagem; isso é o próximo passo natural (Fase 9),
+  não desta fase.
+- Os três pontos que gravam em `events` foram todos atualizados para
+  declarar `origin` explicitamente: `/ops/children/[id]/actions.ts`
+  (`'manual'`, a operadora digitou direto), `/ops/inbox/[messageId]/actions.ts`
+  (`'chat'`, o conteúdo vem de uma mensagem de WhatsApp real),
+  `src/lib/conversation.ts` (`'chat'`, o registro automático a partir do
+  texto da conversa).
+
+### `family_preferences` e `children.interests` — como chegam ao chat
+
+`getChildContext` (`src/lib/childContext.ts`, Fase 3) ganhou dois campos
+novos: `child.interests` (direto de `children.interests`) e
+`familyPreferences` (busca `family_preferences` pelo `family_id` da
+criança — por isso o select de `children` passou a incluir `family_id`,
+que antes não precisava). `formatChildContextForPrompt` — o único lugar
+que transforma um `ChildContext` em texto de prompt — ganhou duas seções
+novas, com a mesma disciplina de sempre: omitidas quando vazias, nunca
+"nenhum interesse registrado" de preenchimento. Como `suggestReply`,
+`suggestEvent` e `explainRecommendation` já consomem `ChildContext`
+(direta ou indiretamente) sem conhecer sua forma interna, esse dado
+passou a estar disponível para a IA em TODAS as chamadas existentes, sem
+tocar em nenhum desses arquivos.
+
+`src/lib/familyContext.ts` (novo) é o módulo separado para o caso de uso
+diferente: leitura + edição pela família em `/quintal/perfil`, não
+leitura para prompt. `getChildContext` continua só-leitura e focado em
+"o que a IA precisa saber agora"; `familyContext.ts` expõe
+`getFamilyProfile` (família inteira: cuidadores, todas as crianças,
+preferências) e `updateChildEssentials`/`updateFamilyPreferences` — as
+duas únicas mutações desta fase.
+
+### `/quintal/perfil`: de só-leitura (Fase 7) para editável
+
+Reescrita completa da página, mas o padrão de acesso não mudou
+(sessão → `caregiver.family_id`, igual a `/quintal` e `/quintal/chat`).
+Progressive disclosure implementada com `<details>`/`<summary>` nativos
+— zero JavaScript novo no cliente, zero componente de estado — as
+preferências da família ficam fechadas por padrão, cada criança tem seu
+próprio formulário pequeno e independente (nome, nascimento, interesses
+como texto separado por vírgula, convertido em array no servidor por
+`childEssentialsInputSchema`). Cuidadores continuam só-leitura aqui
+(edição completa já existe para o operador em
+`/ops/families/[id]` — duplicar essa UI no lado da família não foi
+pedido e ficaria fora do escopo de "não criar formulário gigantesco").
+
+### Testado
+
+Mesma limitação de rede das fases anteriores (sem navegador real contra
+o Supabase de produção neste ambiente) — verificado direto no banco, em
+transações com rollback: (1) `meal`/`outing` aceitos pela constraint
+nova, com `origin` default `'manual'`; (2) round-trip de
+`children.interests` (array de strings); (3) upsert de
+`family_preferences` e leitura via join por `family_id`, replicando
+exatamente a query de `getChildContext`; (4) a query de timeline do
+Dashboard (Fase 7) incluindo `meal`/`outing` nos tipos filtrados,
+confirmando que `mealCount` passa a refletir dado real.
+
+### Limitações
+
+- **Extração automática de eventos a partir do chat não foi
+  implementada** — o pedido foi explícito em preparar a arquitetura, não
+  construir a extração. `suggestEventFromMessage` continua exatamente
+  como estava.
+- **Sem campos médicos/sensíveis** — por pedido explícito. "Fatos
+  permanentes" como alergias ficam para uma decisão própria de
+  produto/segurança (Fase 9).
+- **Perfil não edita cuidadores nem tem foto** — só essenciais da
+  criança e preferências da família.
+- **`interests` é uma lista simples, sem proveniência** — não registra
+  se um interesse veio de edição manual ou (no futuro) de uma inferência
+  do chat; se isso importar um dia, é um campo a mais, não uma tabela
+  nova.
