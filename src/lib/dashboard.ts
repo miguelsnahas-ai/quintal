@@ -4,9 +4,15 @@ import { ACTIVITY_EVENT_TYPES } from "@/lib/childContext";
 import { getActivity, toActivitySummary, type Activity, type ActivitySummary } from "@/lib/activity";
 import { getOpenSleepSession, type OpenSleepSession } from "@/lib/sleep";
 import { getActivitySuggestions, getRecentNegativeLibraryFeedbackActivityIds } from "@/lib/play";
+import { getRecommendedMaterials, getRecentCategoryBoosts, type RecommendedMaterial } from "@/lib/library";
+import { getChildFeedingMethod } from "@/lib/feeding";
 import { sleepEventPayloadSchema } from "@/lib/validation/sleep";
 import type { EventType } from "@/lib/validation/events";
 import type { Json } from "@/lib/supabase/types";
+
+// Dashboard fica compacto — a biblioteca completa vive em
+// /quintal/materiais (Fase 12).
+const DASHBOARD_MATERIALS_LIMIT = 2;
 
 // How many of today's recommendations to surface in the "Para hoje" card
 // — a dashboard summary, not the full history (that lives in
@@ -69,6 +75,11 @@ export type DashboardSummary = {
   // brincadeira" ao Dashboard não devia depender de a família ter
   // conversado; a página decide se mostra isto ou recommendationsToday.
   playSuggestion: ActivitySummary | null;
+  // Fase 12: "adicionar materiais recomendados quando houver contexto
+  // suficiente" — vazio sempre que a idade da criança não é conhecida
+  // (getRecommendedMaterials recusa recomendar sem isso), nunca um
+  // preenchimento forçado.
+  recommendedMaterials: RecommendedMaterial[];
 };
 
 // The Dashboard's single data source — every number and card on
@@ -134,14 +145,26 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
   // function) decides which one to show; the extra query is cheap and
   // bounded, same tradeoff as the getActivity re-fetches above.
   const avoidIds = await getRecentNegativeLibraryFeedbackActivityIds(childId);
+  const ageMonths = ageInMonths(childRow?.birth_date ?? null);
+  const interests = childRow?.interests ?? [];
   const playSuggestions = await getActivitySuggestions(
-    {
-      ageMonths: ageInMonths(childRow?.birth_date ?? null),
-      interests: childRow?.interests ?? [],
-      excludeIds: avoidIds,
-    },
+    { ageMonths, interests, excludeIds: avoidIds },
     1,
   );
+
+  // Mesmos sinais de /quintal/materiais (Fase 12): método alimentar
+  // configurado + o que a família registrou nos últimos dias.
+  const [feedingMethod, categoryBoosts] = await Promise.all([
+    getChildFeedingMethod(childId),
+    getRecentCategoryBoosts(childId),
+  ]);
+  const recommendedMaterials = await getRecommendedMaterials({
+    ageMonths,
+    interests,
+    feedingMethodTitle: feedingMethod.option?.title ?? feedingMethod.custom,
+    categoryBoosts,
+    limit: DASHBOARD_MATERIALS_LIMIT,
+  });
 
   return {
     sleepCount: timeline.filter((event) => event.type === "sleep").length,
@@ -157,5 +180,6 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     timeline,
     recommendationsToday: recommendedActivities.map(toActivitySummary),
     playSuggestion: playSuggestions[0] ?? null,
+    recommendedMaterials,
   };
 }

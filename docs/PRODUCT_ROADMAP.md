@@ -930,7 +930,108 @@ para o desenho completo e os testes realizados.
   das fases anteriores) — lógica de filtro/payload/exclusão verificada
   direto contra o banco real, em transações com rollback.
 
-## Fase 12 — candidatos (não implementados)
+## Fase 12 — biblioteca de Materiais (concluída)
+
+Objetivo: dar à família um lugar para encontrar conteúdos/recursos
+(artigos, guias, receitas, atividades...) relevantes ao contexto da
+criança — navegável, buscável, filtrável, com uma seção "Recomendados
+para vocês" por regras simples e transparentes. Sem parecer um catálogo
+infinito.
+
+### O que foi entregue
+
+1. **Sem nenhuma migração, sem tabela de conteúdo nova**: os tipos
+   pedidos ("receita", "atividade") e as categorias pedidas
+   ("alimentação", "sono", "brincadeiras"...) batiam de forma quase
+   exata com categorias que `knowledge_chunks` já tinha
+   (`receitas`, `brincadeiras`/`materiais`, `metodos_alimentacao`...).
+   Em vez de uma nova tabela de conteúdo, esta fase é um mapeamento das
+   **10 categorias existentes (531 linhas)** para um vocabulário único
+   de tipo/categoria — a mesma base que já alimentava `Activity` (Fase
+   4) e as sugestões de refeição (Fase 9), agora vista por uma lente
+   mais ampla.
+2. **8 tipos de material suportados**, confirmados contra o banco antes
+   de codificar: hoje só 4 (`atividade`, `referência`, `receita`,
+   `guia`) têm conteúdo real atrás; `artigo`/`vídeo`/`livro`/`checklist`
+   estão no vocabulário, prontos para quando existir conteúdo desses
+   tipos, sem inventar nenhum.
+3. **6 categorias pedidas** (alimentação, sono, brincadeiras,
+   desenvolvimento, rotina, parentalidade) — 5 têm conteúdo real hoje;
+   "parentalidade" fica vazia (nenhuma das 10 categorias de
+   `knowledge_chunks` cobre esse tema), documentado honestamente em vez
+   de forçar um mapeamento que não existe.
+4. **Materiais de `brincadeiras`/`materiais` reaproveitam `/atividades/[id]`**
+   (Fase 4/11) em vez de ganhar uma segunda página de detalhe — a
+   biblioteca de Materiais é uma lente mais ampla sobre o mesmo
+   conteúdo, não uma cópia dele. As outras 8 categorias ganharam
+   `/materiais/[id]`, novo, genérico.
+5. **Busca reaproveita a função RAG já existente**
+   (`search_knowledge_chunks`, usada desde as fases iniciais para o
+   chat) — nenhuma segunda implementação de busca.
+6. **Filtros por categoria e tipo**, além da idade (automática,
+   obrigatória).
+7. **"Recomendados para vocês"**: regras simples e auditáveis (idade,
+   interesses, método alimentar configurado, e o que a família registrou
+   nos últimos 3 dias — "histórico de atividades"/"contexto atual") —
+   cada material recomendado vem com um **motivo** (ex.: "Vocês
+   registraram sono recentemente", "Combina com o método alimentar de
+   vocês (BLW)"). Sem idade conhecida, sem recomendação nenhuma — mesma
+   regra de segurança do Recommendation Engine (Fase 5).
+8. **Princípio de "não parecer catálogo infinito" aplicado de verdade**:
+   sem busca nem filtro, a página mostra só "Recomendados" (até 4) e
+   atalhos de categoria — nunca as 531 linhas de uma vez. Mesmo
+   filtrando por categoria, o resultado é limitado (12) em vez de
+   despejar tudo (`alimentos` sozinha tem 176 linhas).
+9. **Dashboard integrado**: nova seção "Materiais para vocês" (até 2),
+   só aparece com idade conhecida — "quando houver contexto suficiente",
+   como pedido.
+
+Ver `docs/ARCHITECTURE_TARGET.md`, "Biblioteca de Materiais (Fase 12)",
+para o desenho completo e os testes realizados.
+
+### Como testar manualmente
+
+1. `npm run build && npm run start`.
+2. Abrir `/quintal` → se a criança tiver idade cadastrada, a seção
+   "Materiais para vocês" aparece com até 2 sugestões e um link para a
+   biblioteca completa.
+3. Abrir `/quintal/materiais` → sem digitar nada, a página mostra
+   "Recomendados para vocês" (poucos, com motivo) e os atalhos de
+   categoria — nunca uma lista longa.
+4. Buscar por um tema (ex.: "sono", "papinha") → resultados vêm de
+   categorias diferentes (confirmado: uma busca por problema de sono
+   retorna linhas de `formas_de_dormir`/`rotinas_sono`).
+5. Filtrar por categoria/tipo → lista curta (até 12), sempre respeitando
+   a idade da criança.
+6. Abrir um material de alimentos/sono/desenvolvimento/higiene/passeios
+   → `/materiais/[id]` mostra resumo + todos os campos reais da linha;
+   abrir um material de brincadeiras → redireciona para
+   `/atividades/[id]` (a página que já existia).
+
+### Limitações conhecidas desta fase
+
+- **4 dos 8 tipos pedidos não têm conteúdo real** (`artigo`, `vídeo`,
+  `livro`, `checklist`) — o vocabulário suporta, o conteúdo da base de
+  conhecimento atual não cobre nenhum desses formatos.
+- **Categoria "parentalidade" está sempre vazia** — nenhuma das 10
+  categorias de `knowledge_chunks` cobre esse tema hoje.
+- **URL externa nunca é usada** — todo material é conteúdo próprio
+  (texto já na base), "URL ou conteúdo" dos metadados pedidos sempre
+  resolve para "conteúdo" nesta fase.
+- **Biblioteca sem paginação de verdade** (mesma limitação já assumida
+  na Fase 11) — filtrar por categoria mostra até 12 resultados, não
+  todos; a busca é o caminho para achar algo específico numa categoria
+  grande.
+- **Recomendação é regra simples, não IA** — por pedido explícito;
+  `getRecommendedMaterials` foi desenhada para uma curadoria/IA futura
+  assumir só o "motivo" (a explicação) sem mudar a decisão nem o formato
+  de saída, mesma separação DECISÃO/REDAÇÃO já validada pelo
+  Recommendation Engine (Fase 5).
+- Sem teste em navegador real de ponta a ponta (mesma limitação de rede
+  das fases anteriores) — mapeamento de categorias, busca e sinais de
+  recomendação verificados direto contra o banco real.
+
+## Fase 13 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -963,8 +1064,8 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    digita "ela adorou" em vez de tocar no botão) — exigiria um detector
    de intenção dedicado, deliberadamente fora do escopo da Fase 6.
 8. **Unificar `activity_feedback`, `activity_recommendation_feedback` e
-   o novo feedback de `events.payload` (Fase 11)** numa visão só, para
-   uma eventual tela de analytics mais completa.
+   o feedback de `events.payload` (Fase 11)** numa visão só, para uma
+   eventual tela de analytics mais completa.
 9. **Suporte real a múltiplas crianças** na experiência principal, não só
    no seletor (nem no novo formulário de perfil, que já lista todas mas
    trata cada uma independentemente).
@@ -978,11 +1079,13 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     tipo de evento real e um lugar no Dashboard.
 12. **Edição de cuidadores e foto no perfil** — `/quintal/perfil` (Fase
     8) edita só os essenciais da criança e as preferências da família.
-13. **Camada de recomendação/IA real para sugestões de refeição e de
-    brincadeira** — as Fases 9 e 11 deixaram `getMealSuggestions` e
-    `getActivitySuggestions` prontas para serem substituídas sem mudar o
-    formato de saída nem os componentes que as consomem, mas as duas
-    continuam filtro/ordenação simples, sem nenhum julgamento de IA.
+13. **Camada de recomendação/IA real para sugestões de refeição,
+    brincadeira e materiais** — as Fases 9, 11 e 12 deixaram
+    `getMealSuggestions`, `getActivitySuggestions` e
+    `getRecommendedMaterials` prontas para serem substituídas sem mudar
+    o formato de saída nem os componentes que as consomem, mas as três
+    continuam filtro/ordenação/regra simples, sem nenhum julgamento de
+    IA.
 14. **Dividir um sono que atravessa a meia-noite em duas linhas na
     timeline** (início "ontem à noite", despertar "hoje de manhã", como
     o exemplo ilustrativo do briefing da Fase 10 mostrava) — a Fase 10
@@ -997,3 +1100,9 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     hoje só a biblioteca influencia o chat (Fase 11); recomendações e
     feedback do chat ainda não influenciam a lista "Para hoje" da
     biblioteca.
+17. **Conteúdo real dos tipos artigo/vídeo/livro/checklist**, e da
+    categoria "parentalidade" — a Fase 12 preparou o vocabulário; hoje
+    nenhuma linha de `knowledge_chunks` é desses tipos/categoria.
+18. **Paginação de verdade na biblioteca de Materiais** — hoje um limite
+    fixo (12 por filtro) em vez de páginas, mesma limitação já aceita
+    para a biblioteca de Brincadeiras (Fase 11).

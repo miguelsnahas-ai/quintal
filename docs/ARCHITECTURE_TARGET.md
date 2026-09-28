@@ -1955,3 +1955,250 @@ schema real (`izattwaiqjzhydzhxlns`), em transação com rollback:
   pôde ser reproduzida neste ambiente.
 - **Continua assumindo uma criança por família** — mesma simplificação
   já feita pelas demais páginas de `/quintal`.
+
+## Biblioteca de Materiais (Fase 12)
+
+### Objetivo
+
+O pedido descrevia "materiais" como "conteúdos ou recursos que podem
+ajudar a família" — artigos, vídeos, livros, guias, checklists,
+atividades, receitas, referências, organizados por categoria
+(alimentação, sono, brincadeiras, desenvolvimento, rotina,
+parentalidade), com busca, filtros e recomendações. Antes de desenhar
+qualquer schema, valeu notar o óbvio: dois dos oito tipos pedidos
+("atividade", "receita") e a maioria das seis categorias pedidas já
+eram, literalmente, categorias de `knowledge_chunks` havia várias
+fases. Isso não é coincidência — é o mesmo corpus de conteúdo (531
+linhas, 10 categorias) que `Activity` (Fase 4) e `feeding.ts` (Fase 9)
+já liam, só que esta fase precisa de uma lente que cubra **todas** as
+10 categorias, não só duas.
+
+### O mapeamento: 10 categorias de `knowledge_chunks` → 6 categorias + 8 tipos de Material
+
+Confirmado direto no banco antes de codificar (mesma disciplina de
+diagnóstico-antes-de-código da Fase 4/11): contagem exata por categoria
+(531 linhas), amostra de conteúdo das 6 categorias ainda não
+exploradas nesta sessão (`alimentos`, `desenvolvimento`,
+`formas_de_dormir`, `higiene`, `passeios`, `rotinas_sono`), e uma
+verificação de que o campo escolhido como "descrição curta" de cada
+categoria está de fato preenchido em (quase) 100% das linhas daquela
+categoria, não só na primeira amostrada.
+
+```ts
+// src/lib/library.ts
+const CATEGORY_CONFIG: Record<string, { materialCategory; materialType; descriptionField }> = {
+  alimentos:            { materialCategory: "feeding",      materialType: "reference", descriptionField: "Grupo alimentar (Guia MS)" },
+  receitas:              { materialCategory: "feeding",      materialType: "recipe",    descriptionField: "Refeição" },
+  metodos_alimentacao:   { materialCategory: "feeding",      materialType: "guide",     descriptionField: "Como funciona" },
+  rotinas_sono:           { materialCategory: "sleep",        materialType: "guide",     descriptionField: "Para quem costuma funcionar" },
+  formas_de_dormir:       { materialCategory: "sleep",        materialType: "guide",     descriptionField: "Quando funciona melhor" },
+  desenvolvimento:        { materialCategory: "development",  materialType: "reference", descriptionField: "Dica / atividade" },
+  higiene:                { materialCategory: "routine",      materialType: "guide",     descriptionField: "O que procurar na composição" },
+  passeios:               { materialCategory: "play",         materialType: "guide",     descriptionField: "O que levar" },
+  // brincadeiras/materiais delegam para toActivity (Fase 4) — ver abaixo
+};
+```
+
+Duas categorias pedidas ficam sem conteúdo real: **"parentalidade"**
+(nenhuma das 10 categorias de `knowledge_chunks` cobre parentalidade
+em geral — filosofias de criação, comunicação, autocuidado dos
+cuidadores) e, dentro dos tipos, **artigo/vídeo/livro/checklist**
+(nenhuma linha é desses formatos — todo o corpus é dado estruturado
+tabular, não texto corrido nem mídia). Isso não foi visto como um
+problema a resolver escrevendo conteúdo novo (fora do escopo de uma
+fase de arquitetura) — o vocabulário suporta os oito tipos e as seis
+categorias pedidas, como pedido ("suportar inicialmente"); o conteúdo
+real é que ainda não cobre todos eles, e isso é dito explicitamente na
+página e na documentação, nunca escondido atrás de uma lista vazia sem
+explicação.
+
+`"passeios"` não tinha uma categoria óbvia entre as seis pedidas — foi
+mapeado para `"play"` (brincadeiras) por ser o vizinho semântico mais
+próximo (passeios são, na prática, atividades de lazer fora de casa,
+com os mesmos campos de "Interesses"/"O que levar" que brincadeiras
+já usam), não para `"routine"`.
+
+### `brincadeiras`/`materiais`: reaproveitar `Activity`, não reimplementar
+
+Em vez de reparsear essas duas categorias do zero, `toLibraryMaterial`
+delega diretamente para `toActivity` (Fase 4, exportada nesta fase
+junto com `KnowledgeChunkRow` especificamente para este reuso) e adapta
+o resultado para a forma de `LibraryMaterial`:
+
+```ts
+if (ACTIVITY_DELEGATED_CATEGORIES.has(row.category)) {
+  const activity = toActivity(row);
+  // ...adapta Activity → LibraryMaterial, sem reparsear content
+}
+```
+
+E a página de detalhe segue a mesma lógica: `getMaterialHref` devolve
+`/atividades/{id}` para essas duas categorias, nunca `/materiais/{id}`
+— a biblioteca de Materiais é uma **segunda lente** sobre o mesmo
+conteúdo (mais ampla: tipo + categoria unificados, busca, "Recomendados
+para vocês"), não uma cópia da experiência de Brincadeiras. Um material
+de brincadeira aberto a partir de `/quintal/materiais` cai exatamente
+na mesma página `/atividades/[id]` que já tem registro/feedback (Fase
+11) — sem duplicar essa lógica.
+
+As outras 8 categorias não tinham nenhuma página de detalhe própria
+antes desta fase (nem `alimentos`, nem `receitas`, nem nenhuma das
+outras 6) — `/materiais/[id]` (novo) é genérico o bastante para
+qualquer uma delas: mostra a descrição, depois **todo** campo real que
+sobrou do `content` daquela linha como uma seção própria (`extra:
+{label, value}[]`, mesmo formato de `Activity.extra`), nada escondido,
+nada inventado.
+
+### Busca: nenhuma segunda implementação
+
+`search_knowledge_chunks` (a função RPC full-text já usada pelo RAG da
+IA desde as fases iniciais) já busca em todas as 10 categorias, com
+ranking por relevância e um filtro de idade soft. `searchMaterials`
+(`src/lib/library.ts`) só chama `searchKnowledge` (já existia,
+`src/lib/knowledge.ts`) e resolve cada resultado para a forma completa
+de `LibraryMaterial` via `getMaterial` — mesmo padrão de N pequeno já
+aceito em `recommendation.ts`/`dashboard.ts` para resolver um punhado
+de ids. Verificado nesta fase: uma busca por "meu bebê não dorme bem à
+noite" (idade 8 meses) retorna linhas de `formas_de_dormir` e
+`rotinas_sono` — confirma que a busca cobre categorias além de
+brincadeiras/materiais, que era a única coisa que os call sites
+anteriores (o chat) já exercitavam.
+
+### "Recomendados para vocês": regras simples, auditáveis, com motivo
+
+`getRecommendedMaterials` segue exatamente o pedido — idade, interesses,
+método alimentar, histórico de atividades/contexto atual — como uma
+soma de pontos inteiros e documentados, não um modelo:
+
+| Sinal | Pontos | Fonte |
+|---|---|---|
+| Categoria do material tem evento recente (≤3 dias) para esta criança | +2 | `getRecentCategoryBoosts` (eventos → categoria) |
+| Material de alimentação menciona o método alimentar da família | +2 | `methodKeyword` (exportada de `feeding.ts`, Fase 9, reaproveitada em vez de duplicada) |
+| Material menciona um interesse da criança | +1 | mesmo padrão de `matchesInterests` (Fase 9/11) |
+
+Sem idade conhecida, a função devolve `[]` imediatamente — mesma regra
+de segurança de `recommendActivity` (Fase 5): nunca recomenda "no
+escuro". O `reason` devolvido junto de cada material é a explicação do
+sinal de maior peso que bateu (ou "Compatível com a idade da criança"
+quando nenhum sinal mais forte bateu) — nunca um texto gerado por LLM
+nesta fase, mas a MESMA separação DECISÃO/REDAÇÃO que
+`recommendation.ts` já validou (Fase 5): a pontuação decide a ordem, o
+texto só explica a decisão já tomada, então uma curadoria/redação mais
+sofisticada (humana ou por IA) poderia assumir só a geração do `reason`
+no futuro sem tocar em `score`.
+
+`getRecentCategoryBoosts` (usada tanto por "histórico de atividades"
+quanto por "contexto atual" — o mesmo sinal serve aos dois, pedidos
+como critérios separados) olha os eventos dos últimos 3 dias da
+criança e mapeia `type` para `MaterialCategory`
+(`sleep→sleep`, `meal→feeding`, `free_play→play`, `routine→routine`,
+`outing→play`, `development→development`) — verificado direto no
+banco: inserir um evento `sleep` e um `meal` nos últimos 3 dias faz a
+consulta subjacente retornar exatamente `{sleep, meal}` como tipos
+recentes.
+
+### Princípio: nunca um catálogo infinito
+
+Pedido explícito ("o material não deve parecer um catálogo infinito").
+Duas decisões de UI/produto garantem isso, não só documentação:
+
+1. **Sem busca nem filtro, a página nunca lista materiais soltos** — só
+   "Recomendados para vocês" (no máximo 4, curados pela regra acima) e
+   os seis atalhos de categoria. A lista completa de uma categoria só
+   aparece quando a família pede (tocando um atalho ou filtrando).
+2. **Mesmo filtrando, o resultado é limitado** (`BROWSE_LIMIT = 12`) —
+   `alimentos` sozinha tem 176 linhas; sem esse limite, filtrar por
+   "alimentação" despejaria quase o dobro do que a Biblioteca de
+   Brincadeiras inteira (149) mostra sem filtro nenhum. A busca (mais
+   específica por natureza, já ordenada por relevância) é o caminho
+   para achar algo dentro de uma categoria grande, não rolar uma lista.
+
+### Dashboard: só com contexto suficiente
+
+`DashboardSummary.recommendedMaterials` reaproveita exatamente
+`getRecommendedMaterials`, com um limite ainda menor (2, via
+`DASHBOARD_MATERIALS_LIMIT`) — o Dashboard já tem "Hoje" e "Para hoje"
+(atividades); "Materiais para vocês" precisa ficar compacto. Como a
+função já devolve `[]` sem idade conhecida, "adicionar quando houver
+contexto suficiente" (pedido explícito) é automático — a seção
+inteira some da página quando `recommendedMaterials.length === 0`, sem
+nenhuma lógica condicional extra na página além do `&&` de sempre.
+
+### Arquivos novos e alterados
+
+- **`src/lib/activity.ts`**: nenhuma mudança de schema, mas
+  `toActivity`/`KnowledgeChunkRow` já tinham sido exportados na Fase 11
+  — reaproveitados aqui sem alteração.
+- **`src/lib/feeding.ts`**: `methodKeyword` passou a ser exportada
+  (reuso por `library.ts`).
+- **Novo `src/lib/validation/library.ts`** — `materialTypes`/
+  `materialTypeLabels`, `materialCategories`/`materialCategoryLabels`.
+  Sem schema Zod (esta fase não tem formulário — só leitura/busca/
+  recomendação).
+- **Novo `src/lib/library.ts`** — `LibraryMaterial`, `toLibraryMaterial`,
+  `getMaterial`, `getMaterialHref`, `getMaterialsByFilter`,
+  `searchMaterials`, `getRecommendedMaterials`,
+  `getRecentCategoryBoosts`. Descrito nas seções acima.
+- **Novo `src/components/library/MaterialCard.tsx`** — mesmo estilo
+  visual de `ActivityCard`/`MealSuggestionCard` (`rounded-lg`,
+  `bg-secondary`, sem borda), com ícone por tipo de material.
+- **Novo `src/app/materiais/[id]/page.tsx`** — detalhe genérico para as
+  8 categorias que não delegam para `Activity`; redireciona para
+  `/atividades/[id]` quando o material é de `brincadeiras`/`materiais`.
+- **Novo `src/app/quintal/materiais/page.tsx`** — biblioteca: busca +
+  filtros (formulário GET, zero JS) + "Recomendados para vocês" +
+  atalhos de categoria.
+- **`src/lib/dashboard.ts`**: `DashboardSummary.recommendedMaterials`
+  (novo), calculado com os mesmos sinais de `/quintal/materiais`.
+- **`src/app/quintal/page.tsx`**: nova seção "Materiais para vocês",
+  só renderizada quando há recomendação real.
+
+### Testes realizados (contra o banco real, mesma limitação de rede das fases anteriores)
+
+Sem chamada real ao Groq nesta sessão — verificado direto contra o
+schema real (`izattwaiqjzhydzhxlns`):
+
+1. **Diagnóstico de conteúdo (antes de codificar)**: contagem exata por
+   categoria (531 linhas, 10 categorias) e amostra de uma linha de cada
+   uma das 6 categorias ainda não exploradas nesta sessão — base para
+   escolher `descriptionField`/`materialType`/`materialCategory` por
+   categoria em vez de adivinhar.
+2. **Robustez do campo de descrição**: para cada uma das 8 categorias
+   não delegadas, contagem de quantas linhas realmente têm o
+   `descriptionField` escolhido preenchido — 7 das 8 vieram 100%
+   preenchidas (176/176, 60/60, 5/5, 23/23, 30/30, 36/36, 24/24);
+   `passeios` veio 27/28 (uma linha sem "O que levar" — vira
+   `description: null` para ela, sem quebrar nada).
+3. **Busca cobre categorias além de brincadeiras/materiais**: uma busca
+   por "meu bebê não dorme bem à noite" (8 meses) retornou linhas de
+   `formas_de_dormir`/`rotinas_sono` — confirma que `searchMaterials`
+   herda a cobertura completa de `search_knowledge_chunks`, nunca
+   testada antes desta fase fora de brincadeiras/materiais.
+4. **`getRecentCategoryBoosts`**: inserindo um evento `sleep` e um
+   `meal` nos últimos 3 dias para uma criança de teste, a consulta
+   réplica retornou exatamente `{sleep, meal}` como tipos recentes —
+   confirma a base de dados que os boosts de categoria usam.
+
+### Limitações
+
+- **4 dos 8 tipos pedidos (artigo/vídeo/livro/checklist) não têm
+  conteúdo real** — o vocabulário suporta, a base de conhecimento atual
+  não cobre. Populações futuras de conteúdo desses formatos passam a
+  aparecer sem mudança de código, mesma promessa já feita para
+  `estimatedMinutes` na Fase 11.
+- **Categoria "parentalidade" está sempre vazia** — nenhuma das 10
+  categorias de `knowledge_chunks` cobre esse tema hoje.
+- **"URL ou conteúdo" sempre resolve para conteúdo** — nenhum material
+  tem uma URL externa; todo o corpus é texto próprio já na base.
+- **Biblioteca sem paginação de verdade** — um limite fixo (12) por
+  filtro, mesma limitação já aceita para a Biblioteca de Brincadeiras
+  (Fase 11); a busca é o caminho recomendado para uma categoria grande.
+- **Recomendação é regra simples de pontuação, não IA** — por pedido
+  explícito; estruturada (separação score/reason) para uma
+  curadoria/redação mais sofisticada assumir só o "motivo" no futuro.
+- **Sem chamada real ao Groq nesta sessão** (mesma limitação de rede das
+  fases anteriores) — não há integração desta fase com o chat/IA para
+  testar (a biblioteca de Materiais é uma experiência própria, não uma
+  extensão do prompt da conversa).
+- **Continua assumindo uma criança por família** — mesma simplificação
+  já feita pelas demais páginas de `/quintal`.

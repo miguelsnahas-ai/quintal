@@ -11,6 +11,7 @@ import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 import Timeline from "@/components/dashboard/Timeline";
 import ActivityCard from "@/components/conversation/ActivityCard";
+import MaterialCard from "@/components/library/MaterialCard";
 
 export const metadata: Metadata = {
   title: "Quintal",
@@ -70,6 +71,7 @@ export default async function QuintalDashboardPage() {
         timeline: [],
         recommendationsToday: [],
         playSuggestion: null,
+        recommendedMaterials: [],
       };
 
   const dateLabel = capitalize(
@@ -190,6 +192,26 @@ export default async function QuintalDashboardPage() {
             <h2 className="text-sm font-medium text-ink-muted">Timeline de hoje</h2>
             <Timeline events={summary.timeline} />
           </section>
+
+          {summary.recommendedMaterials.length > 0 && (
+            // Só aparece com contexto suficiente (idade conhecida) —
+            // getRecommendedMaterials devolve vazio sem isso, nunca um
+            // preenchimento forçado (Fase 12).
+            <section className="space-y-3">
+              <h2 className="text-sm font-medium text-ink-muted">Materiais para vocês</h2>
+              <div className="space-y-3">
+                {summary.recommendedMaterials.map(({ material, reason }) => (
+                  <MaterialCard key={material.id} material={material} reason={reason} />
+                ))}
+              </div>
+              <Link
+                href="/quintal/materiais"
+                className="text-xs font-medium text-ink underline underline-offset-2"
+              >
+                Ver biblioteca de materiais
+              </Link>
+            </section>
+          )}
         </>
       )}
 

@@ -296,8 +296,10 @@ function slotMatchesRecipe(slot: MealSlot, mealLabel: string | null): boolean {
 // "Mista") — o método configurado pela família tem um título mais longo
 // ("BLW (Baby-Led Weaning)"). Reduz o título a essa palavra-chave para
 // comparar com "Métodos compatíveis" sem reescrever nenhum dos dois
-// textos originais.
-function methodKeyword(methodTitle: string): string | null {
+// textos originais. Exportada (Fase 12) para library.ts reaproveitar a
+// mesma heurística ao decidir se um material de alimentação "combina"
+// com o método da família, em vez de duplicar a lista de sinônimos.
+export function methodKeyword(methodTitle: string): string | null {
   const normalized = methodTitle.toLowerCase();
   if (normalized.includes("bliss")) return "bliss";
   if (normalized.includes("blw")) return "blw";
