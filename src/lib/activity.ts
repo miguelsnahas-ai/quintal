@@ -58,8 +58,11 @@ type KnowledgeChunkRow = {
 // knowledge_chunks.content is "Header: Value" lines, one per column the
 // sheet had for that row (see the sync script's CONFIGS) — this just
 // reads that back into a lookup instead of duplicating the values into
-// new dedicated columns.
-function parseContentFields(content: string): Map<string, string> {
+// new dedicated columns. Exported (not activity-specific despite living
+// here — this file got here first) so other knowledge_chunks-backed
+// abstractions, e.g. src/lib/feeding.ts's recipes/feeding-method reading,
+// reuse the same parser instead of a second copy.
+export function parseContentFields(content: string): Map<string, string> {
   const fields = new Map<string, string>();
   for (const line of content.split("\n")) {
     const separatorIndex = line.indexOf(": ");

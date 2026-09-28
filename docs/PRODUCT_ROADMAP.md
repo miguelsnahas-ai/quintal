@@ -587,7 +587,125 @@ Ver `docs/ARCHITECTURE_TARGET.md`, "Camada de contexto estruturado (Fase
   das fases anteriores) — lógica de schema/dados verificada direto no
   banco.
 
-## Fase 9 — candidatos (não implementados)
+## Fase 9 — módulo de Alimentação (concluída)
+
+Objetivo: alimentação deixa de ser só uma contagem de eventos no
+Dashboard (Fase 7/8) e vira uma experiência própria — método alimentar
+configurável pela família, sugestões de refeição contextualizadas,
+registro rápido do que foi oferecido/aceito, e histórico simples. Sem
+virar ferramenta de diagnóstico ou prescrição nutricional/médica.
+
+### O que foi entregue
+
+1. **Método alimentar configurável, sem enum hardcoded**:
+   `children.feeding_method_id` referencia `knowledge_chunks` (categoria
+   `metodos_alimentacao`, 5 linhas já existentes: Tradicional, BLW,
+   BLISS, Participativa/mista, Alimentação responsiva) — o mesmo padrão
+   de "conteúdo como referência" já usado para `brincadeiras`/`materiais`
+   na Fase 4. Um método novo no futuro é uma linha de conteúdo, não uma
+   migração. `children.feeding_method_custom` cobre "outro/personalizado"
+   quando nenhuma opção listada serve — os dois campos são mutuamente
+   exclusivos (escolher um limpa o outro). Nenhuma abordagem aparece como
+   recomendada ou padrão; a escolha é sempre da família.
+2. **Refeições estruturadas sem tabela nova**: reaproveita
+   `events.type = 'meal'` (já existia desde a Fase 8) +
+   `events.payload` jsonb (reservado desde a migração original para
+   "quando houver evidência real do que gravar" — esta fase é essa
+   evidência), guardando `{slot, foods, acceptance, offeringMethodId,
+   suggestionId}`. `slot` cobre café da manhã, lanche da manhã, almoço,
+   lanche da tarde, jantar e outros; `acceptance` cobre comeu
+   bem/comeu um pouco/recusou/não informado.
+3. **Sugestões de refeição a partir de conteúdo já existente**: lidas da
+   categoria `receitas` de `knowledge_chunks` (60 linhas, já tinham os
+   campos "Refeição", "Ingredientes", "Modo de preparo", "Métodos
+   compatíveis", "Observação" prontos) — nenhum conteúdo novo escrito.
+   `getMealSuggestions` filtra por idade (obrigatório) e por refeição do
+   dia, e ordena priorizando receitas que citam o método da família no
+   texto — regra simples e auditável, sem scoring, no mesmo espírito de
+   `decideActivity` (Fase 5). Estruturada para uma futura camada de
+   recomendação/IA assumir o lugar da função sem mudar o formato nem os
+   call sites — mesma forma que `recommendActivity` assumiu de
+   `suggestReply` na Fase 5.
+4. **Registro rápido**: formulário único em `/quintal/alimentacao`
+   (refeição pré-selecionada pelo horário do dia via `guessMealSlot`,
+   horário já preenchido com agora, alimentos em texto livre, aceitação
+   como pills de seleção única via CSS `peer`/`has-[:checked]` — zero
+   JavaScript de cliente —, observação opcional). Um toque em "Registrar
+   essa refeição" num card de sugestão pré-preenche refeição e alimentos
+   via query params.
+5. **Histórico simples**: lista cronológica agrupada por dia
+   ("Hoje"/"Ontem"/data), no formato pedido ("Refeição — alimentos").
+6. **Infraestrutura para o chat, sem extração de IA nesta fase**:
+   `recordMealEvent` (`src/lib/feeding.ts`) é o único ponto que sabe
+   transformar uma refeição em uma linha válida de `events` — hoje só é
+   chamado pelo formulário manual (`origin: 'manual'`), mas uma futura
+   extração automática do chat é só mais um chamador passando `origin:
+   'chat'` e `sourceMessageId`, sem mudança de schema ou de lógica —
+   exatamente o pedido de preparar a arquitetura sem construir o
+   extrator.
+7. **`ChildContext` (Fase 3) passou a incluir o método alimentar da
+   família** e um resumo mais rico de refeições recentes (alimentos +
+   aceitação, não só a nota livre) — a IA de conversa passa a saber, sem
+   nenhum código novo em `suggestReply`/`suggestEvent`, qual método a
+   família escolheu e o que a criança comeu recentemente.
+8. **Dashboard (Fase 7/8)**: o card de Alimentação agora linka para
+   `/quintal/alimentacao` e mostra a contagem do dia + a última refeição.
+9. **Avisos de segurança**: a página deixa explícito que as sugestões são
+   gerais, não uma prescrição, e que dúvidas específicas valem uma
+   conversa com pediatra/nutricionista — tanto perto das sugestões quanto
+   perto do seletor de método.
+
+Ver `docs/ARCHITECTURE_TARGET.md`, "Módulo de Alimentação (Fase 9)", para
+o desenho completo e os testes realizados.
+
+### Como testar manualmente
+
+1. `npm run build && npm run start`.
+2. Abrir `/quintal` → o card de Alimentação deve linkar para
+   `/quintal/alimentacao`.
+3. Em `/quintal/alimentacao`, abrir "Método alimentar" (aberto por padrão
+   se a família ainda não configurou nada) → escolher uma opção listada
+   (ex.: BLW) e salvar → reabrir a página deve mostrar esse método
+   escolhido; trocar para "Outro/personalizado" com um texto próprio deve
+   substituir a opção listada (e vice-versa).
+4. Ver a seção "Sugestões" mudar conforme a refeição selecionada no
+   formulário (ex.: almoço vs. lanche) e, quando um método estiver
+   configurado, priorizar receitas compatíveis com ele.
+5. Tocar em "Registrar essa refeição" num card de sugestão → o
+   formulário de registro deve vir pré-preenchido com a refeição e os
+   alimentos daquela sugestão.
+6. Preencher e enviar o formulário de registro → mensagem de sucesso,
+   nova entrada aparece no topo do "Histórico" agrupada em "Hoje", e o
+   card de Alimentação em `/quintal` reflete a contagem/última refeição
+   atualizadas.
+7. Conversar em `/quintal/chat` sobre alimentação — o prompt da IA passa
+   a ter o método escolhido e as refeições recentes disponíveis (não há
+   como observar isso diretamente sem a IA real neste ambiente, mas o
+   dado chega ao prompt — ver testes em ARCHITECTURE_TARGET.md).
+
+### Limitações conhecidas desta fase
+
+- **Sem extração automática de refeições a partir do chat** — só a
+  infraestrutura (`recordMealEvent`, `origin`) está pronta para receber
+  isso; a mensagem "ela comeu bem no almoço" ainda não vira um registro
+  sozinha.
+- **Sugestões são regra simples de filtro/ordenação, não uma camada de
+  recomendação/IA** — por pedido explícito desta fase ("não implementar
+  ainda um sistema nutricional clínico"); o formato de `MealSuggestion`
+  foi desenhado para uma recomendação mais sofisticada assumir o lugar
+  no futuro sem mudar os componentes que a consomem.
+- **`offeringMethodId` de uma refeição é uma foto do método configurado
+  no momento do registro**, não perguntado de novo a cada refeição —
+  se a família mudar de método depois, refeições antigas continuam
+  guardando o método vigente quando foram registradas.
+- **Continua assumindo uma criança por família** (a primeira cadastrada)
+  — mesma simplificação já feita pelas demais páginas de `/quintal`.
+- Sem teste em navegador real de ponta a ponta (mesma limitação de rede
+  das fases anteriores) — lógica de schema/filtro/ordenação e o
+  round-trip de `payload` verificados direto contra o banco real, em
+  transações com rollback.
+
+## Fase 10 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -605,9 +723,10 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    "por família" descrita acima e permite `ChildContext` incluir
    conversa de forma 100% isolada.
 4. **Extração automática de eventos a partir do chat** (Fase 8 preparou
-   o schema — `origin`, `duration_minutes` — mas não implementou a
-   extração) — o próximo passo natural de "deixar de depender só de
-   texto livre".
+   o schema — `origin`, `duration_minutes` — e a Fase 9 deu a
+   Alimentação seu próprio choke point de registro, mas nenhuma das duas
+   implementou a extração) — o próximo passo natural de "deixar de
+   depender só de texto livre".
 5. **Fatos permanentes explícitos e sensíveis da criança** (ex.:
    alergias) — deliberadamente fora da Fase 8 ("não criar campos médicos
    ou sensíveis desnecessários"); exigiria decisão própria sobre
@@ -628,10 +747,14 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     causa mais comum de registros órfãos, mas não é uma transação real
     (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
     família sem cuidador).
-11. **Módulos completos de Alimentação, Sono, Brincadeiras, Materiais e
-    Rotina** — a Fase 8 deu a cada um um tipo de evento real e um lugar
-    no Dashboard; virar um sistema próprio (registro estruturado por
-    tipo, não só notas livres — ex.: o que foi comido, quanto tempo
-    durou o sono) é trabalho de uma fase dedicada por área.
+11. **Módulos completos de Sono, Brincadeiras, Materiais e Rotina** —
+    a Fase 9 fez isso para Alimentação; as demais áreas continuam só com
+    um tipo de evento real e um lugar no Dashboard, sem registro
+    estruturado por tipo nem experiência própria.
 12. **Edição de cuidadores e foto no perfil** — `/quintal/perfil` (Fase
     8) edita só os essenciais da criança e as preferências da família.
+13. **Camada de recomendação/IA real para sugestões de refeição** — a
+    Fase 9 deixou `getMealSuggestions` pronta para ser substituída sem
+    mudar o formato de `MealSuggestion` nem os componentes que a
+    consomem, mas a função em si continua um filtro/ordenação simples,
+    sem nenhum julgamento de IA.

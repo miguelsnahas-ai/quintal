@@ -255,6 +255,8 @@ export type Database = {
           birth_date: string | null
           created_at: string
           family_id: string
+          feeding_method_custom: string | null
+          feeding_method_id: string | null
           id: string
           interests: string[]
           name: string
@@ -265,6 +267,8 @@ export type Database = {
           birth_date?: string | null
           created_at?: string
           family_id: string
+          feeding_method_custom?: string | null
+          feeding_method_id?: string | null
           id?: string
           interests?: string[]
           name: string
@@ -275,6 +279,8 @@ export type Database = {
           birth_date?: string | null
           created_at?: string
           family_id?: string
+          feeding_method_custom?: string | null
+          feeding_method_id?: string | null
           id?: string
           interests?: string[]
           name?: string
@@ -287,6 +293,13 @@ export type Database = {
             columns: ["family_id"]
             isOneToOne: false
             referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_feeding_method_id_fkey"
+            columns: ["feeding_method_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
             referencedColumns: ["id"]
           },
         ]

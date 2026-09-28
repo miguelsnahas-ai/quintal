@@ -62,6 +62,7 @@ export default async function QuintalDashboardPage() {
         freePlayCount: 0,
         routineCount: 0,
         lastRoutine: null,
+        lastMeal: null,
         timeline: [],
         recommendationsToday: [],
       };
@@ -111,9 +112,10 @@ export default async function QuintalDashboardPage() {
               <SummaryCard
                 icon={Utensils}
                 label="Alimentação"
+                href="/quintal/alimentacao"
                 value={
-                  summary.mealCount > 0
-                    ? `${summary.mealCount} ${summary.mealCount === 1 ? "refeição" : "refeições"} hoje`
+                  summary.lastMeal
+                    ? `${summary.mealCount} ${summary.mealCount === 1 ? "refeição" : "refeições"} · última: ${summary.lastMeal.notes}`
                     : null
                 }
                 empty="Nenhum registro ainda hoje."

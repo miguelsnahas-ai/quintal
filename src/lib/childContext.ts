@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/types";
+import type { Database, Json } from "@/lib/supabase/types";
 import { ageInMonths, ageLabel } from "@/lib/format";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
+import { mealEventPayloadSchema } from "@/lib/validation/feeding";
 
 // Deterministic, documented limits — no vector search, no ranking, just
 // "last N by time". Tune here if evidence says otherwise; nothing else in
@@ -33,6 +34,11 @@ export type ChildContextEvent = {
   type: EventType;
   notes: string;
   occurredAt: string;
+  // Only meal events carry this (Fase 9) — raw jsonb, parsed defensively
+  // where it's formatted (formatEventGroup) rather than here, so a
+  // malformed/legacy payload never breaks context assembly, only loses
+  // the extra detail for that one line.
+  payload: Json;
 };
 
 // Family-level preferences (Fase 8) — not the child's own data, but part
@@ -60,6 +66,11 @@ export type ChildContext = {
     // Quintal precisa deixar de depender exclusivamente do histórico
     // textual da conversa". Empty array (not null) when nothing was set.
     interests: string[];
+    // Fase 9: título do método (knowledge_chunks) ou o texto
+    // personalizado da família — já resolvido para exibição/prompt, sem
+    // o chamador precisar saber que por trás disso existe uma referência
+    // a knowledge_chunks (ver src/lib/feeding.ts).
+    feedingMethod: string | null;
   };
   age: {
     label: string | null; // "8 meses" / "2 anos" — for display and prompts
@@ -88,7 +99,9 @@ export async function getChildContext(
 ): Promise<ChildContext | null> {
   const { data: child, error: childError } = await supabase
     .from("children")
-    .select("id, family_id, name, birth_date, sex, notes, interests")
+    .select(
+      "id, family_id, name, birth_date, sex, notes, interests, feeding_method_id, feeding_method_custom",
+    )
     .eq("id", childId)
     .maybeSingle();
 
@@ -96,44 +109,59 @@ export async function getChildContext(
     return null;
   }
 
-  const [{ data: activityRaw }, { data: observationsRaw }, { data: decisionsRaw }, { data: preferencesRaw }] =
-    await Promise.all([
-      supabase
-        .from("events")
-        .select("type, notes, occurred_at")
-        .eq("child_id", childId)
-        .in("type", ACTIVITY_EVENT_TYPES)
-        .order("occurred_at", { ascending: false })
-        .limit(RECENT_EVENTS_LIMIT),
-      supabase
-        .from("events")
-        .select("type, notes, occurred_at")
-        .eq("child_id", childId)
-        .eq("type", "observation")
-        .order("occurred_at", { ascending: false })
-        .limit(RECENT_OBSERVATIONS_LIMIT),
-      supabase
-        .from("events")
-        .select("type, notes, occurred_at")
-        .eq("child_id", childId)
-        .eq("type", "decision")
-        .order("occurred_at", { ascending: false })
-        .limit(RECENT_DECISIONS_LIMIT),
-      supabase
-        .from("family_preferences")
-        .select("feeding_notes, routine_notes, play_notes, materials_notes, interaction_style")
-        .eq("family_id", child.family_id)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: activityRaw },
+    { data: observationsRaw },
+    { data: decisionsRaw },
+    { data: preferencesRaw },
+    { data: feedingMethodRaw },
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select("type, notes, occurred_at, payload")
+      .eq("child_id", childId)
+      .in("type", ACTIVITY_EVENT_TYPES)
+      .order("occurred_at", { ascending: false })
+      .limit(RECENT_EVENTS_LIMIT),
+    supabase
+      .from("events")
+      .select("type, notes, occurred_at, payload")
+      .eq("child_id", childId)
+      .eq("type", "observation")
+      .order("occurred_at", { ascending: false })
+      .limit(RECENT_OBSERVATIONS_LIMIT),
+    supabase
+      .from("events")
+      .select("type, notes, occurred_at, payload")
+      .eq("child_id", childId)
+      .eq("type", "decision")
+      .order("occurred_at", { ascending: false })
+      .limit(RECENT_DECISIONS_LIMIT),
+    supabase
+      .from("family_preferences")
+      .select("feeding_notes, routine_notes, play_notes, materials_notes, interaction_style")
+      .eq("family_id", child.family_id)
+      .maybeSingle(),
+    // Sem feeding_method_id, esta query simplesmente não bate com
+    // nenhuma linha (id vazio não existe) — mais simples do que pular a
+    // chamada condicionalmente.
+    supabase
+      .from("knowledge_chunks")
+      .select("title")
+      .eq("id", child.feeding_method_id ?? "")
+      .maybeSingle(),
+  ]);
 
   const toContextEvent = (row: {
     type: string;
     notes: string;
     occurred_at: string;
+    payload: Json;
   }): ChildContextEvent => ({
     type: row.type as EventType,
     notes: row.notes,
     occurredAt: row.occurred_at,
+    payload: row.payload,
   });
 
   return {
@@ -144,6 +172,7 @@ export async function getChildContext(
       sex: child.sex,
       notes: child.notes,
       interests: child.interests,
+      feedingMethod: feedingMethodRaw?.title ?? child.feeding_method_custom,
     },
     age: {
       label: ageLabel(child.birth_date),
@@ -164,12 +193,28 @@ export async function getChildContext(
   };
 }
 
+// Meal events (Fase 9) carry a structured payload (slot/foods/acceptance)
+// beyond the free-text `notes` every event already has — when it parses
+// cleanly, the prompt line gets the real foods and acceptance instead of
+// just repeating `notes` (which is often just the foods list anyway, but
+// acceptance is real signal `notes` alone doesn't carry).
+function formatMealDetail(payload: Json): string | null {
+  const parsed = mealEventPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+  const { foods, acceptance } = parsed.data;
+  const acceptanceLabel =
+    { ate_well: "comeu bem", ate_some: "comeu pouco", refused: "recusou", unknown: null }[acceptance] ?? null;
+  const parts = [foods.length > 0 ? foods.join(", ") : null, acceptanceLabel].filter(Boolean);
+  return parts.length > 0 ? parts.join(" — ") : null;
+}
+
 function formatEventGroup(title: string, events: ChildContextEvent[]): string {
   if (events.length === 0) return "";
   const lines = events.map((event) => {
     const label = eventTypeLabels[event.type] ?? event.type;
     const date = new Date(event.occurredAt).toLocaleDateString("pt-BR");
-    return `- [${label}] ${date}: ${event.notes}`;
+    const mealDetail = event.type === "meal" ? formatMealDetail(event.payload) : null;
+    return `- [${label}] ${date}: ${mealDetail ?? event.notes}`;
   });
   return `${title}:\n${lines.join("\n")}`;
 }
@@ -204,6 +249,10 @@ export function formatChildContextForPrompt(context: ChildContext): string {
 
   if (context.child.interests.length > 0) {
     parts.push(`Interesses observados: ${context.child.interests.join(", ")}`);
+  }
+
+  if (context.child.feedingMethod) {
+    parts.push(`Método alimentar escolhido pela família: ${context.child.feedingMethod}`);
   }
 
   parts.push(formatFamilyPreferences(context.familyPreferences));

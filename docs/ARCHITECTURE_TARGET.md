@@ -1177,3 +1177,280 @@ confirmando que `mealCount` passa a refletir dado real.
   se um interesse veio de edição manual ou (no futuro) de uma inferência
   do chat; se isso importar um dia, é um campo a mais, não uma tabela
   nova.
+
+## Módulo de Alimentação (Fase 9)
+
+### Objetivo
+
+Até aqui, "Alimentação" no Dashboard (Fase 7) era um placeholder honesto
+e, na Fase 8, uma contagem de `events.type = 'meal'` — sem nenhuma
+experiência própria: não havia como configurar um método alimentar, ver
+sugestões, ou registrar o que foi comido além de uma nota livre. Esta
+fase constrói essa experiência inteira sobre o que já existia,
+deliberadamente sem tabela nova para refeições e sem hardcodar métodos
+alimentares.
+
+### Por que nenhuma tabela nova para "refeições"
+
+`events.type = 'meal'` já existia desde a Fase 8; `events.payload`
+(jsonb) é documentado desde a migração original da tabela como
+"reservado para campos estruturados por tipo quando houver evidência
+real do que gravar". Esta fase é essa evidência: uma refeição precisa de
+`slot` (qual refeição do dia), `foods` (o que foi oferecido),
+`acceptance` (como a criança reagiu), e duas referências opcionais
+(`offeringMethodId`, `suggestionId`) — nenhum desses cabe bem como coluna
+própria de `events` (são específicos de `meal`, os outros tipos não têm
+uso para eles), então viram o primeiro uso real de `payload`:
+
+```ts
+// src/lib/validation/feeding.ts
+type MealEventPayload = {
+  slot: MealSlot;                    // breakfast | morning_snack | lunch | afternoon_snack | dinner | other
+  foods: string[];
+  acceptance: MealAcceptance;        // ate_well | ate_some | refused | unknown
+  offeringMethodId: string | null;   // foto do children.feeding_method_id no momento do registro
+  suggestionId: string | null;       // se veio de um card de sugestão, qual
+};
+```
+
+`events.notes` (NOT NULL) continua preenchido também — com o texto
+digitado pela família ou, na ausência dele, a lista de alimentos ou o
+nome da refeição — para que qualquer código que já lê `events.notes`
+sem saber de `payload` (ex.: a Timeline do Dashboard, Fase 7) continue
+funcionando sem alteração nenhuma.
+
+### Por que método alimentar é uma referência a `knowledge_chunks`, não um enum
+
+O pedido era explícito: "a arquitetura deve permitir métodos diferentes
+sem hardcode excessivo" e "nenhuma abordagem [deve ser] universalmente
+correta". Em vez de um `check` constraint com uma lista fixa de métodos
+em código, `children.feeding_method_id` referencia
+`knowledge_chunks(id)` — mesmo padrão já estabelecido na Fase 4 para
+`brincadeiras`/`materiais` como "conteúdo de referência". A categoria
+`metodos_alimentacao` já existia na base de conhecimento sincronizada
+(`scripts/knowledge-base/sync_knowledge_base.py`), com 5 linhas prontas
+(Tradicional, BLW — Baby-Led Weaning, BLISS, Participativa/mista,
+Alimentação responsiva), cada uma com um campo "Como funciona" que a
+página expõe como está, sem reescrever. Um método novo no futuro (ex.:
+uma variação regional) é uma linha de conteúdo a mais — nenhuma migração,
+nenhum deploy de código.
+
+`children.feeding_method_custom` (texto livre) cobre o caso "nenhuma
+opção listada serve" — pedido explicitamente pela ideia de "outro/
+personalizado". Os dois campos são mutuamente exclusivos por construção
+em `updateChildFeedingMethod` (`src/lib/feeding.ts`): passar um
+`methodId` sempre grava `feeding_method_custom = null` junto, e
+vice-versa — a página nunca precisa reconciliar duas respostas
+diferentes para "qual é o método atual".
+
+```sql
+-- supabase/migrations/20260928124642_add_child_feeding_method.sql
+alter table public.children
+  add column feeding_method_id text references public.knowledge_chunks (id) on delete set null,
+  add column feeding_method_custom text;
+```
+
+### Sugestões de refeição — reaproveitando `receitas`, sem scoring
+
+A categoria `receitas` de `knowledge_chunks` (60 linhas) já tinha,
+verbatim, quase todos os campos pedidos para o card de sugestão:
+"Refeição" (ex.: "Almoço/jantar"), "Ingredientes", "Modo de preparo" (o
+"como oferecer"), "Métodos compatíveis" (ex.: "BLW; BLISS; Mista"), e
+"Observação" (orientação de textura/segurança já presente na receita).
+`getMealSuggestions` (`src/lib/feeding.ts`) só precisou ler esses campos
+de volta com `parseContentFields` — a mesma função exportada de
+`activity.ts` (Fase 4) que já sabia parsear o formato `"Cabeçalho:
+Valor"` do `content`, agora reaproveitada em vez de duplicada.
+
+A regra de filtro/ordenação, deliberadamente sem scoring — mesmo
+espírito de `decideActivity` (Fase 5):
+
+1. **Filtro de idade (obrigatório)**: descarta receitas cujo
+   `age_min_months` seja maior que a idade real da criança. Nunca
+   flexibilizado.
+2. **Filtro de refeição do dia**: se a família está olhando "almoço",
+   prioriza receitas cujo campo "Refeição" contém uma palavra-chave
+   compatível (`SLOT_LABEL_KEYWORDS`) — mas se isso zerar o pool
+   (nenhuma receita etariamente segura menciona aquela refeição
+   especificamente), cai de volta para todo o pool etariamente seguro em
+   vez de mostrar "nenhuma sugestão" — melhor uma sugestão de refeição
+   adjacente do que nenhuma.
+3. **Desempate por método (não um filtro)**: se a família configurou um
+   método, receitas cujo "Métodos compatíveis" cita esse método (via
+   `methodKeyword`, que reduz "BLW (Baby-Led Weaning)" para a palavra-
+   chave curta "blw" que a planilha usa) vêm primeiro — mas uma receita
+   que não cita o método nunca é removida, só reordenada para depois.
+
+Isso mantém a promessa do pedido ("as sugestões devem ser estruturadas
+de forma que futuramente possam vir de uma camada de recomendação/IA"):
+`getMealSuggestions` tem a mesma assinatura de entrada/saída que uma
+função de recomendação mais sofisticada teria — os call sites
+(`MealSuggestionCard`, a página) não precisam saber a diferença.
+
+### Fluxo de registro (a UX de "poucos segundos")
+
+```
+/quintal (Dashboard)
+  ↓ card "Alimentação" → /quintal/alimentacao
+/quintal/alimentacao
+  ↓ guessMealSlot(hora atual) pré-seleciona a refeição
+  ↓ getMealSuggestions({ageMonths, slot, feedingMethodTitle}) → cards
+  ↓ (opcional) toque em "Registrar essa refeição" num card
+  ↓   → mesma página, mesma URL, com ?slot=X&foods=Y&suggestion=Z#registrar
+  ↓     (zero JS — só um <Link>, o formulário lê searchParams no servidor)
+  ↓ formulário: refeição, horário (default: agora), alimentos, aceitação
+  ↓   (pills CSS via peer/has-[:checked], zero estado de cliente), observação opcional
+  ↓ logMeal (server action) → recordMealEvent → INSERT events
+  ↓ revalidatePath("/quintal/alimentacao") + revalidatePath("/quintal")
+  ↓ redirect com ?success=1 → histórico e Dashboard já refletem o novo registro
+```
+
+Nenhum componente de cliente foi criado para nada disso — toda a
+interatividade (seleção de aceitação, pré-preenchimento a partir de uma
+sugestão) usa formulários nativos, query params e seletores CSS
+(`peer`/`has-[:checked]`), o mesmo padrão já estabelecido em
+`/quintal/perfil` (Fase 8) para progressive disclosure sem JavaScript.
+
+### `recordMealEvent` — a infraestrutura para o chat pedida nesta fase
+
+O pedido foi explícito: "implemente apenas a infraestrutura necessária
+[para integração com o chat], sem tentar criar uma IA complexa de
+extração". `recordMealEvent` (`src/lib/feeding.ts`) é o único lugar que
+sabe transformar os dados de uma refeição num INSERT válido de `events`
+(monta `payload`, decide o fallback de `notes`, grava `origin` e
+`source_message_id`). Hoje só é chamado pela action do formulário manual
+(`origin: 'manual'`, sem `sourceMessageId`). Uma futura extração
+automática a partir do chat (ex.: "ela comeu bem o almoço, arroz e
+feijão") seria só mais um chamador — um extrator que resolve `slot`/
+`foods`/`acceptance` a partir do texto e chama a mesma função com
+`origin: 'chat'` e o `sourceMessageId` da mensagem — sem precisar de
+nenhuma mudança de schema ou desta função. Isso é literalmente a
+"infraestrutura pronta para o chat", não uma promessa vaga: o choke point
+já existe, só falta escrever o extrator (fora do escopo desta fase, por
+pedido).
+
+### `ChildContext` (Fase 3) ganhou o método alimentar e refeições mais ricas
+
+Duas mudanças em `src/lib/childContext.ts`, ambas seguindo o padrão já
+estabelecido nas Fases 3 e 8 (a IA nunca lê tabelas diretamente, só o
+`ChildContext` já formatado):
+
+1. **`ChildContext.child.feedingMethod`** (string | null) — resolvido por
+   uma quinta query paralela (join com `knowledge_chunks` pelo
+   `feeding_method_id` da criança), incluída em
+   `formatChildContextForPrompt` como uma linha "Método alimentar
+   escolhido pela família: ...".
+2. **`ChildContextEvent.payload`** (novo campo, `Json`) chega junto de
+   cada evento de atividade recente; uma nova função `formatMealDetail`
+   usa esse `payload` para enriquecer a linha de um evento `meal` no
+   prompt com os alimentos e a aceitação reais (ex.: "Almoço: arroz,
+   feijão, abóbora, frango — comeu bem"), em vez de só a `notes` livre
+   que os outros tipos de evento continuam usando.
+
+Como `suggestReply`/`suggestEvent`/`explainRecommendation` já consomem
+`ChildContext` sem conhecer sua forma interna (desde a Fase 3), esse
+dado passa a estar disponível para a IA em todas as chamadas existentes
+sem tocar em nenhum desses três arquivos — mesmo efeito já obtido pela
+Fase 8 para interesses/preferências.
+
+### Arquivos novos e alterados
+
+- **Nova migração**
+  `supabase/migrations/20260928124642_add_child_feeding_method.sql` —
+  `children.feeding_method_id`/`feeding_method_custom`.
+- **Novo `src/lib/validation/feeding.ts`** — `mealSlots`/
+  `mealSlotLabels`, `mealAcceptances`/`mealAcceptanceLabels`,
+  `mealEventPayloadSchema` (Zod, valida o jsonb de `payload`),
+  `mealLogInputSchema` (form-facing, converte `foods` de texto separado
+  por vírgula para array), `feedingMethodInputSchema`.
+- **Novo `src/lib/feeding.ts`** — `guessMealSlot`, `recordMealEvent`,
+  `getMealHistory`, `getFeedingMethodOptions`, `getChildFeedingMethod`,
+  `updateChildFeedingMethod`, `getMealSuggestions`. Descrito nas seções
+  acima.
+- **`src/lib/activity.ts`**: `parseContentFields` deixou de ser privada
+  (agora `export`) — reaproveitada por `feeding.ts`, em vez de
+  duplicada.
+- **`src/lib/childContext.ts`**: `feedingMethod` no `child`, `payload`
+  nos eventos de atividade, `formatMealDetail`, linha nova em
+  `formatChildContextForPrompt` — ver seção acima.
+- **`src/lib/dashboard.ts`**: `DashboardSummary.lastMeal` (mesmo padrão
+  de `lastRoutine` já existente).
+- **`src/components/dashboard/SummaryCard.tsx`**: ganhou um `href`
+  opcional (envolve o conteúdo num `<Link>` quando presente) — usado
+  pela primeira vez pelo card de Alimentação, que agora linka para
+  `/quintal/alimentacao`; os outros três cards continuam sem link.
+- **Novo `src/components/feeding/MealSuggestionCard.tsx`** — mesmo
+  estilo visual de `ActivityCard` (Fase 4): `rounded-lg`, `bg-secondary`,
+  sem borda.
+- **Novo `src/app/quintal/alimentacao/actions.ts`** — `logMeal`,
+  `saveFeedingMethod`; mesmo padrão de resolução de sessão e checagem de
+  posse (`assertChildInFamily`) já usado em `/quintal/perfil/actions.ts`
+  (Fase 8).
+- **Novo `src/app/quintal/alimentacao/page.tsx`** — a página em si:
+  formulário de registro, sugestões, histórico agrupado por dia,
+  seletor de método (progressive disclosure via `<details>`, aberto por
+  padrão só quando nenhum método foi configurado ainda).
+
+### Testes realizados (contra o banco real, mesma limitação de rede das fases anteriores)
+
+Sem chamada real ao Groq nesta sessão (rede bloqueada para
+`api.groq.com`) — a lógica determinística (o núcleo desta fase) foi
+verificada diretamente contra o schema real (`izattwaiqjzhydzhxlns`), em
+transações com rollback:
+
+1. **Método alimentar chega ao `ChildContext` corretamente**: setando
+   `feeding_method_id = 'MET-002'` numa criança de teste, a query
+   réplica de `getChildContext`/`getChildFeedingMethod` resolveu
+   `"BLW (Baby-Led Weaning)"` como esperado.
+2. **Round-trip de refeição**: inserido um evento `meal` com `payload`
+   estruturado (`{slot: "lunch", foods: [...], acceptance:
+   "ate_well", ...}`) — a query réplica de `getMealHistory` leu de volta
+   `notes` ("Arroz, feijão, abóbora, frango") e `payload->>'acceptance'`
+   ("ate_well") corretamente.
+3. **`meal` continua incluído em `ACTIVITY_EVENT_TYPES`**: a mesma
+   query filtrada pela lista completa (usada tanto pelo prompt da IA
+   quanto pela Timeline/contagens do Dashboard) trouxe o evento `meal`
+   com seu `payload`, confirmando que Fase 7/8 e Fase 9 continuam
+   integradas sem exigir mudança nesses dois consumidores.
+4. **`getMealSuggestions` — filtro de idade, refeição e desempate por
+   método**: réplica exata da query (idade ≤ 8 meses, refeição =
+   "almoço", desempate por "blw") retornou 6 receitas de "Almoço/jantar"
+   (ou compatíveis), todas citando BLW nos "Métodos compatíveis" —
+   confirmando que o filtro de idade, o filtro de refeição via
+   palavra-chave no rótulo, e o desempate por método funcionam como
+   `getMealSuggestions` implementa.
+5. **`updateChildFeedingMethod` — exclusão mútua**: réplica exata da
+   sequência de updates (método listado → limpa custom; custom → limpa
+   método listado; método listado de novo → limpa custom de novo) contra
+   uma linha fixa de `children` confirmou os três estados esperados em
+   sequência — a primeira tentativa usou `select id from children limit
+   1` sem `order by` em cada passo, o que (por não ser determinístico
+   sem ordenação) acabou testando linhas diferentes a cada UPDATE e
+   produziu um resultado aparentemente incoerente; fixar a linha alvo
+   numa tabela temporária corrigiu o teste e confirmou o comportamento
+   correto do código (o bug era do script de verificação, não de
+   `updateChildFeedingMethod`).
+
+### Limitações
+
+- **Sem extração automática de refeições a partir do chat** — só a
+  infraestrutura (`recordMealEvent`, `origin`, `payload`) está pronta;
+  nenhum extrator foi escrito nesta fase, por pedido explícito.
+- **Sugestões são filtro/ordenação determinística, não uma camada de
+  recomendação/IA** — por pedido explícito ("não implementar ainda um
+  sistema nutricional clínico"). O formato de `MealSuggestion` foi
+  desenhado para uma função mais sofisticada assumir o lugar sem exigir
+  mudança nos componentes que a consomem — mesmo padrão que
+  `recommendActivity` (Fase 5) já validou para `suggestReply`.
+- **`offeringMethodId` é uma foto do método no momento do registro**,
+  não perguntado de novo a cada refeição — refeições antigas mantêm o
+  método vigente quando foram registradas, mesmo que a família mude de
+  método depois.
+- **Sem chamada real ao Groq nesta sessão** (mesma limitação de rede das
+  fases anteriores) — a integração do método alimentar/refeições
+  recentes no prompt foi revisada por leitura de código e verificada
+  indiretamente (a query que alimenta o prompt foi replicada e retornou
+  os valores esperados), mas a resposta final da IA usando esse contexto
+  não pôde ser observada de ponta a ponta neste ambiente.
+- **Continua assumindo uma criança por família** — mesma simplificação
+  já feita pelas demais páginas de `/quintal`.

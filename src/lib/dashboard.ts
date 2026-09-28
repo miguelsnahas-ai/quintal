@@ -32,6 +32,9 @@ export type DashboardSummary = {
   freePlayCount: number;
   routineCount: number;
   lastRoutine: DashboardEvent | null;
+  // Fase 9: mesmo padrão de lastRoutine — o card de Alimentação passa a
+  // poder mostrar o que foi a última refeição, não só a contagem.
+  lastMeal: DashboardEvent | null;
   // Today's events across the same types ChildContext treats as
   // "day-to-day activity", oldest first — the timeline reads
   // chronologically top to bottom.
@@ -86,6 +89,7 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
   }));
 
   const routineEvents = timeline.filter((event) => event.type === "routine");
+  const mealEvents = timeline.filter((event) => event.type === "meal");
 
   // getActivity re-fetches each one (same small-N tradeoff already made
   // in recommendation.ts's decideActivity) — at most
@@ -101,6 +105,7 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     freePlayCount: timeline.filter((event) => event.type === "free_play").length,
     routineCount: routineEvents.length,
     lastRoutine: routineEvents[routineEvents.length - 1] ?? null,
+    lastMeal: mealEvents[mealEvents.length - 1] ?? null,
     timeline,
     recommendationsToday: recommendedActivities.map(toActivitySummary),
   };
