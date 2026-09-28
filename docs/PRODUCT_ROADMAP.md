@@ -1031,7 +1031,113 @@ para o desenho completo e os testes realizados.
   das fases anteriores) — mapeamento de categorias, busca e sinais de
   recomendação verificados direto contra o banco real.
 
-## Fase 13 — candidatos (não implementados)
+## Fase 13 — Timeline central (concluída)
+
+Objetivo: consolidar os eventos de todos os módulos (Sono, Alimentação,
+Brincadeiras, e os tipos já existentes mas sem módulo próprio — Rotina,
+Desenvolvimento, Passeio, Observação) numa única lista cronológica,
+filtrável, com edição e exclusão — a primeira vez que o produto oferece
+essas duas últimas para a família. Objetivo de UX explícito: parecer
+"o Quintal está acompanhando o dia", nunca um sistema burocrático de
+registro.
+
+### O que foi entregue
+
+1. **Sem nenhuma migração**: tudo já vivia em `events` — a novidade
+   desta fase é a leitura/formatação unificada e, pela primeira vez,
+   `UPDATE`/`DELETE` nessa tabela pelo lado da família (até aqui, só
+   `INSERT`).
+2. **`/quintal/timeline`**: um dia por vez (navegação ← Hoje/Ontem/data
+   →), com os quatro filtros pedidos (Sono/Alimentação/
+   Brincadeiras/Rotina) mais "Todos" — "Brincadeiras" também cobre
+   Passeio, e "Rotina" vira o balde para Rotina + Desenvolvimento +
+   Observação, já que só 5 opções foram pedidas para 7 tipos reais.
+3. **Formatação rica e específica por tipo**, reaproveitando os
+   payloads estruturados já existentes (Fase 9/10/11): "Café da
+   manhã"/"Almoço" em vez do genérico "Refeição" (lê o `slot`),
+   "Soneca"/"Sono noturno" com a duração como detalhe, "Brincadeira"
+   com o nome da atividade e o feedback como duas linhas — o mesmo
+   formato ilustrado no pedido desta fase.
+4. **"Acordou" como linha própria**: um sono noturno que atravessa a
+   meia-noite agora aparece como duas coisas — o período em si (com a
+   duração), no dia em que começou, e uma linha "Acordou" no horário
+   real do despertar, no dia em que a criança de fato acordou. Isso
+   resolve uma limitação documentada desde a Fase 10 ("períodos que
+   atravessam a meia-noite aparecem inteiros, não divididos"), sem
+   nenhuma mudança de schema — é puramente uma segunda linha de
+   exibição para o mesmo evento.
+5. **Fontes mostradas discretamente**: cada evento mostra "Registrado
+   por você" / "Vindo da conversa" / "Registrado pelo Quintal"
+   (`origin`, já existente desde a Fase 8), num texto pequeno e
+   discreto, nunca um selo chamativo.
+6. **Detalhe, edição e exclusão** (`/quintal/timeline/[id]`): tocar num
+   evento mostra os detalhes completos, um formulário para editar
+   horário e observação (os dois campos que todo evento tem, seja qual
+   for o tipo), e uma exclusão de dois toques (recolhida por padrão,
+   sem JavaScript). Campos estruturados por tipo (o que foi comido,
+   tipo de sono, feedback de atividade) continuam editáveis só pelo
+   módulo que os criou — esta página nunca finge poder editar isso,
+   e diz explicitamente onde editar quando aplicável.
+7. **Editar o horário de um sono já concluído recalcula a duração**
+   automaticamente a partir do novo horário de início — verificado
+   contra o banco real.
+8. **Dashboard integrado**: o resumo "Timeline de hoje" (já existia
+   desde a Fase 7) passou a usar a mesma formatação rica da Timeline
+   central (em vez do rótulo genérico anterior), e ganhou um link "Ver
+   timeline completa".
+9. **Estrutura para o chat já estava pronta** — `origin`/
+   `source_message_id` (Fase 8) já existiam e já eram usados por todo
+   módulo de registro; esta fase não precisou adicionar nada de novo
+   para isso, só passou a exibir `origin` de forma visível pela primeira
+   vez.
+
+Ver `docs/ARCHITECTURE_TARGET.md`, "Timeline central (Fase 13)", para o
+desenho completo e os testes realizados.
+
+### Como testar manualmente
+
+1. `npm run build && npm run start`.
+2. Abrir `/quintal` → "Timeline de hoje" mostra os eventos com o mesmo
+   formato rico (ex.: "Café da manhã — Banana, pão"); "Ver timeline
+   completa" leva a `/quintal/timeline`.
+3. Em `/quintal/timeline`, navegar entre dias (← →) e trocar os filtros
+   — a lista muda de acordo, sempre ordenada por horário.
+4. Registrar um sono noturno que termine no dia seguinte (via
+   `/quintal/sono`) → no dia em que começou, aparece o período com a
+   duração; no dia em que a criança acordou, aparece uma linha
+   "Acordou" no horário real do despertar.
+5. Tocar num evento → abre o detalhe; editar o horário e a observação e
+   salvar → volta refletido na lista. Para um evento de sono já
+   concluído, mudar o horário de início e confirmar que a duração
+   mostrada mudou de acordo.
+6. Abrir "Excluir este registro" (recolhido por padrão), confirmar →
+   o evento some da lista e do Dashboard.
+
+### Limitações conhecidas desta fase
+
+- **Edição não cobre campos estruturados por tipo** — só horário e
+  observação são editáveis pela Timeline; o que foi comido, o tipo de
+  sono, o feedback de uma atividade continuam editáveis só pelo módulo
+  de origem. Documentado explicitamente na própria página de edição.
+- **"Acordou" só existe para sono noturno**, não para sonecas — uma
+  soneca continua sendo uma linha só, com a duração como detalhe
+  (decisão deliberada: o despertar de uma soneca não é, por si, um
+  momento narrativamente relevante do dia, diferente do despertar da
+  manhã).
+- **Sem criação de evento pela própria Timeline** — Rotina,
+  Desenvolvimento, Passeio e Observação continuam só criáveis via
+  `/ops/children/[id]` (não há módulo de família dedicado a eles ainda,
+  candidato já registrado no roadmap).
+- **Filtros "Brincadeiras"/"Rotina" agrupam mais de um tipo real** —
+  cinco opções foram pedidas para sete tipos existentes; a decisão de
+  agrupamento está documentada, não é uma limitação técnica, mas vale
+  registrar que "Rotina" no filtro não é só o tipo `routine`.
+- Sem teste em navegador real de ponta a ponta (mesma limitação de rede
+  das fases anteriores) — a divisão "Acordou"/recálculo de duração na
+  edição foi verificada direto contra o banco real, em transação com
+  rollback.
+
+## Fase 14 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -1052,7 +1158,9 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    o schema — `origin`, `duration_minutes` — e as Fases 9/10/11 deram a
    Alimentação, Sono e Brincadeiras seus próprios choke points de
    registro, mas nenhuma implementou a extração) — o próximo passo
-   natural de "deixar de depender só de texto livre".
+   natural de "deixar de depender só de texto livre". A Timeline
+   central (Fase 13) já está pronta para exibir esses eventos assim que
+   existirem, incluindo a origem "vindo da conversa".
 5. **Fatos permanentes explícitos e sensíveis da criança** (ex.:
    alergias) — deliberadamente fora da Fase 8 ("não criar campos médicos
    ou sensíveis desnecessários"); exigiria decisão própria sobre
@@ -1074,9 +1182,11 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     causa mais comum de registros órfãos, mas não é uma transação real
     (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
     família sem cuidador).
-11. **Módulo completo de Rotina** — as Fases 9, 10 e 11 fizeram isso
-    para Alimentação, Sono e Brincadeiras; Rotina continua só com um
-    tipo de evento real e um lugar no Dashboard.
+11. **Módulo completo de Rotina** (registro estruturado, não só via
+    `/ops`) — as Fases 9, 10 e 11 fizeram isso para Alimentação, Sono e
+    Brincadeiras; Rotina/Desenvolvimento/Passeio/Observação continuam
+    só criáveis pelo operador, embora já apareçam na Timeline central
+    (Fase 13).
 12. **Edição de cuidadores e foto no perfil** — `/quintal/perfil` (Fase
     8) edita só os essenciais da criança e as preferências da família.
 13. **Camada de recomendação/IA real para sugestões de refeição,
@@ -1086,23 +1196,27 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     o formato de saída nem os componentes que as consomem, mas as três
     continuam filtro/ordenação/regra simples, sem nenhum julgamento de
     IA.
-14. **Dividir um sono que atravessa a meia-noite em duas linhas na
-    timeline** (início "ontem à noite", despertar "hoje de manhã", como
-    o exemplo ilustrativo do briefing da Fase 10 mostrava) — a Fase 10
-    documentou essa simplificação em vez de implementá-la.
-15. **Regras explícitas de personalização a partir do feedback**
+14. **Regras explícitas de personalização a partir do feedback**
     (ex.: "essa criança gosta de atividades com água", "essa família
     prefere atividades de até 15 minutos") — a Fase 11 preparou o dado
     (feedback estruturado por atividade, tags/materiais/ambiente já
     modelados), mas não implementou nenhuma regra de inferência, por
     pedido explícito.
-16. **Unificar o sinal de "evitar por enquanto" nos dois sentidos** —
+15. **Unificar o sinal de "evitar por enquanto" nos dois sentidos** —
     hoje só a biblioteca influencia o chat (Fase 11); recomendações e
     feedback do chat ainda não influenciam a lista "Para hoje" da
     biblioteca.
-17. **Conteúdo real dos tipos artigo/vídeo/livro/checklist**, e da
+16. **Conteúdo real dos tipos artigo/vídeo/livro/checklist**, e da
     categoria "parentalidade" — a Fase 12 preparou o vocabulário; hoje
     nenhuma linha de `knowledge_chunks` é desses tipos/categoria.
-18. **Paginação de verdade na biblioteca de Materiais** — hoje um limite
+17. **Paginação de verdade na biblioteca de Materiais** — hoje um limite
     fixo (12 por filtro) em vez de páginas, mesma limitação já aceita
     para a biblioteca de Brincadeiras (Fase 11).
+18. **Edição dos campos estruturados por tipo direto na Timeline**
+    (o que foi comido, tipo de sono, feedback de atividade) — a Fase 13
+    deliberadamente só editou horário/observação; unificar a edição num
+    só lugar (em vez de mandar de volta para o módulo de origem) é um
+    candidato natural de continuação.
+19. **Registro de Rotina/Desenvolvimento/Passeio/Observação pela própria
+    Timeline** — hoje ela só lê e edita o que outros módulos (ou o
+    operador) já criaram.

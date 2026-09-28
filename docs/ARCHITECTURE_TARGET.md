@@ -2202,3 +2202,210 @@ schema real (`izattwaiqjzhydzhxlns`):
   extensão do prompt da conversa).
 - **Continua assumindo uma criança por família** — mesma simplificação
   já feita pelas demais páginas de `/quintal`.
+
+## Timeline central (Fase 13)
+
+### Objetivo
+
+Cada módulo (Alimentação, Sono, Brincadeiras) já tinha seu próprio
+histórico, e o Dashboard (Fase 7) já tinha um resumo do dia — mas não
+existia um único lugar que consolidasse TODOS os tipos de evento
+(inclusive os que nunca ganharam módulo próprio: Rotina,
+Desenvolvimento, Passeio, Observação), com filtro, e — pela primeira
+vez no produto — edição e exclusão pelo lado da família. Até aqui,
+`events` só recebia `INSERT`; toda correção de um registro errado
+exigiria pedir a um operador para mexer direto no banco.
+
+### Uma segunda leitura sobre `events`, não uma nova fonte de dados
+
+`src/lib/timeline.ts` não introduz nenhum conceito novo de armazenamento
+— é uma leitura/formatação unificada sobre a mesma tabela que Sono,
+Alimentação e Brincadeiras já escrevem, reaproveitando os *schemas* de
+payload que cada uma já validou (`mealEventPayloadSchema`,
+`sleepEventPayloadSchema`, `playEventPayloadSchema`) para produzir uma
+descrição rica por tipo:
+
+```ts
+// src/lib/timeline.ts
+export function describeEntry(entry): { verb; icon } {
+  switch (entry.type) {
+    case "meal": /* lê payload.slot → "Café da manhã"/"Almoço" em vez de "Refeição" */
+    case "sleep": /* lê payload.sleepType → "Soneca"/"Sono noturno" */
+    case "free_play": return { verb: "Brincadeira", icon: "play" };
+    // routine/development/outing/observation: rótulo genérico do tipo
+  }
+}
+
+export function getTimelineDetailLines(entry): string[] {
+  // meal → [foods.join(", "), acceptanceLabel]
+  // sleep → [duração] ou ["Em andamento"]
+  // free_play → [activityTitle, feedbackLabel]
+  // default → [notes]
+}
+```
+
+Essas duas funções são puras (sem acesso a banco) e exportadas
+especificamente para serem reaproveitadas em dois lugares: a nova
+`/quintal/timeline` e o resumo compacto que já existia no Dashboard
+(`src/components/dashboard/Timeline.tsx`, Fase 7) — que antes tinha seu
+próprio mapa `TIMELINE_VERBS` (rótulos genéricos, sem ler payload) e
+agora usa exatamente a mesma formatação da Timeline central. As duas
+telas nunca podem descrever o mesmo evento de dois jeitos diferentes,
+porque é literalmente a mesma função.
+
+### "Acordou": uma segunda linha de exibição, não um segundo evento
+
+O pedido trazia "07:10 ☀️ Acordou" como uma linha própria na timeline,
+separada do resto — e a Fase 10 já tinha documentado essa mesma lacuna
+como limitação conhecida ("períodos que atravessam a meia-noite
+aparecem inteiros no dia em que começaram"). Esta fase resolve isso
+sem tocar no schema: um sono noturno continua sendo *um* evento (um
+`INSERT`, um `id`, um `occurred_at` de início) — a Timeline central só
+decide, na hora de montar a lista de um dia, se esse evento também
+"aparece" como uma segunda linha sintética nesse dia:
+
+```ts
+// getPriorNightWakeEntries — olha até 24h antes do dia sendo visto
+if (sleepType === "night" && endedAt existe && endedAt cai dentro do dia atual) {
+  // injeta uma linha "Acordou" no horário real do despertar
+  // displayKey = `${event.id}-wake` (chave de renderização, não um id novo)
+  // o link de "ver detalhes" continua apontando pro MESMO evento
+}
+```
+
+Só sono noturno ganha essa segunda linha (uma soneca continua sendo uma
+linha só, com a duração como detalhe) — o despertar da manhã é o único
+momento que tem peso narrativo suficiente para merecer sua própria
+entrada no "dia da família", a mesma régua usada para decidir todo o
+resto do formato desta fase (ver "Princípio de UX" abaixo). Verificado
+direto no banco: um sono noturno inserido às 20:15 de "ontem" com
+`endedAt` às 07:10 de "hoje" é corretamente capturado pela consulta de
+`since`/`until` de "hoje", mesmo com `occurred_at` no dia anterior.
+
+### Edição: só o que todo evento realmente tem
+
+`eventEditInputSchema` (`src/lib/validation/events.ts`) tem
+deliberadamente dois campos: `occurred_at` e `notes` — os únicos que
+TODO evento, de qualquer tipo, sempre tem de verdade. Um formulário
+genérico que tentasse editar `payload` teria que conhecer sete formatos
+diferentes (foods/acceptance, sleepType/duração,
+activityId/activityTitle/feedback, e mais três tipos sem payload
+nenhum) — em vez disso, `/quintal/timeline/[id]` edita o que é
+universal e diz explicitamente, quando o evento tem payload estruturado
+(`meal`/`sleep`/`free_play`), que os detalhes específicos continuam no
+módulo de origem. Isso não é uma limitação escondida — é dito na própria
+tela.
+
+O único caso especial dentro dessa edição genérica: se o evento é
+`sleep` e já tem `payload.endedAt` (um período fechado), mudar
+`occurred_at` (o início) recalcula `duration_minutes` a partir do novo
+horário — senão a duração mostrada passaria a mentir. Verificado direto
+no banco: um período de 20:15 a 07:10 (655 min) editado para começar 30
+minutos mais cedo (19:45) recalculou corretamente para 685 min.
+
+Exclusão (`deleteTimelineEntry`) é um `DELETE` direto — nenhuma outra
+tabela tem uma FK apontando para `events.id` (checado antes de
+implementar), então não há nada em cascata a considerar.
+
+### Segurança: nunca confiar no id vindo do formulário
+
+Mesmo padrão de defesa em profundidade já estabelecido em todo
+`/quintal/*/actions.ts` (`requireFamilyId`): antes de editar ou excluir,
+`assertEventInFamily` busca o evento pelo id, resolve a criança dona
+dele, e confirma que essa criança pertence à família da sessão atual —
+um id de evento de outra família nunca é aceito, mesmo que alguém
+adivinhe ou copie um UUID.
+
+### Filtros: cinco opções para sete tipos reais
+
+O pedido listava 5 filtros (Todos/Sono/Alimentação/Brincadeiras/Rotina)
+para os 7 tipos que a timeline exibe (`sleep`, `meal`, `free_play`,
+`outing`, `routine`, `development`, `observation`). A decisão de
+agrupamento, documentada em `TIMELINE_FILTER_TYPES`:
+
+| Filtro | Tipos reais | Por quê |
+|---|---|---|
+| Sono | `sleep` | 1:1 |
+| Alimentação | `meal` | 1:1 |
+| Brincadeiras | `free_play`, `outing` | mesma decisão já tomada pela biblioteca de Materiais (Fase 12): passeio é o vizinho semântico mais próximo de brincadeira |
+| Rotina | `routine`, `development`, `observation` | o "balde" para tudo que não é sono/alimentação/brincadeira |
+
+`decision` fica de fora da timeline inteira, em qualquer filtro —
+mesma distinção já estabelecida em `ChildContext` desde a Fase 3
+("decisão" é memória durável da família, não um evento do dia).
+
+### Dashboard: mesma formatação, link para o todo
+
+`src/components/dashboard/Timeline.tsx` não ganhou nenhuma nova
+consulta ao banco (continua recebendo `DashboardSummary.timeline`,
+calculado do jeito que já era desde a Fase 7) — só trocou seu
+mapeamento local de verbos genéricos pelas funções compartilhadas
+`describeEntry`/`getTimelineDetailLines`. `/quintal/page.tsx` ganhou um
+link "Ver timeline completa" para `/quintal/timeline`.
+
+### Preparação para o chat: já estava pronta
+
+O pedido desta fase incluía "preparar estrutura para que mensagens
+futuras possam gerar eventos" — `origin`/`source_message_id` (Fase 8) e
+o padrão de cada módulo aceitar `origin` como parâmetro (Fase 9/10/11)
+já cobriam exatamente isso; nenhum código novo foi necessário. O que
+esta fase de fato adicionou é a PRIMEIRA exibição visível de `origin`
+para a família ("Registrado por você" / "Vindo da conversa" /
+"Registrado pelo Quintal", `eventOriginLabels` em
+`validation/events.ts`) — antes disso, `origin` só existia como dado
+interno, nunca mostrado na interface.
+
+### Arquivos novos e alterados
+
+- **`src/lib/validation/events.ts`**: `eventOriginLabels` (novo),
+  `eventEditInputSchema`/`EventEditInput` (novo).
+- **Novo `src/lib/timeline.ts`** — `TIMELINE_EVENT_TYPES`,
+  `TimelineEntry`, `getTimelineEntries`, `getTimelineEntry`,
+  `updateTimelineEntry`, `deleteTimelineEntry`, `describeEntry`,
+  `getTimelineDetailLines`, `getDayTimeline` (com o split de
+  "Acordou"), `TIMELINE_FILTERS`/`TIMELINE_FILTER_TYPES`. Descrito nas
+  seções acima.
+- **`src/components/dashboard/Timeline.tsx`**: usa
+  `describeEntry`/`getTimelineDetailLines` em vez do mapa local
+  `TIMELINE_VERBS` (removido).
+- **`src/app/quintal/page.tsx`**: link "Ver timeline completa".
+- **Novo `src/app/quintal/timeline/page.tsx`** — dia por vez (navegação
+  ← →), filtros, lista formatada.
+- **Novo `src/app/quintal/timeline/[id]/page.tsx`** — detalhe + edição
+  (horário/observação) + exclusão (recolhida por padrão, dois toques).
+- **Novo `src/app/quintal/timeline/[id]/actions.ts`** —
+  `updateTimelineEntryAction`, `deleteTimelineEntryAction`, mesmo
+  padrão de `requireFamilyId`/checagem de posse já estabelecido.
+
+### Testes realizados (contra o banco real, mesma limitação de rede das fases anteriores)
+
+Sem chamada real ao Groq nesta sessão — verificado direto contra o
+schema real (`izattwaiqjzhydzhxlns`), em transação com rollback:
+
+1. **Divisão "Acordou"**: inserido um sono noturno das 20:15 de "ontem"
+   às 07:10 de "hoje" — a réplica exata da consulta de
+   `getPriorNightWakeEntries` (janela de 24h antes de "hoje",
+   `endedAt` dentro de "hoje") capturou corretamente o evento como
+   candidato à linha sintética de despertar.
+2. **Recálculo de duração na edição**: o mesmo período (655 minutos)
+   editado para começar 30 minutos mais cedo recalculou corretamente
+   para 685 minutos — confirma que `updateTimelineEntry` nunca deixa a
+   duração de um sono já concluído dessincronizada do horário exibido.
+
+### Limitações
+
+- **Edição não cobre payload estruturado** — só horário/observação,
+  por design; ver "Edição" acima.
+- **"Acordou" só para sono noturno**, nunca para sonecas — decisão de
+  UX deliberada, não uma limitação técnica.
+- **Sem criação de evento pela Timeline** — Rotina/Desenvolvimento/
+  Passeio/Observação continuam só criáveis via `/ops/children/[id]`.
+- **Filtros agrupam tipos** (Brincadeiras = brincadeira + passeio;
+  Rotina = rotina + desenvolvimento + observação) — cinco opções
+  pedidas para sete tipos reais, documentado, não escondido.
+- **Sem chamada real ao Groq nesta sessão** — não há integração desta
+  fase com o chat/IA em si para testar (`origin`/`source_message_id` já
+  eram testados desde a Fase 8); a Timeline central só passou a EXIBIR
+  esse dado.
+- **Continua assumindo uma criança por família** — mesma simplificação
+  já feita pelas demais páginas de `/quintal`.

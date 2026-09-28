@@ -43,6 +43,28 @@ export const eventTypeLabels: Record<EventType, string> = {
 export const eventOrigins = ["manual", "chat", "system", "recommendation"] as const;
 export type EventOrigin = (typeof eventOrigins)[number];
 
+// "Mostrar discretamente a origem" (Fase 13, Timeline central) — system
+// e recommendation ainda não são emitidos por nenhum código (ver acima),
+// mas já têm um rótulo pronto para quando existirem.
+export const eventOriginLabels: Record<EventOrigin, string> = {
+  manual: "Registrado por você",
+  chat: "Vindo da conversa",
+  system: "Registrado pelo Quintal",
+  recommendation: "Registrado pelo Quintal",
+};
+
+// Edição genérica de um evento (Fase 13, Timeline central): só os dois
+// campos que todo evento tem de verdade, independente do tipo — horário
+// e observação. Campos estruturados por tipo (o que foi comido, tipo de
+// sono, feedback de atividade) continuam editáveis só pelo módulo que os
+// criou; ver docs/ARCHITECTURE_TARGET.md, "Timeline central (Fase 13)".
+export const eventEditInputSchema = z.object({
+  occurred_at: z.string().min(1, "Informe quando isso aconteceu."),
+  notes: z.string().trim().min(1, "Descreva o que aconteceu."),
+});
+
+export type EventEditInput = z.infer<typeof eventEditInputSchema>;
+
 export const eventInputSchema = z.object({
   child_id: z.uuid("Selecione uma criança."),
   type: z.enum(eventTypes, { message: "Selecione um tipo de evento." }),

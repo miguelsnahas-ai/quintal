@@ -191,6 +191,12 @@ export default async function QuintalDashboardPage() {
           <section className="space-y-3">
             <h2 className="text-sm font-medium text-ink-muted">Timeline de hoje</h2>
             <Timeline events={summary.timeline} />
+            <Link
+              href="/quintal/timeline"
+              className="text-xs font-medium text-ink underline underline-offset-2"
+            >
+              Ver timeline completa
+            </Link>
           </section>
 
           {summary.recommendedMaterials.length > 0 && (
