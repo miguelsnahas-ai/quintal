@@ -1672,3 +1672,286 @@ núcleo desta fase) foi verificada diretamente contra o schema real
   ser observada de ponta a ponta neste ambiente.
 - **Continua assumindo uma criança por família** — mesma simplificação
   já feita pelas demais páginas de `/quintal`.
+
+## Módulo de Brincadeiras (Fase 11)
+
+### Objetivo
+
+Diferente de Alimentação (Fase 9) e Sono (Fase 10), que partiram de um
+tipo de evento simples e precisaram construir tudo em cima dele,
+Brincadeiras herda uma base bem mais larga: `Activity`/`getActivity`
+(Fase 4), `ActivityCard`/`/atividades/[id]` (Fase 4), o Recommendation
+Engine (`decideActivity`, Fase 5) e o feedback por recomendação (Fase
+6) já existiam. O trabalho desta fase foi menos "construir do zero" e
+mais "expor essa base como uma experiência navegável própria, com
+filtros de verdade e um mecanismo de feedback pessoal que não dependia
+de ter vindo de uma recomendação do chat".
+
+### Duas propriedades novas em `Activity`, nenhuma delas uma coluna
+
+Confirmado direto no banco antes de codificar (mesma disciplina de
+diagnóstico-antes-de-código da Fase 4): a planilha-fonte de
+`brincadeiras`/`materiais` **não tem** um campo de duração — nenhuma
+linha, em nenhuma das duas categorias, menciona minutos em lugar
+nenhum. E `environment` (o "ambiente: casa/externo/ambos" pedido) não
+existe como um enum — só um campo de texto livre "Onde" (só em
+`brincadeiras`; `materiais` não tem nada parecido), com valores como
+"Casa, parque", "Quintal, banho, varanda", "Qualquer lugar".
+
+Em vez de uma migração (`estimated_minutes` nullable em
+`knowledge_chunks`) ou de inventar dado, os dois viraram **parsers
+defensivos** sobre o `content` que `parseContentFields` já expõe (Fase
+4), no mesmo arquivo que já sabe transformar linhas cruas em `Activity`
+(`src/lib/activity.ts`):
+
+```ts
+// Nunca preenchido hoje (a planilha não tem "Duração"), mas pronto para
+// quando tiver — zero mudança de código nesse dia.
+function parseEstimatedMinutes(fields: Map<string, string>): number | null {
+  const raw = fields.get("Duração");
+  if (!raw) return null;
+  const match = raw.match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+// Heurística de palavras-chave sobre "Onde" — nunca exclui por falta de
+// dado: sem o campo (todo "materiais") ou um termo não reconhecido
+// ("Escola", "Carro", "Qualquer lugar") caem em "both", o default
+// inclusivo.
+function classifyEnvironment(fields: Map<string, string>): ActivityEnvironment {
+  const onde = fields.get("Onde");
+  if (!onde) return "both";
+  const normalized = onde.toLowerCase();
+  const isOutdoor = OUTDOOR_KEYWORDS.some((k) => normalized.includes(k));
+  const isHome = HOME_KEYWORDS.some((k) => normalized.includes(k));
+  if (isOutdoor && isHome) return "both";
+  if (isOutdoor) return "outdoor";
+  if (isHome) return "home";
+  return "both";
+}
+```
+
+Isso significa: hoje, **toda** atividade tem `estimatedMinutes = null`
+— o campo existe no tipo `Activity`, é exibido na página quando não
+nulo, e o filtro de "tempo disponível" está funcionando de verdade, mas
+não tem, ainda, nenhum dado real para filtrar por cima (ver
+Limitações). `environment` já tem dado real (derivado de "Onde"), então
+o filtro de ambiente já filtra de verdade hoje, com a ressalva de ser
+uma heurística sobre texto livre, não um campo estruturado da planilha.
+
+### Registro + feedback: um terceiro mecanismo, não um substituto dos outros dois
+
+O projeto já tinha dois mecanismos de feedback sobre atividades:
+`activity_feedback` (Fase 4 — anônimo, "essa atividade ajudou?", sobre
+o conteúdo em si) e `activity_recommendation_feedback` (Fase 6 —
+`worked`/`did_not_work`/`wants_another`, preso a uma
+`activity_recommendation_id` específica, só existe quando a atividade
+veio de uma recomendação do chat). Nenhum dos dois serve para "a
+família navegou a biblioteca, fez uma atividade que NUNCA foi
+recomendada por IA, e quer registrar como foi" — não há
+`recommendation_id` nesse caso.
+
+Esta fase resolve isso com um terceiro mecanismo, no mesmo espírito de
+`meal`/`sleep`: `events.type = 'free_play'` (já existia desde a Fase 3)
+com `payload` estruturado:
+
+```ts
+// src/lib/validation/play.ts
+type PlayEventPayload = {
+  activityId: string;
+  activityTitle: string; // gravado junto, não só o id — ver abaixo
+  feedback: "loved" | "liked" | "not_interested" | "did_not_do";
+};
+```
+
+`activityTitle` é gravado junto (não só uma referência a resolver
+depois) pelo mesmo motivo que `meal` grava `foods` por extenso em vez
+de só uma referência à receita: `formatPlayDetail`
+(`src/lib/childContext.ts`) e `getActivityHistory`
+(`src/lib/play.ts`) são ambos síncronos/sem N+1 — nenhum dos dois
+precisa de uma segunda consulta ao banco para saber o título, só ler o
+`payload` que já foi gravado.
+
+`logActivityOutcome` (`src/lib/play.ts`) é o único ponto que grava
+isso — chamado hoje só por `/atividades/[id]`'s
+`logActivityOutcomeAction`, quando existe sessão de família (a página
+continua pública/sem sessão para quem chega de um link direto — só essa
+seção some). "Registro" e "Feedback" (pedidos como critérios separados)
+chegam juntos num só passo, mesmo raciocínio de `logMeal` (Fase 9)
+combinar "o que foi oferecido" e "aceitação" numa única ação em vez de
+duas.
+
+### Filtros: cada um só exclui quando tem certeza
+
+`getActivitySuggestions` (`src/lib/play.ts`) é a função única por trás
+de "Para hoje" (limit 3) e da "Biblioteca" (limit 200) — só o `limit`
+muda, a regra de filtro é a mesma, no mesmo espírito de
+`getMealSuggestions` (Fase 9) servir tanto a lista completa quanto um
+recorte pequeno.
+
+| Filtro | Regra | Quando não exclui |
+|---|---|---|
+| Idade | obrigatório, nunca desligável | `ageMonths === null` (idade desconhecida) |
+| Ambiente | `activity.environment === filtro` | atividade é `"both"`, ou filtro não foi pedido |
+| Tempo disponível | `estimatedMinutes <= maxMinutes` | `estimatedMinutes === null` (não informado) |
+| Materiais disponíveis | pelo menos um material da família aparece em `activity.materials` | atividade não lista materiais, ou lista "Nenhum" |
+| Interesses | desempate, não filtro duro — se zerar a lista, cai de volta no pool sem esse critério | sempre, por design (nunca é a razão de mostrar zero resultados) |
+
+Isso segue a mesma regra que `decideActivity` (Fase 5) e
+`getMealSuggestions` (Fase 9) já estabeleceram: nunca inventar um "não"
+a partir da ausência de dado. Um filtro só reduz o pool quando tem
+evidência real para reduzir.
+
+### Personalização preparada — o que foi unificado de verdade nesta fase
+
+O pedido era explícito: preparar a arquitetura para uma futura
+inferência ("essa criança gosta de atividades com água"), sem
+implementar nenhuma regra de aprendizado. O que esta fase entregou, sem
+ML nenhum, foi a costura de um sinal já existente:
+
+```
+Biblioteca (Fase 11)                     Chat (Fase 5/6)
+events.payload                            activity_recommendation_feedback
+{feedback: not_interested/did_not_do} ┐   {feedback: did_not_work/wants_another}
+                                       │
+                                       ▼
+                    getActivityIdsToAvoidForNow (recommendation.ts)
+                    UNION dos dois conjuntos + recentemente recomendado
+                                       │
+                                       ▼
+                    decideActivity nunca sugere essas atividades
+                    de novo tão cedo — de nenhuma das duas origens
+```
+
+`recommendation.ts` importa `getRecentNegativeLibraryFeedbackActivityIds`
+de `play.ts` (uma única direção de dependência — `play.ts` não importa
+nada de `recommendation.ts`, sem ciclo) e passa a unir os dois sinais
+dentro de `getActivityIdsToAvoidForNow`, já existente desde a Fase 6.
+Isso significa: marcar "não se interessou" numa atividade encontrada na
+biblioteca já muda o que o chat recomenda depois — verificado direto no
+banco (ver Testes). A volta (o chat influenciar a lista "Para hoje" da
+biblioteca) não foi feita — ver Limitações.
+
+O que **não** foi feito, por pedido explícito: nenhuma tabela ou campo
+de "preferência inferida" (ex.: `child_preferences.likes_water = true`)
+foi criado. A base para uma regra futura ler isso já existe — cada
+atividade tem `tags`, `materials`, `environment` estruturados, e cada
+feedback é uma linha com `activityId` real — uma regra simples do tipo
+"se as últimas N atividades com feedback `loved` têm a tag 'água' em
+comum, sugerir mais do tipo água" seria uma função nova em `play.ts`
+consultando dado que já existe, sem qualquer mudança de schema.
+
+### Dashboard: fallback determinístico para "Para hoje"
+
+O Dashboard (Fase 7) já tinha uma seção "Para hoje" alimentada só por
+`activity_recommendations` (o que o chat recomendou hoje) — uma família
+que nunca conversou via chat sempre via o estado vazio. `getDashboardSummary`
+(`src/lib/dashboard.ts`) ganhou um `playSuggestion: ActivitySummary |
+null`, calculado incondicionalmente (idade + interesses da criança,
+mesmos filtros da Brincadeiras, excluindo feedback negativo recente) —
+a página decide qual mostrar: recomendações do chat quando existirem,
+senão essa sugestão determinística, senão (só se não houver conteúdo
+algum para a idade) o estado vazio original com o convite para
+conversar.
+
+### Arquivos novos e alterados
+
+- **`src/lib/activity.ts`**: `ActivityEnvironment` (novo tipo),
+  `estimatedMinutes`/`environment` em `Activity`,
+  `parseEstimatedMinutes`/`classifyEnvironment` (novos, privados),
+  `toActivity`/`KnowledgeChunkRow` passaram a ser exportados (reuso por
+  `play.ts`, mesmo padrão de `parseContentFields` ter sido exportado na
+  Fase 9 para `feeding.ts`).
+- **Novo `src/lib/validation/play.ts`** — `activityFeedbackOptions`/
+  `activityFeedbackLabels`, `playEventPayloadSchema`,
+  `logActivityInputSchema`.
+- **Novo `src/lib/play.ts`** — `logActivityOutcome`, `getActivityHistory`,
+  `getRecentNegativeLibraryFeedbackActivityIds`, `getActivitySuggestions`,
+  `getLibraryActivities`. Descrito nas seções acima.
+- **`src/lib/recommendation.ts`**: `getActivityIdsToAvoidForNow` passou a
+  unir também `getRecentNegativeLibraryFeedbackActivityIds` (import de
+  `play.ts`).
+- **`src/lib/childContext.ts`**: `formatPlayDetail` (novo), aplicado a
+  eventos `free_play` em `formatEventGroup` — mesmo padrão de
+  `formatMealDetail`/`formatSleepDetail`.
+- **`src/lib/dashboard.ts`**: `DashboardSummary.lastActivity` (mesmo
+  padrão de `lastMeal`/`lastRoutine`) e `.playSuggestion` (novo,
+  descrito acima).
+- **`src/app/atividades/[id]/actions.ts`**: novo
+  `logActivityOutcomeAction` (resolve sessão → família → criança
+  primária do zero, nunca confia num `childId` vindo do cliente — mesmo
+  padrão de segurança de `requireFamilyId` em `/quintal/*/actions.ts`).
+- **Novo `src/app/atividades/[id]/LogActivityOutcome.tsx`** — componente
+  de cliente com os quatro botões, mesmo padrão de
+  `ActivityFeedback.tsx` (Fase 4, que continua existindo, inalterado, ao
+  lado deste).
+- **`src/app/atividades/[id]/page.tsx`**: mostra `estimatedMinutes`/
+  `environment` perto do título; seção "O que explora" ganhou a nota de
+  "não é diagnóstico"; renderiza `LogActivityOutcome` só quando há
+  sessão de família.
+- **Novo `src/app/quintal/brincadeiras/page.tsx`** — biblioteca +
+  filtros (formulário GET, zero JS) + "Para hoje" + histórico. Reaproveita
+  `ActivityCard` (Fase 4) sem alteração — `ActivitySummary` não ganhou
+  nenhum campo novo, só `Activity` (a forma completa), então o card
+  continua exatamente como era.
+- **`src/app/quintal/page.tsx`**: card de Brincadeiras ganhou `href` e
+  passou a mostrar a última atividade; seção "Para hoje" ganhou o
+  fallback para `playSuggestion`.
+
+### Testes realizados (contra o banco real, mesma limitação de rede das fases anteriores)
+
+Sem chamada real ao Groq nesta sessão — verificado direto contra o
+schema real (`izattwaiqjzhydzhxlns`), em transação com rollback:
+
+1. **Diagnóstico de conteúdo (antes de codificar)**: confirmado que
+   nenhuma linha de `brincadeiras`/`materiais` tem um campo de duração
+   no `content`, e que os valores reais de "Onde" (28 valores distintos
+   revisados) são texto livre variado ("Casa, parque", "Quintal, banho,
+   varanda", "Qualquer lugar") — a base para desenhar `classifyEnvironment`
+   como heurística em vez de mapeamento direto.
+2. **Round-trip de `free_play`**: inserido um evento com
+   `payload = {activityId, activityTitle, feedback: 'loved'}` — leitura
+   de volta bateu exatamente, confirmando o formato que
+   `getActivityHistory`/`formatPlayDetail` esperam.
+3. **Filtro de feedback negativo da biblioteca**: com três eventos
+   `free_play` inseridos para a mesma criança (um `loved`, um
+   `not_interested`, um evento `free_play` legado sem `payload`
+   estruturado), a réplica exata do filtro de
+   `getRecentNegativeLibraryFeedbackActivityIds`
+   (`payload->>'activityId' is not null and payload->>'feedback' in
+   (...)`) isolou corretamente só o `not_interested` — o evento `loved`
+   e o legado ficaram de fora, confirmando que o sinal de "evitar por
+   enquanto" nunca confunde feedback positivo (ou falta de payload) com
+   negativo.
+4. **Contagem real do catálogo**: `brincadeiras` (84) + `materiais` (65)
+   = 149 linhas — usado para calibrar `LIBRARY_LIMIT` em 200 (folga
+   confortável acima do total real, não um número arbitrário).
+
+### Limitações
+
+- **Nenhuma atividade tem duração real** — a planilha-fonte não tem esse
+  campo; o filtro de tempo disponível funciona, mas hoje nunca reduz o
+  pool por causa disso.
+- **`environment` é uma heurística de palavras-chave**, não um dado
+  estruturado — pode classificar errado um valor ambíguo não coberto
+  pelas palavras-chave conhecidas (cai em "both", nunca em uma exclusão
+  errada, mas também nunca filtra um caso que deveria).
+- **Biblioteca sem paginação de verdade** — um limite alto (200) em vez
+  de páginas; funciona para o catálogo atual (149), não escala
+  indefinidamente.
+- **Personalização unidirecional**: biblioteca → chat (via
+  `getActivityIdsToAvoidForNow`) está feito; chat → biblioteca (as
+  recomendações/feedback do chat influenciarem "Para hoje" na
+  biblioteca) não foi implementado nesta fase.
+- **Nenhuma regra de inferência de preferência foi implementada** (ex.:
+  "gosta de atividades com água") — só a base de dados estruturados que
+  uma regra futura precisaria (feedback por atividade + tags/materiais/
+  ambiente) está pronta, por pedido explícito de não implementar ML
+  nesta fase.
+- **Sem chamada real ao Groq nesta sessão** (mesma limitação de rede das
+  fases anteriores) — a integração do feedback da biblioteca no
+  Recommendation Engine foi verificada diretamente contra o banco (item
+  3 dos testes); a chamada real que decide uma recomendação de chat não
+  pôde ser reproduzida neste ambiente.
+- **Continua assumindo uma criança por família** — mesma simplificação
+  já feita pelas demais páginas de `/quintal`.

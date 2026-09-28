@@ -32,6 +32,12 @@ export type ActivitySummary = {
   imageUrl: string | null;
 };
 
+// "casa" | "externo" | "ambos" (Fase 11) — "ambos" é também o default
+// inclusivo quando não há como saber (ex.: categoria "materiais", que não
+// tem campo "Onde" na planilha-fonte), nunca usado para excluir uma
+// atividade por falta de dado.
+export type ActivityEnvironment = "home" | "outdoor" | "both";
+
 export type Activity = ActivitySummary & {
   ageMinMonths: number | null;
   ageMaxMonths: number | null;
@@ -42,9 +48,16 @@ export type Activity = ActivitySummary & {
   developmentAreas: string | null; // "desenvolvimento relacionado"
   safety: string | null; // "segurança/supervisão", quando existir
   extra: ActivityDetail[]; // qualquer outro campo real da linha, não descartado
+  // Fase 11 — nenhum dos dois é uma coluna nova: ambos são derivados do
+  // texto que "content" já tem (ou, no caso de estimatedMinutes, de um
+  // campo "Duração" que a planilha-fonte atual simplesmente não tem
+  // ainda — ver parseEstimatedMinutes abaixo). null/"both" nunca são
+  // inventados como um valor real, são o "não sei" honesto.
+  estimatedMinutes: number | null;
+  environment: ActivityEnvironment;
 };
 
-type KnowledgeChunkRow = {
+export type KnowledgeChunkRow = {
   id: string;
   category: string;
   title: string;
@@ -117,7 +130,44 @@ function mapFieldsToActivity(
   };
 }
 
-function toActivity(row: KnowledgeChunkRow): Activity | null {
+// A planilha-fonte atual não tem uma coluna "Duração" para brincadeiras
+// nem materiais (confirmado direto no banco, Fase 11) — por isso isso
+// aqui está sempre null hoje. Mantido como um parser defensivo (não um
+// valor fixo) para que, se o conteúdo for enriquecido no futuro com uma
+// linha "Duração: 15 minutos", o campo passe a vir preenchido sem
+// nenhuma mudança de código — mesmo espírito de "arquitetura pronta,
+// dado real quando existir" que methodKeyword (feeding.ts) já usa.
+function parseEstimatedMinutes(fields: Map<string, string>): number | null {
+  const raw = fields.get("Duração");
+  if (!raw) return null;
+  const match = raw.match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+// "Onde" (só existe para brincadeiras) é texto livre da planilha — "Casa,
+// parque", "Quintal, banho, varanda", "Qualquer lugar" etc., não um enum.
+// Esta é uma heurística de palavras-chave, não uma classificação exata:
+// documentada como tal (ver docs/ARCHITECTURE_TARGET.md) e sempre
+// inclusiva no caso ambíguo ("both") em vez de arriscar excluir uma
+// atividade por engano.
+const OUTDOOR_KEYWORDS = ["quintal", "parque", "praça", "calçada", "grama", "varanda", "ao ar livre"];
+const HOME_KEYWORDS = ["casa", "quarto", "cama", "banho", "mesa", "cozinha", "sala", "troca"];
+
+function classifyEnvironment(fields: Map<string, string>): ActivityEnvironment {
+  const onde = fields.get("Onde");
+  if (!onde) return "both";
+
+  const normalized = onde.toLowerCase();
+  const isOutdoor = OUTDOOR_KEYWORDS.some((keyword) => normalized.includes(keyword));
+  const isHome = HOME_KEYWORDS.some((keyword) => normalized.includes(keyword));
+
+  if (isOutdoor && isHome) return "both";
+  if (isOutdoor) return "outdoor";
+  if (isHome) return "home";
+  return "both"; // termo não reconhecido (ex.: "Escola", "Carro") — inclusivo, não exclui
+}
+
+export function toActivity(row: KnowledgeChunkRow): Activity | null {
   if (!isActivityCategory(row.category)) return null;
 
   const fields = parseContentFields(row.content);
@@ -135,6 +185,8 @@ function toActivity(row: KnowledgeChunkRow): Activity | null {
     ageMaxMonths: row.age_max_months,
     tags: row.tags ?? [],
     imageUrl: row.image_url,
+    estimatedMinutes: parseEstimatedMinutes(fields),
+    environment: classifyEnvironment(fields),
     ...mapped,
   };
 }

@@ -10,6 +10,7 @@ import {
   type ActivitySummary,
 } from "@/lib/activity";
 import type { ChildContext } from "@/lib/childContext";
+import { getRecentNegativeLibraryFeedbackActivityIds } from "@/lib/play";
 
 // How many of a child's most recent recommendations count as "just
 // recommended" for the purposes of not repeating — a count, not a time
@@ -167,23 +168,29 @@ function isAgeAppropriate(activity: Activity, childAgeMonths: number): boolean {
   return true;
 }
 
-// Union of two "give it a rest" signals, both scoped to this child only:
+// Union of three "give it a rest" signals, all scoped to this child only:
 // activities recommended in the last RECENT_RECOMMENDATIONS_LIMIT turns
 // (regardless of feedback — don't repeat the exact same suggestion back
-// to back), and activities whose most recent feedback among the last
+// to back), activities whose most recent feedback among the last
 // RECENT_NEGATIVE_FEEDBACK_LIMIT entries was "did_not_work"/
-// "wants_another". Both are small, count-bounded windows, never a
-// permanent exclusion — see the module-level note on
-// RECOMMENDATION_FEEDBACK_VALUES and the "não inferir preferências
-// permanentes" requirement: a single "não funcionou" delays this
-// activity, it does not blacklist it. decideActivity still falls back to
-// recommending it again if nothing else survives the age-safety filter.
+// "wants_another", and (Fase 11) activities marked "not_interested"/
+// "did_not_do" via the Brincadeiras library (src/lib/play.ts) — a
+// reaction registered by browsing the library, not from a chat
+// recommendation, still counts here, so the two surfaces share one
+// "avoid for now" signal instead of each keeping its own blind spot. All
+// three are small, count-bounded windows, never a permanent exclusion —
+// see the module-level note on RECOMMENDATION_FEEDBACK_VALUES and the
+// "não inferir preferências permanentes" requirement: a single negative
+// reaction delays this activity, it does not blacklist it. decideActivity
+// still falls back to recommending it again if nothing else survives the
+// age-safety filter.
 async function getActivityIdsToAvoidForNow(childId: string): Promise<Set<string>> {
-  const [recentlyRecommendedIds, recentNegativeFeedbackIds] = await Promise.all([
+  const [recentlyRecommendedIds, recentNegativeFeedbackIds, recentNegativeLibraryFeedbackIds] = await Promise.all([
     getRecentlyRecommendedIds(childId),
     getRecentNegativeFeedbackActivityIds(childId),
+    getRecentNegativeLibraryFeedbackActivityIds(childId),
   ]);
-  return new Set([...recentlyRecommendedIds, ...recentNegativeFeedbackIds]);
+  return new Set([...recentlyRecommendedIds, ...recentNegativeFeedbackIds, ...recentNegativeLibraryFeedbackIds]);
 }
 
 async function getRecentlyRecommendedIds(childId: string): Promise<Set<string>> {

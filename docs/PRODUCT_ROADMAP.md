@@ -808,7 +808,129 @@ desenho completo e os testes realizados.
   aberto verificada direto contra o banco real, em transações com
   rollback.
 
-## Fase 11 — candidatos (não implementados)
+## Fase 11 — módulo de Brincadeiras (concluída)
+
+Objetivo: ajudar a família a descobrir atividades simples e adequadas ao
+contexto da criança — biblioteca navegável, filtros, "Para hoje",
+registro + feedback, e arquitetura pronta para uma futura personalização
+por regras. Reaproveitando ao máximo o que as Fases 4/5/6 já construíram
+para "Activity" em vez de recomeçar.
+
+### O que foi entregue
+
+1. **Sem nenhuma migração**: `events.type = 'free_play'` já existia
+   desde a Fase 3, `events.payload` desde a migração original,
+   `Activity`/`getActivity`/`ActivityCard`/`/atividades/[id]` desde a
+   Fase 4, o Recommendation Engine (`decideActivity`,
+   `activity_recommendations`) desde as Fases 5/6. Esta fase estende
+   tudo isso em vez de recriar — nenhuma tabela ou coluna nova.
+2. **Duas propriedades novas em `Activity`, nenhuma como coluna**:
+   `estimatedMinutes` (parseada defensivamente de um campo "Duração" que
+   a planilha-fonte atual simplesmente não tem — confirmado direto no
+   banco; fica `null` para as 149 atividades existentes, sem inventar
+   número nenhum, mas pronta para preencher sozinha se o conteúdo for
+   enriquecido no futuro) e `environment` (casa/externo/ambos, uma
+   heurística de palavras-chave sobre o campo "Onde" já existente para
+   brincadeiras — "ambos" é o default inclusivo sempre que não há como
+   saber, nunca usado para excluir por falta de dado).
+3. **Registro + feedback num só passo**: `events.type='free_play'` com
+   `payload = {activityId, activityTitle, feedback}`, onde `feedback` é
+   uma das quatro opções pedidas — Adorou/Gostou/Não se
+   interessou/Não fizemos — um terceiro mecanismo de feedback, distinto
+   de `activity_feedback` (Fase 4, anônimo, sobre o conteúdo) e
+   `activity_recommendation_feedback` (Fase 6, preso a uma recomendação
+   específica do chat). Fica em `/atividades/[id]`, visível só para quem
+   tem sessão de família (a página continua pública para quem chega de
+   um link direto).
+4. **Filtros reais, não só declarados**: idade (automática, sempre
+   aplicada, nunca desligável — mesma regra de segurança de
+   `decideActivity`), interesses (compara com título/"por que
+   interessante"/tags), ambiente, tempo disponível e materiais
+   disponíveis — cada filtro só exclui quando tem certeza; falta de
+   dado (duração não informada, sem lista de materiais) nunca exclui por
+   engano.
+5. **"Para hoje" na própria página de Brincadeiras**: um punhado curado
+   (3) usando os mesmos filtros, priorizado sobre a "Biblioteca"
+   completa (até 200 resultados, sem paginação nesta fase) — as duas
+   são a mesma função de filtro, só o limite muda.
+6. **Histórico**: cronológico, agrupado por dia, "HH:mm — Atividade ·
+   Feedback".
+7. **Dashboard integrado**: o card de Brincadeiras agora linka para
+   `/quintal/brincadeiras` e mostra a última atividade; a seção "Para
+   hoje" do Dashboard, que já existia (Fase 7, alimentada só por
+   recomendações do chat), ganhou um fallback determinístico — sem
+   recomendação do chat hoje, mostra uma sugestão real vinda dos mesmos
+   filtros de idade/interesses da Brincadeiras, em vez de um estado
+   vazio.
+8. **Personalização preparada, não implementada**: feedback negativo
+   registrado na biblioteca (`não se interessou`/`não fizemos`) agora
+   também entra no "evitar por enquanto" do Recommendation Engine do
+   chat (`getActivityIdsToAvoidForNow`, Fase 5/6) — as duas superfícies
+   (biblioteca e chat) passam a compartilhar um sinal, sem nenhum
+   machine learning, só um `UNION` de conjuntos já existente. Nenhuma
+   inferência de preferência permanente ("gosta de água") foi
+   implementada — a estrutura de dados para uma regra futura ler isso já
+   existe (ver "Personalização" em ARCHITECTURE_TARGET.md).
+9. **"Habilidades" nunca tratadas como diagnóstico**: a seção "O que
+   explora" em `/atividades/[id]` ganhou uma nota explícita — "áreas
+   exploradas de forma geral, não uma avaliação ou diagnóstico de
+   desenvolvimento".
+
+Ver `docs/ARCHITECTURE_TARGET.md`, "Módulo de Brincadeiras (Fase 11)",
+para o desenho completo e os testes realizados.
+
+### Como testar manualmente
+
+1. `npm run build && npm run start`.
+2. Abrir `/quintal` → o card de Brincadeiras deve linkar para
+   `/quintal/brincadeiras`; a seção "Para hoje" deve mostrar uma
+   atividade mesmo sem nunca ter conversado com o chat (fallback
+   determinístico).
+3. Em `/quintal/brincadeiras`, ajustar os filtros (ambiente, tempo,
+   materiais, interesses) e confirmar que "Para hoje" e "Biblioteca"
+   mudam de acordo.
+4. Abrir uma atividade a partir de um card → `/atividades/[id]` mostra
+   duração estimada (quando houver) e ambiente, além dos campos já
+   existentes; a seção "O que explora" mostra a nota sobre não ser
+   diagnóstico.
+5. Tocar em uma das quatro opções de "Fizeram essa atividade? Como
+   foi?" → mensagem de confirmação; a atividade aparece no Histórico de
+   `/quintal/brincadeiras` agrupada em "Hoje".
+6. Marcar "Não se interessou" ou "Não fizemos" numa atividade, depois
+   conversar em `/quintal/chat` pedindo uma sugestão parecida — essa
+   atividade deve ficar de fora das próximas recomendações do chat por
+   um tempo (não há como observar isso diretamente sem a IA real neste
+   ambiente, mas a exclusão foi verificada direto no banco — ver testes
+   em ARCHITECTURE_TARGET.md).
+
+### Limitações conhecidas desta fase
+
+- **Sem duração real em nenhuma atividade** — a planilha-fonte não tem
+  esse campo; o filtro "tempo disponível" está pronto e funcionando, mas
+  hoje nunca exclui nada por duração (todas as 149 atividades têm
+  `estimatedMinutes = null`). Populações futuras de conteúdo passam a
+  funcionar sem mudança de código.
+- **Classificação de ambiente é uma heurística de palavras-chave sobre
+  texto livre**, não um dado estruturado da planilha — pode classificar
+  errado um caso ambíguo (ex.: "Escola", "Carro", que caem em "ambos"
+  por não bater com nenhuma palavra-chave conhecida).
+- **Biblioteca sem paginação de verdade** — mostra até 200 resultados
+  (folga acima do total atual de 149), suficiente para o conteúdo de
+  hoje, mas não escala indefinidamente.
+- **Personalização unidirecional**: feedback da biblioteca já influencia
+  recomendações do chat; o inverso (recomendações/feedback do chat
+  influenciarem a lista "Para hoje" da biblioteca) ainda não foi feito —
+  ver candidato correspondente abaixo.
+- **Nenhuma regra de "aprendizado" foi implementada** (ex.: "essa
+  criança gosta de atividades com água") — só a infraestrutura de dados
+  (feedback estruturado por atividade, com tags/materiais/ambiente já
+  modelados) está pronta para uma regra futura consumir, por pedido
+  explícito desta fase.
+- Sem teste em navegador real de ponta a ponta (mesma limitação de rede
+  das fases anteriores) — lógica de filtro/payload/exclusão verificada
+  direto contra o banco real, em transações com rollback.
+
+## Fase 12 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -826,10 +948,10 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    "por família" descrita acima e permite `ChildContext` incluir
    conversa de forma 100% isolada.
 4. **Extração automática de eventos a partir do chat** (Fase 8 preparou
-   o schema — `origin`, `duration_minutes` — e as Fases 9/10 deram a
-   Alimentação e Sono seus próprios choke points de registro, mas
-   nenhuma implementou a extração) — o próximo passo natural de "deixar
-   de depender só de texto livre".
+   o schema — `origin`, `duration_minutes` — e as Fases 9/10/11 deram a
+   Alimentação, Sono e Brincadeiras seus próprios choke points de
+   registro, mas nenhuma implementou a extração) — o próximo passo
+   natural de "deixar de depender só de texto livre".
 5. **Fatos permanentes explícitos e sensíveis da criança** (ex.:
    alergias) — deliberadamente fora da Fase 8 ("não criar campos médicos
    ou sensíveis desnecessários"); exigiria decisão própria sobre
@@ -840,8 +962,9 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 7. **Detectar feedback por texto livre na conversa** (ex.: a família
    digita "ela adorou" em vez de tocar no botão) — exigiria um detector
    de intenção dedicado, deliberadamente fora do escopo da Fase 6.
-8. **Unificar `activity_feedback` e `activity_recommendation_feedback`**
-   numa visão só, para uma eventual tela de analytics mais completa.
+8. **Unificar `activity_feedback`, `activity_recommendation_feedback` e
+   o novo feedback de `events.payload` (Fase 11)** numa visão só, para
+   uma eventual tela de analytics mais completa.
 9. **Suporte real a múltiplas crianças** na experiência principal, não só
    no seletor (nem no novo formulário de perfil, que já lista todas mas
    trata cada uma independentemente).
@@ -850,18 +973,27 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     causa mais comum de registros órfãos, mas não é uma transação real
     (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
     família sem cuidador).
-11. **Módulos completos de Brincadeiras, Materiais e Rotina** — as Fases
-    9 e 10 fizeram isso para Alimentação e Sono; essas áreas continuam só
-    com um tipo de evento real e um lugar no Dashboard, sem registro
-    estruturado por tipo nem experiência própria.
+11. **Módulo completo de Rotina** — as Fases 9, 10 e 11 fizeram isso
+    para Alimentação, Sono e Brincadeiras; Rotina continua só com um
+    tipo de evento real e um lugar no Dashboard.
 12. **Edição de cuidadores e foto no perfil** — `/quintal/perfil` (Fase
     8) edita só os essenciais da criança e as preferências da família.
-13. **Camada de recomendação/IA real para sugestões de refeição** — a
-    Fase 9 deixou `getMealSuggestions` pronta para ser substituída sem
-    mudar o formato de `MealSuggestion` nem os componentes que a
-    consomem, mas a função em si continua um filtro/ordenação simples,
-    sem nenhum julgamento de IA.
+13. **Camada de recomendação/IA real para sugestões de refeição e de
+    brincadeira** — as Fases 9 e 11 deixaram `getMealSuggestions` e
+    `getActivitySuggestions` prontas para serem substituídas sem mudar o
+    formato de saída nem os componentes que as consomem, mas as duas
+    continuam filtro/ordenação simples, sem nenhum julgamento de IA.
 14. **Dividir um sono que atravessa a meia-noite em duas linhas na
     timeline** (início "ontem à noite", despertar "hoje de manhã", como
     o exemplo ilustrativo do briefing da Fase 10 mostrava) — a Fase 10
     documentou essa simplificação em vez de implementá-la.
+15. **Regras explícitas de personalização a partir do feedback**
+    (ex.: "essa criança gosta de atividades com água", "essa família
+    prefere atividades de até 15 minutos") — a Fase 11 preparou o dado
+    (feedback estruturado por atividade, tags/materiais/ambiente já
+    modelados), mas não implementou nenhuma regra de inferência, por
+    pedido explícito.
+16. **Unificar o sinal de "evitar por enquanto" nos dois sentidos** —
+    hoje só a biblioteca influencia o chat (Fase 11); recomendações e
+    feedback do chat ainda não influenciam a lista "Para hoje" da
+    biblioteca.

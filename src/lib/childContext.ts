@@ -4,6 +4,7 @@ import { ageInMonths, ageLabel } from "@/lib/format";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 import { mealEventPayloadSchema } from "@/lib/validation/feeding";
 import { sleepEventPayloadSchema, sleepTypeLabels } from "@/lib/validation/sleep";
+import { playEventPayloadSchema, activityFeedbackLabels } from "@/lib/validation/play";
 import { formatDurationMinutes } from "@/lib/format";
 
 // Deterministic, documented limits — no vector search, no ranking, just
@@ -229,6 +230,17 @@ function formatSleepDetail(payload: Json, durationMinutes: number | null): strin
   return durationMinutes !== null ? `${label} — ${formatDurationMinutes(durationMinutes)}` : label;
 }
 
+// Activity events (Fase 11) carry activityTitle + feedback in payload —
+// mesma ideia de formatMealDetail/formatSleepDetail: enriquece a linha
+// do prompt com o resultado real ("Cabana — Adorou") em vez de só
+// repetir `notes` (que já é essencialmente isso, mas via payload fica
+// resiliente a uma futura mudança no formato de notes).
+function formatPlayDetail(payload: Json): string | null {
+  const parsed = playEventPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+  return `${parsed.data.activityTitle} — ${activityFeedbackLabels[parsed.data.feedback]}`;
+}
+
 function formatEventGroup(title: string, events: ChildContextEvent[]): string {
   if (events.length === 0) return "";
   const lines = events.map((event) => {
@@ -236,7 +248,8 @@ function formatEventGroup(title: string, events: ChildContextEvent[]): string {
     const date = new Date(event.occurredAt).toLocaleDateString("pt-BR");
     const mealDetail = event.type === "meal" ? formatMealDetail(event.payload) : null;
     const sleepDetail = event.type === "sleep" ? formatSleepDetail(event.payload, event.durationMinutes) : null;
-    return `- [${label}] ${date}: ${mealDetail ?? sleepDetail ?? event.notes}`;
+    const playDetail = event.type === "free_play" ? formatPlayDetail(event.payload) : null;
+    return `- [${label}] ${date}: ${mealDetail ?? sleepDetail ?? playDetail ?? event.notes}`;
   });
   return `${title}:\n${lines.join("\n")}`;
 }

@@ -1,8 +1,9 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { startOfToday } from "@/lib/format";
+import { startOfToday, ageInMonths } from "@/lib/format";
 import { ACTIVITY_EVENT_TYPES } from "@/lib/childContext";
 import { getActivity, toActivitySummary, type Activity, type ActivitySummary } from "@/lib/activity";
 import { getOpenSleepSession, type OpenSleepSession } from "@/lib/sleep";
+import { getActivitySuggestions, getRecentNegativeLibraryFeedbackActivityIds } from "@/lib/play";
 import { sleepEventPayloadSchema } from "@/lib/validation/sleep";
 import type { EventType } from "@/lib/validation/events";
 import type { Json } from "@/lib/supabase/types";
@@ -55,11 +56,19 @@ export type DashboardSummary = {
   // Um sono noturno pode ter começado ontem e ainda estar em andamento —
   // por isso não vem do filtro "hoje" acima, ver getOpenSleepSession.
   openSleepSession: OpenSleepSession | null;
+  // Fase 11: mesmo padrão de lastMeal — o card de Brincadeiras passa a
+  // poder mostrar qual foi a última atividade, não só a contagem.
+  lastActivity: DashboardEvent | null;
   // Today's events across the same types ChildContext treats as
   // "day-to-day activity", oldest first — the timeline reads
   // chronologically top to bottom.
   timeline: DashboardEvent[];
   recommendationsToday: ActivitySummary[];
+  // Fase 11: um fallback determinístico (idade + interesses, sem IA)
+  // quando não há recomendação do chat hoje — "Adicionar uma sugestão de
+  // brincadeira" ao Dashboard não devia depender de a família ter
+  // conversado; a página decide se mostra isto ou recommendationsToday.
+  playSuggestion: ActivitySummary | null;
 };
 
 // The Dashboard's single data source — every number and card on
@@ -72,24 +81,26 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
   const supabase = createServiceClient();
   const since = startOfToday();
 
-  const [{ data: todaysEventsRaw }, { data: recommendationsRaw }, openSleepSession] = await Promise.all([
-    supabase
-      .from("events")
-      .select("id, type, notes, occurred_at, duration_minutes, payload")
-      .eq("child_id", childId)
-      .in("type", ACTIVITY_EVENT_TYPES)
-      .gte("occurred_at", since)
-      .order("occurred_at", { ascending: true })
-      .limit(TIMELINE_LIMIT),
-    supabase
-      .from("activity_recommendations")
-      .select("activity_id, created_at")
-      .eq("child_id", childId)
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(RECOMMENDATIONS_TODAY_LIMIT),
-    getOpenSleepSession(childId),
-  ]);
+  const [{ data: todaysEventsRaw }, { data: recommendationsRaw }, openSleepSession, { data: childRow }] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select("id, type, notes, occurred_at, duration_minutes, payload")
+        .eq("child_id", childId)
+        .in("type", ACTIVITY_EVENT_TYPES)
+        .gte("occurred_at", since)
+        .order("occurred_at", { ascending: true })
+        .limit(TIMELINE_LIMIT),
+      supabase
+        .from("activity_recommendations")
+        .select("activity_id, created_at")
+        .eq("child_id", childId)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(RECOMMENDATIONS_TODAY_LIMIT),
+      getOpenSleepSession(childId),
+      supabase.from("children").select("birth_date, interests").eq("id", childId).maybeSingle(),
+    ]);
 
   const timeline: DashboardEvent[] = (todaysEventsRaw ?? []).map((event) => ({
     id: event.id,
@@ -102,6 +113,7 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
 
   const routineEvents = timeline.filter((event) => event.type === "routine");
   const mealEvents = timeline.filter((event) => event.type === "meal");
+  const freePlayEvents = timeline.filter((event) => event.type === "free_play");
   const naps = timeline.filter((event) => {
     if (event.type !== "sleep" || event.durationMinutes === null) return false;
     const parsed = sleepEventPayloadSchema.safeParse(event.payload);
@@ -116,17 +128,34 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     await Promise.all((recommendationsRaw ?? []).map((row) => getActivity(row.activity_id)))
   ).filter((activity): activity is Activity => activity !== null);
 
+  // Deterministic fallback suggestion (age + interests, same filters the
+  // Brincadeiras library uses) — computed unconditionally rather than
+  // only when recommendationsToday is empty, so the page (not this
+  // function) decides which one to show; the extra query is cheap and
+  // bounded, same tradeoff as the getActivity re-fetches above.
+  const avoidIds = await getRecentNegativeLibraryFeedbackActivityIds(childId);
+  const playSuggestions = await getActivitySuggestions(
+    {
+      ageMonths: ageInMonths(childRow?.birth_date ?? null),
+      interests: childRow?.interests ?? [],
+      excludeIds: avoidIds,
+    },
+    1,
+  );
+
   return {
     sleepCount: timeline.filter((event) => event.type === "sleep").length,
     mealCount: timeline.filter((event) => event.type === "meal").length,
-    freePlayCount: timeline.filter((event) => event.type === "free_play").length,
+    freePlayCount: freePlayEvents.length,
     routineCount: routineEvents.length,
     lastRoutine: routineEvents[routineEvents.length - 1] ?? null,
     lastMeal: mealEvents[mealEvents.length - 1] ?? null,
     napCountToday: naps.length,
     napTotalMinutesToday: naps.reduce((sum, event) => sum + (event.durationMinutes ?? 0), 0),
     openSleepSession,
+    lastActivity: freePlayEvents[freePlayEvents.length - 1] ?? null,
     timeline,
     recommendationsToday: recommendedActivities.map(toActivitySummary),
+    playSuggestion: playSuggestions[0] ?? null,
   };
 }

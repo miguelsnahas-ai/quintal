@@ -66,8 +66,10 @@ export default async function QuintalDashboardPage() {
         napCountToday: 0,
         napTotalMinutesToday: 0,
         openSleepSession: null,
+        lastActivity: null,
         timeline: [],
         recommendationsToday: [],
+        playSuggestion: null,
       };
 
   const dateLabel = capitalize(
@@ -136,9 +138,10 @@ export default async function QuintalDashboardPage() {
               <SummaryCard
                 icon={Blocks}
                 label="Brincadeiras"
+                href="/quintal/brincadeiras"
                 value={
-                  summary.freePlayCount > 0
-                    ? `${summary.freePlayCount} atividade${summary.freePlayCount === 1 ? "" : "s"} hoje`
+                  summary.lastActivity
+                    ? `${summary.freePlayCount} ${summary.freePlayCount === 1 ? "atividade" : "atividades"} · última: ${summary.lastActivity.notes}`
                     : null
                 }
                 empty="Nenhuma atividade ainda hoje."
@@ -167,6 +170,12 @@ export default async function QuintalDashboardPage() {
                   <ActivityCard key={activity.id} activity={activity} />
                 ))}
               </div>
+            ) : summary.playSuggestion ? (
+              // Sem recomendação do chat hoje — cai para a sugestão
+              // determinística de brincadeira (idade + interesses, Fase
+              // 11) em vez de um estado vazio, quando há conteúdo real
+              // para a idade da criança.
+              <ActivityCard activity={summary.playSuggestion} />
             ) : (
               <div className="space-y-2 rounded-lg bg-secondary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
                 <p>Nenhuma sugestão ainda hoje.</p>

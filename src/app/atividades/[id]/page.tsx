@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getActivity, type ActivityDetail } from "@/lib/activity";
 import { markRecommendationOpened } from "@/lib/recommendation";
+import { getFamilySessionCaregiverId } from "@/lib/familySession";
 import ActivityFeedback from "./ActivityFeedback";
+import LogActivityOutcome from "./LogActivityOutcome";
+
+const ENVIRONMENT_LABELS = { home: "Em casa", outdoor: "Ao ar livre", both: "Casa ou externo" } as const;
 
 // Public by design — this is the page a family opens straight from a
 // chat recommendation, on their own phone, no login. Content is generic
@@ -36,6 +40,12 @@ export default async function ActivityPage({
     notFound();
   }
 
+  // "Como foi?" (Fase 11) é pessoal (por criança), então só aparece para
+  // quem tem uma sessão de família — a página continua funcionando sem
+  // login para quem chegou de um link direto, mesma filosofia "pública
+  // por design" desta rota; só essa seção fica de fora.
+  const hasFamilySession = Boolean(await getFamilySessionCaregiverId());
+
   // "recommendation_opened" (Fase 6) — only recorded when this page was
   // reached via a specific recommendation's ActivityCard link (?rec=...).
   // markRecommendationOpened re-checks that the id in the URL actually
@@ -59,16 +69,22 @@ export default async function ActivityPage({
       )}
       <div className="space-y-1">
         <h1 className="text-xl font-bold text-ink">{activity.title}</h1>
-        {activity.ageDisplayLabel && (
-          <p className="text-sm text-ink-muted">{activity.ageDisplayLabel}</p>
-        )}
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-ink-muted">
+          {activity.ageDisplayLabel && <span>{activity.ageDisplayLabel}</span>}
+          {activity.estimatedMinutes !== null && <span>~{activity.estimatedMinutes} min</span>}
+          <span>{ENVIRONMENT_LABELS[activity.environment]}</span>
+        </div>
       </div>
 
       {activity.why && <Section title="Por que pode ser interessante" text={activity.why} />}
       {activity.materials && <Section title="Materiais" text={activity.materials} />}
       {activity.howTo && <Section title="Como fazer" text={activity.howTo} />}
       {activity.developmentAreas && (
-        <Section title="Desenvolvimento relacionado" text={activity.developmentAreas} />
+        <Section
+          title="O que explora"
+          text={activity.developmentAreas}
+          note="Áreas exploradas de forma geral — não é uma avaliação ou diagnóstico de desenvolvimento."
+        />
       )}
       {activity.safety && (
         <Section title="Segurança e supervisão" text={activity.safety} tone="alert" />
@@ -77,16 +93,28 @@ export default async function ActivityPage({
         <Section key={detail.label} title={detail.label} text={detail.value} />
       ))}
 
+      {hasFamilySession && <LogActivityOutcome activityId={activity.id} />}
       <ActivityFeedback activityId={activity.id} />
     </div>
   );
 }
 
-function Section({ title, text, tone }: { title: string; text: string; tone?: "alert" }) {
+function Section({
+  title,
+  text,
+  tone,
+  note,
+}: {
+  title: string;
+  text: string;
+  tone?: "alert";
+  note?: string;
+}) {
   return (
     <section className={`rounded-lg p-4 ${tone === "alert" ? "bg-decorative/20" : "bg-secondary"}`}>
       <h2 className="mb-1 text-sm font-semibold text-ink">{title}</h2>
       <p className="whitespace-pre-wrap text-sm text-ink">{text}</p>
+      {note && <p className="mt-2 text-xs text-ink-muted">{note}</p>}
     </section>
   );
 }
