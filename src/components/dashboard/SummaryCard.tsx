@@ -7,8 +7,8 @@ import type { LucideIcon } from "lucide-react";
 // (see src/lib/dashboard.ts). Same warm family-tier surface as
 // ActivityCard (rounded-lg, no border) rather than the operator tool's
 // denser `cardClassName` (rounded-sm, bordered). `href` is optional —
-// only Alimentação (Fase 9) has its own module to link to today; Sono/
-// Brincadeiras/Rotina stay plain divs until they get one too.
+// Alimentação (Fase 9) and Sono (Fase 10) have their own modules to link
+// to; Brincadeiras/Rotina stay plain divs until they get one too.
 export default function SummaryCard({
   icon: Icon,
   label,

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Moon, Utensils, Blocks, ListChecks, MessageCircle, Sparkles } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getFamilySessionCaregiverId } from "@/lib/familySession";
-import { ageLabel } from "@/lib/format";
+import { ageLabel, formatDurationMinutes } from "@/lib/format";
 import { getDashboardSummary } from "@/lib/dashboard";
 import { buttonClassName } from "@/components/ui/Button";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
@@ -63,6 +63,9 @@ export default async function QuintalDashboardPage() {
         routineCount: 0,
         lastRoutine: null,
         lastMeal: null,
+        napCountToday: 0,
+        napTotalMinutesToday: 0,
+        openSleepSession: null,
         timeline: [],
         recommendationsToday: [],
       };
@@ -81,6 +84,19 @@ export default async function QuintalDashboardPage() {
         minute: "2-digit",
       })
     : null;
+
+  // Enquanto a criança está dormindo, isso é mais relevante do que a
+  // contagem de sonecas do dia — é o "próximo evento relacionado à
+  // rotina" que de fato temos evidência para mostrar sem inventar uma
+  // previsão (ver docs/ARCHITECTURE_TARGET.md, "Módulo de Sono").
+  const sleepCardValue = summary.openSleepSession
+    ? `Dormindo desde ${new Date(summary.openSleepSession.startedAt).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`
+    : summary.napCountToday > 0
+      ? `${summary.napCountToday} soneca${summary.napCountToday === 1 ? "" : "s"} · ${formatDurationMinutes(summary.napTotalMinutesToday)}`
+      : null;
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
@@ -102,11 +118,8 @@ export default async function QuintalDashboardPage() {
               <SummaryCard
                 icon={Moon}
                 label="Sono"
-                value={
-                  summary.sleepCount > 0
-                    ? `${summary.sleepCount} soneca${summary.sleepCount === 1 ? "" : "s"} hoje`
-                    : null
-                }
+                href="/quintal/sono"
+                value={sleepCardValue}
                 empty="Nenhum registro ainda hoje."
               />
               <SummaryCard

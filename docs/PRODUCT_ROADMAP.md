@@ -705,7 +705,110 @@ o desenho completo e os testes realizados.
   round-trip de `payload` verificados direto contra o banco real, em
   transações com rollback.
 
-## Fase 10 — candidatos (não implementados)
+## Fase 10 — módulo de Sono (concluída)
+
+Objetivo: sono deixa de ser só uma contagem genérica de eventos no
+Dashboard (Fase 7/8) e vira um registro simples da rotina — início/fim,
+duração calculada sozinha, tipo (noite/soneca), timeline do dia e
+histórico. Sem virar ferramenta médica ou de diagnóstico.
+
+### O que foi entregue
+
+1. **Sem migração**: `events.type = 'sleep'` já existia desde a Fase 3,
+   `events.duration_minutes` desde a Fase 8, `events.payload` desde a
+   migração original. Esta fase só passou a usar os três juntos, mesmo
+   padrão que a Fase 9 já validou para `meal` — nenhuma tabela ou coluna
+   nova.
+2. **Tipo (noite/soneca) sem coluna própria**: guardado em
+   `events.payload` (`{sleepType, endedAt}`), a mesma ideia de "campo
+   estruturado por tipo" que `meal` já usa. `endedAt` é o que diferencia
+   um período já fechado de um ainda em andamento.
+3. **"Começou a dormir" / "Acordou" em um toque cada**: dois botões
+   grandes (Soneca / Sono noturno) gravam só o início
+   (`duration_minutes` fica `null`); com um período em aberto, os botões
+   somem e dão lugar a um único "Acordou", que calcula a duração
+   automaticamente a partir do horário de início já gravado. Nenhum dos
+   dois pede mais do que um horário (pré-preenchido com agora, editável)
+   e uma observação opcional.
+4. **Registro retroativo**: formulário recolhido por padrão (início, fim,
+   tipo, observação) para quando a família esquece de registrar em tempo
+   real — grava um período já fechado de uma vez, nunca passa pelo
+   estado "em aberto".
+5. **Nunca dois períodos em aberto ao mesmo tempo**: a action de início
+   verifica se já existe um sono em andamento antes de criar outro, e
+   pede para encerrar o atual primeiro.
+6. **Timeline e histórico**: histórico cronológico agrupado por dia
+   (Hoje/Ontem/data), cada período como "HH:mm–HH:mm — Soneca" (ou só o
+   horário de início + "em andamento" para um período ainda aberto).
+7. **Resumo**: quantidade de sonecas hoje, duração total das sonecas
+   hoje, e o último período registrado hoje — sem nenhuma interpretação
+   além de somar/contar o que foi de fato registrado.
+8. **`ChildContext` (Fase 3) passou a mostrar sono com mais detalhe**: um
+   evento de sono no prompt da IA agora diz "Soneca — 1h35" (ou "em
+   andamento") em vez de só repetir `notes`.
+9. **Dashboard (Fase 7/8)**: o card de Sono agora linka para
+   `/quintal/sono` e mostra "2 sonecas · 1h35"; enquanto a criança está
+   dormindo, mostra "Dormindo desde HH:mm" em vez da contagem — o único
+   "próximo evento relacionado à rotina" para o qual existe dado real,
+   sem prever nada que não tenha acontecido.
+10. **Infraestrutura para o chat, sem NLP nesta fase**: `startSleep`,
+    `endSleep` e `recordSleepPeriod` (`src/lib/sleep.ts`) são os únicos
+    pontos que sabem gravar um período de sono — hoje só chamados pelo
+    formulário manual (`origin: 'manual'`); uma futura extração de "Ela
+    dormiu das 13:40 às 15:05" seria só mais um chamador de
+    `recordSleepPeriod` com `origin: 'chat'`, sem mudança de schema.
+11. **Avisos de segurança**: a página deixa explícito que é um registro
+    simples da rotina, não uma ferramenta médica, e que mudanças bruscas
+    valem uma conversa com o pediatra.
+
+Ver `docs/ARCHITECTURE_TARGET.md`, "Módulo de Sono (Fase 10)", para o
+desenho completo e os testes realizados.
+
+### Como testar manualmente
+
+1. `npm run build && npm run start`.
+2. Abrir `/quintal` → o card de Sono deve linkar para `/quintal/sono`.
+3. Em `/quintal/sono`, tocar em "Começou uma soneca" → o card muda para
+   "Dormindo desde HH:mm — Soneca" com um botão "Acordou"; tentar abrir
+   outro início nesse meio tempo não deve ser possível (o botão some).
+4. Tocar em "Acordou" → volta a mostrar os dois botões de início; o
+   período aparece no Histórico como "HH:mm–HH:mm — Soneca" e a duração
+   bate com o intervalo real.
+5. Abrir "Registro retroativo" e lançar um período completo (ex.: sono
+   noturno de ontem à noite) → aparece no histórico agrupado no dia
+   correto, com a duração calculada automaticamente.
+6. Ver a seção "Resumo de hoje" refletir a quantidade e duração total das
+   sonecas registradas, e o card de Sono em `/quintal` mostrar o mesmo
+   resumo (ou "Dormindo desde HH:mm" se houver um período em aberto).
+7. Conversar em `/quintal/chat` sobre o sono — o prompt da IA passa a ter
+   o tipo e a duração dos períodos recentes disponíveis (não há como
+   observar isso diretamente sem a IA real neste ambiente, mas o dado
+   chega ao prompt — ver testes em ARCHITECTURE_TARGET.md).
+
+### Limitações conhecidas desta fase
+
+- **Sem extração automática de sono a partir do chat** — só a
+  infraestrutura (`recordSleepPeriod`, `origin`) está pronta; a mensagem
+  "ela dormiu das 13:40 às 15:05" ainda não vira um registro sozinha.
+- **Períodos que atravessam a meia-noite aparecem inteiros no dia em que
+  começaram** — a timeline não divide um sono noturno em duas linhas
+  (uma para o início "ontem", outra para o despertar "hoje") como o
+  exemplo ilustrativo do briefing sugeria; documentado na própria página,
+  simplificação deliberada em vez de lógica adicional para um caso de
+  exibição.
+- **Eventos de sono antigos (Fase 3-8, sem payload estruturado) não
+  entram na contagem de sonecas/duração** — só `sleepCount` (contagem
+  genérica, já existia) os inclui; o resumo rico desta fase (napCount,
+  napTotalMinutes) só conta o que passou pelo novo fluxo. Mesma
+  limitação que meal teve com eventos antigos de `/ops` na Fase 9.
+- **Continua assumindo uma criança por família** (a primeira cadastrada)
+  — mesma simplificação já feita pelas demais páginas de `/quintal`.
+- Sem teste em navegador real de ponta a ponta (mesma limitação de rede
+  das fases anteriores) — lógica de payload/duração/filtro de sessão em
+  aberto verificada direto contra o banco real, em transações com
+  rollback.
+
+## Fase 11 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -723,10 +826,10 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
    "por família" descrita acima e permite `ChildContext` incluir
    conversa de forma 100% isolada.
 4. **Extração automática de eventos a partir do chat** (Fase 8 preparou
-   o schema — `origin`, `duration_minutes` — e a Fase 9 deu a
-   Alimentação seu próprio choke point de registro, mas nenhuma das duas
-   implementou a extração) — o próximo passo natural de "deixar de
-   depender só de texto livre".
+   o schema — `origin`, `duration_minutes` — e as Fases 9/10 deram a
+   Alimentação e Sono seus próprios choke points de registro, mas
+   nenhuma implementou a extração) — o próximo passo natural de "deixar
+   de depender só de texto livre".
 5. **Fatos permanentes explícitos e sensíveis da criança** (ex.:
    alergias) — deliberadamente fora da Fase 8 ("não criar campos médicos
    ou sensíveis desnecessários"); exigiria decisão própria sobre
@@ -747,9 +850,9 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     causa mais comum de registros órfãos, mas não é uma transação real
     (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
     família sem cuidador).
-11. **Módulos completos de Sono, Brincadeiras, Materiais e Rotina** —
-    a Fase 9 fez isso para Alimentação; as demais áreas continuam só com
-    um tipo de evento real e um lugar no Dashboard, sem registro
+11. **Módulos completos de Brincadeiras, Materiais e Rotina** — as Fases
+    9 e 10 fizeram isso para Alimentação e Sono; essas áreas continuam só
+    com um tipo de evento real e um lugar no Dashboard, sem registro
     estruturado por tipo nem experiência própria.
 12. **Edição de cuidadores e foto no perfil** — `/quintal/perfil` (Fase
     8) edita só os essenciais da criança e as preferências da família.
@@ -758,3 +861,7 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     mudar o formato de `MealSuggestion` nem os componentes que a
     consomem, mas a função em si continua um filtro/ordenação simples,
     sem nenhum julgamento de IA.
+14. **Dividir um sono que atravessa a meia-noite em duas linhas na
+    timeline** (início "ontem à noite", despertar "hoje de manhã", como
+    o exemplo ilustrativo do briefing da Fase 10 mostrava) — a Fase 10
+    documentou essa simplificação em vez de implementá-la.

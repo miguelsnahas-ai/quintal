@@ -1454,3 +1454,221 @@ transações com rollback:
   não pôde ser observada de ponta a ponta neste ambiente.
 - **Continua assumindo uma criança por família** — mesma simplificação
   já feita pelas demais páginas de `/quintal`.
+
+## Módulo de Sono (Fase 10)
+
+### Objetivo
+
+Até aqui, "Sono" no Dashboard (Fase 7/8) era uma contagem genérica de
+`events.type = 'sleep'` — sem tipo (noite vs. soneca), sem início/fim,
+sem duração calculada, sem experiência própria. Esta fase constrói essa
+experiência sobre exatamente o que já existia, sem nenhuma migração:
+`events.type = 'sleep'` já existia desde a Fase 3, `duration_minutes`
+desde a Fase 8, `payload` desde a migração original da tabela — o mesmo
+trio que a Fase 9 já validou funcionar bem para `meal`.
+
+### Por que nenhuma coluna nova, de novo
+
+`payload` (jsonb) guarda `{sleepType, endedAt}`:
+
+```ts
+// src/lib/validation/sleep.ts
+type SleepEventPayload = {
+  sleepType: "night" | "nap";
+  endedAt: string | null;   // null = período ainda em andamento
+};
+```
+
+`occurred_at` (já existente) grava o **início** do período;
+`duration_minutes` (já existente, Fase 8) grava a duração só depois que
+o período é fechado — antes disso, fica `null`. Ou seja: início, fim e
+duração de um período de sono cabem inteiramente nas colunas que a
+tabela `events` já tinha, mais um campo estruturado (`sleepType`) em
+`payload`, exatamente como `meal` fez para `slot`/`foods`/`acceptance`
+na Fase 9.
+
+A escolha de `endedAt` em vez de derivar "está em andamento" de
+`duration_minutes is null` sozinho é deliberada: eventos de sono
+**antigos** (Fase 3 a 8, criados manualmente em `/ops/children/[id]`)
+também podem ter `duration_minutes` nulo — simplesmente porque a
+operadora não preencheu, não porque a criança "ainda está dormindo".
+Sem um jeito de distinguir os dois casos, qualquer sono antigo sem
+duração viraria, incorretamente, "em andamento" para sempre. Por isso
+`getOpenSleepSession` (`src/lib/sleep.ts`) exige as duas condições ao
+mesmo tempo — `payload` tem a chave `sleepType` (ou seja: passou por
+este módulo) **e** `payload.endedAt` é nulo:
+
+```ts
+const { data } = await supabase
+  .from("events")
+  .select("id, occurred_at, payload")
+  .eq("child_id", childId)
+  .eq("type", "sleep")
+  .not("payload->>sleepType", "is", null)
+  .is("payload->>endedAt", null)
+  .order("occurred_at", { ascending: false })
+  .limit(1)
+  .maybeSingle();
+```
+
+Verificado diretamente contra o banco real (ver "Testes realizados"
+abaixo): um evento de sono legado com `payload = {}` nunca aparece nessa
+consulta, mesmo tendo `duration_minutes` nulo — só um período que de
+fato passou por `startSleep` (abaixo) e ainda não foi fechado aparece.
+
+### Três operações, três formas de gravar um período
+
+`src/lib/sleep.ts` expõe exatamente três formas de um período de sono
+chegar a `events`, cobrindo os dois fluxos pedidos (registro em tempo
+real de dois toques, e registro retroativo):
+
+- **`startSleep`** — "Começou a dormir". Um único INSERT com
+  `occurred_at` = início, `duration_minutes = null`,
+  `payload = {sleepType, endedAt: null}`. É o único jeito de um período
+  nascer "em aberto".
+- **`endSleep`** — "Acordou". Recebe o `eventId` do período em aberto
+  (resolvido por `getOpenSleepSession`, nunca confiado cegamente vindo
+  do formulário — a action revalida que o evento existe, pertence à
+  criança certa, e é mesmo do tipo `sleep` antes de fechar). Calcula
+  `duration_minutes = round((endedAt - occurred_at) / 60000)` e faz um
+  UPDATE no mesmo evento — nunca cria uma linha nova. Duração negativa
+  (um horário de fim digitado antes do início) é grampeada em zero em
+  vez de quebrar o registro; a família ainda pode corrigir o horário
+  depois.
+- **`recordSleepPeriod`** — registro retroativo. Um único INSERT já
+  fechado (início, fim e duração todos gravados de uma vez), nunca passa
+  pelo estado "em aberto" — para quando a família esquece de registrar
+  em tempo real e quer lançar um período inteiro depois.
+
+A action de início (`startSleepAction`,
+`src/app/quintal/sono/actions.ts`) chama `getOpenSleepSession` antes de
+chamar `startSleep`, e recusa criar um segundo período se já existe um
+em aberto — a UI já esconde os botões de início nesse caso (ver
+abaixo), mas a action não confia só nisso.
+
+### UX de "poucos segundos": dois botões, depois um botão
+
+```
+/quintal (Dashboard)
+  ↓ card "Sono" → /quintal/sono
+/quintal/sono, sem período em aberto
+  ↓ dois botões grandes: "😴 Começou uma soneca" / "🌙 Começou o sono noturno"
+  ↓   (horário = agora, embutido no próprio formulário — um toque)
+  ↓ startSleepAction → startSleep → INSERT (em aberto)
+/quintal/sono, com período em aberto
+  ↓ "Dormindo desde HH:mm — Soneca" + um botão "Acordou"
+  ↓   (horário de fim pré-preenchido com agora, editável)
+  ↓ endSleepAction → endSleep → UPDATE (duração calculada)
+```
+
+Nenhum componente de cliente novo — mesmo padrão já estabelecido em
+`/quintal/alimentacao` (Fase 9) e `/quintal/perfil` (Fase 8): formulários
+nativos, campos escondidos para os valores que não precisam de decisão
+da família (`child_id`, `sleep_type`, `started_at`/`ended_at`
+pré-preenchidos com "agora" no momento em que a página renderizou).
+Registro retroativo fica num `<details>` recolhido por padrão, com um
+formulário completo (tipo, início, fim, observação) — só aparece para
+quem precisa dele.
+
+### `ChildContext` (Fase 3) ganhou detalhe de sono
+
+Mesmo padrão de `formatMealDetail` (Fase 9): uma nova
+`formatSleepDetail` em `src/lib/childContext.ts` lê `payload` de um
+evento `sleep` e, quando ele parseia como um período desta fase, mostra
+"Soneca — 1h35" (com `formatDurationMinutes`, novo em `src/lib/format.ts`)
+ou "Soneca (em andamento)" em vez de só repetir `notes`. Isso exigiu um
+campo novo em `ChildContextEvent` — `durationMinutes` — que as três
+queries de `getChildContext` agora selecionam (`duration_minutes`) para
+todo evento, não só sono; os outros tipos simplesmente não o usam ainda,
+mesmo espírito genérico que `payload` já tinha desde a Fase 9. Como
+`suggestReply`/`suggestEvent`/`explainRecommendation` continuam sem
+conhecer a forma interna de `ChildContext`, esse detalhe chega à IA sem
+tocar em nenhum dos três arquivos.
+
+### Dashboard (Fase 7/8): "2 sonecas · 1h35" e "Dormindo desde HH:mm"
+
+`DashboardSummary` ganhou `napCountToday`, `napTotalMinutesToday` e
+`openSleepSession`. Os dois primeiros são calculados a partir do mesmo
+array `timeline` que o Dashboard já buscava para os outros cards (uma
+única query, filtrada por `ACTIVITY_EVENT_TYPES` + "hoje") — sem round-trip
+extra ao banco, só um filtro a mais: evento tipo `sleep`, com
+`payload.sleepType === 'nap'` e `duration_minutes` não nulo. Isso
+deliberadamente exclui sono noturno (não é "soneca") e eventos antigos
+sem payload estruturado (mesma limitação que `meal` teve com eventos
+manuais antigos, Fase 9).
+
+`openSleepSession`, ao contrário, **não** vem desse filtro "hoje" — um
+sono noturno pode ter começado ontem à noite e ainda estar em andamento
+quando a família abre o Dashboard de manhã; filtrar por
+`occurred_at >= hoje` o perderia. Por isso é buscado à parte, com
+`getOpenSleepSession`, em paralelo às outras duas queries do Dashboard.
+
+O card de Sono mostra `"Dormindo desde HH:mm"` quando existe um período
+em aberto (o único "próximo evento relacionado à rotina" para o qual há
+dado real — nunca uma previsão inventada de quando a próxima soneca
+"deveria" ser) e cai para `"{n} soneca(s) · {duração}"` caso contrário,
+mesmo padrão de `formatDurationMinutes` usado na página e no
+`ChildContext`.
+
+### `groupByDay`: extraído para `src/lib/format.ts`
+
+A Fase 9 já tinha um `dayLabel`/`groupHistoryByDay` local dentro de
+`/quintal/alimentacao/page.tsx`. Com o histórico de sono precisando de
+exatamente a mesma lógica de agrupamento (e mais um módulo do roadmap,
+Brincadeiras/Rotina, prestes a precisar dela de novo), esta fase moveu
+os dois para `src/lib/format.ts` como `dayLabel`/`groupByDay<T>`
+(genérico por um `getDate: (entry: T) => string`), e atualizou
+`/quintal/alimentacao/page.tsx` para usar a versão compartilhada em vez
+da cópia local — sem mudar nenhum comportamento, só removendo a
+duplicação assim que ela apareceu pela segunda vez.
+
+### Testes realizados (contra o banco real, mesma limitação de rede das fases anteriores)
+
+Sem chamada real ao Groq nesta sessão — a lógica determinística (o
+núcleo desta fase) foi verificada diretamente contra o schema real
+(`izattwaiqjzhydzhxlns`), numa transação com rollback:
+
+1. **Filtro de sessão em aberto (`getOpenSleepSession`)**: com um evento
+   de sono legado (`payload = {}`, sem `sleepType`) e um período de
+   soneca aberto de verdade (`payload.sleepType = 'nap'`,
+   `payload.endedAt = null`) inseridos para a mesma criança, a consulta
+   réplica exata do filtro (`payload->>'sleepType' is not null and
+   payload->>'endedAt' is null`) retornou só o período de verdade — o
+   evento legado nunca apareceu, confirmando que as duas condições juntas
+   são necessárias e suficientes para não confundir "sem dado" com "em
+   andamento".
+2. **`endSleep` — cálculo de duração**: fechando o período aberto acima
+   (iniciado 40 minutos antes), a réplica do UPDATE gravou
+   `duration_minutes = 40` e `payload.endedAt` preenchido — confirma que
+   a duração é calculada a partir do `occurred_at` já gravado no início,
+   não de um valor novo.
+3. **Resumo "hoje" — só sonecas contam**: com três eventos de sono
+   inseridos hoje (um sono noturno de 8h, o evento legado sem payload, e
+   a soneca de 40min do teste 2), a consulta réplica de
+   `getTodaySleepSummary`/Dashboard filtrando por
+   `payload.sleepType = 'nap' and duration_minutes is not null` isolou
+   corretamente só a soneca de 40 minutos — o sono noturno (480 min) e o
+   evento legado (duração nula) ficaram de fora, como esperado.
+
+### Limitações
+
+- **Sem extração automática de sono a partir do chat** — só a
+  infraestrutura (`recordSleepPeriod`, `origin`) está pronta; nenhum
+  extrator foi escrito nesta fase, por pedido explícito.
+- **Períodos que atravessam a meia-noite não são divididos na timeline**
+  — um sono noturno das 20h às 7h aparece como uma linha só, agrupado no
+  dia em que começou, não como duas linhas (início "ontem", despertar
+  "hoje") como o exemplo ilustrativo do briefing sugeria. Simplificação
+  deliberada, documentada na própria página.
+- **Eventos de sono antigos (Fase 3-8) não entram no resumo rico desta
+  fase** — `sleepCount` (contagem genérica, Fase 7) continua incluindo
+  qualquer evento `sleep`; `napCountToday`/`napTotalMinutesToday` só
+  contam o que passou por `startSleep`/`recordSleepPeriod`.
+- **Sem chamada real ao Groq nesta sessão** (mesma limitação de rede das
+  fases anteriores) — a integração do detalhe de sono no prompt foi
+  revisada por leitura de código e verificada indiretamente (a mesma
+  query que alimenta o prompt foi replicada e retornou os valores
+  esperados), mas a resposta final da IA usando esse contexto não pôde
+  ser observada de ponta a ponta neste ambiente.
+- **Continua assumindo uma criança por família** — mesma simplificação
+  já feita pelas demais páginas de `/quintal`.

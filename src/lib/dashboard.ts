@@ -1,7 +1,11 @@
 import { createServiceClient } from "@/lib/supabase/service";
+import { startOfToday } from "@/lib/format";
 import { ACTIVITY_EVENT_TYPES } from "@/lib/childContext";
 import { getActivity, toActivitySummary, type Activity, type ActivitySummary } from "@/lib/activity";
+import { getOpenSleepSession, type OpenSleepSession } from "@/lib/sleep";
+import { sleepEventPayloadSchema } from "@/lib/validation/sleep";
 import type { EventType } from "@/lib/validation/events";
+import type { Json } from "@/lib/supabase/types";
 
 // How many of today's recommendations to surface in the "Para hoje" card
 // — a dashboard summary, not the full history (that lives in
@@ -18,6 +22,12 @@ export type DashboardEvent = {
   type: EventType;
   notes: string;
   occurredAt: string;
+  // Only meaningful for 'sleep' (Fase 10) — null for every other type
+  // and for a sleep period still in progress. Carried here (not just in
+  // the dedicated nap fields below) so Timeline/other consumers of the
+  // raw timeline array have it available without a second query.
+  durationMinutes: number | null;
+  payload: Json;
 };
 
 export type DashboardSummary = {
@@ -35,23 +45,22 @@ export type DashboardSummary = {
   // Fase 9: mesmo padrão de lastRoutine — o card de Alimentação passa a
   // poder mostrar o que foi a última refeição, não só a contagem.
   lastMeal: DashboardEvent | null;
+  // Fase 10: sleepCount acima já contava qualquer evento 'sleep' de hoje
+  // (inclusive registros antigos sem payload estruturado); estes dois só
+  // contam sonecas (não sono noturno) com payload.sleepType = 'nap' e
+  // duração conhecida — o que o card de Sono precisa mostrar
+  // ("2 sonecas · 1h35").
+  napCountToday: number;
+  napTotalMinutesToday: number;
+  // Um sono noturno pode ter começado ontem e ainda estar em andamento —
+  // por isso não vem do filtro "hoje" acima, ver getOpenSleepSession.
+  openSleepSession: OpenSleepSession | null;
   // Today's events across the same types ChildContext treats as
   // "day-to-day activity", oldest first — the timeline reads
   // chronologically top to bottom.
   timeline: DashboardEvent[];
   recommendationsToday: ActivitySummary[];
 };
-
-// Midnight in the server's local time zone — same pragmatic MVP
-// assumption already documented in src/lib/format.ts
-// (toDatetimeLocalValue): no per-family time zone handling exists yet
-// anywhere in the codebase, so "hoje" here means the same thing it means
-// everywhere else in the app today.
-function startOfToday(): string {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return start.toISOString();
-}
 
 // The Dashboard's single data source — every number and card on
 // /quintal comes from here, so the page component itself stays a thin
@@ -63,10 +72,10 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
   const supabase = createServiceClient();
   const since = startOfToday();
 
-  const [{ data: todaysEventsRaw }, { data: recommendationsRaw }] = await Promise.all([
+  const [{ data: todaysEventsRaw }, { data: recommendationsRaw }, openSleepSession] = await Promise.all([
     supabase
       .from("events")
-      .select("id, type, notes, occurred_at")
+      .select("id, type, notes, occurred_at, duration_minutes, payload")
       .eq("child_id", childId)
       .in("type", ACTIVITY_EVENT_TYPES)
       .gte("occurred_at", since)
@@ -79,6 +88,7 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(RECOMMENDATIONS_TODAY_LIMIT),
+    getOpenSleepSession(childId),
   ]);
 
   const timeline: DashboardEvent[] = (todaysEventsRaw ?? []).map((event) => ({
@@ -86,10 +96,17 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     type: event.type as EventType,
     notes: event.notes,
     occurredAt: event.occurred_at,
+    durationMinutes: event.duration_minutes,
+    payload: event.payload,
   }));
 
   const routineEvents = timeline.filter((event) => event.type === "routine");
   const mealEvents = timeline.filter((event) => event.type === "meal");
+  const naps = timeline.filter((event) => {
+    if (event.type !== "sleep" || event.durationMinutes === null) return false;
+    const parsed = sleepEventPayloadSchema.safeParse(event.payload);
+    return parsed.success && parsed.data.sleepType === "nap";
+  });
 
   // getActivity re-fetches each one (same small-N tradeoff already made
   // in recommendation.ts's decideActivity) — at most
@@ -106,6 +123,9 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     routineCount: routineEvents.length,
     lastRoutine: routineEvents[routineEvents.length - 1] ?? null,
     lastMeal: mealEvents[mealEvents.length - 1] ?? null,
+    napCountToday: naps.length,
+    napTotalMinutesToday: naps.reduce((sum, event) => sum + (event.durationMinutes ?? 0), 0),
+    openSleepSession,
     timeline,
     recommendationsToday: recommendedActivities.map(toActivitySummary),
   };

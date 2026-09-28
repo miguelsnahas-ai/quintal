@@ -3,6 +3,8 @@ import type { Database, Json } from "@/lib/supabase/types";
 import { ageInMonths, ageLabel } from "@/lib/format";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 import { mealEventPayloadSchema } from "@/lib/validation/feeding";
+import { sleepEventPayloadSchema, sleepTypeLabels } from "@/lib/validation/sleep";
+import { formatDurationMinutes } from "@/lib/format";
 
 // Deterministic, documented limits — no vector search, no ranking, just
 // "last N by time". Tune here if evidence says otherwise; nothing else in
@@ -39,6 +41,9 @@ export type ChildContextEvent = {
   // malformed/legacy payload never breaks context assembly, only loses
   // the extra detail for that one line.
   payload: Json;
+  // Only sleep events carry this (Fase 10) — null for every other type
+  // and for sleep events still in progress.
+  durationMinutes: number | null;
 };
 
 // Family-level preferences (Fase 8) — not the child's own data, but part
@@ -118,21 +123,21 @@ export async function getChildContext(
   ] = await Promise.all([
     supabase
       .from("events")
-      .select("type, notes, occurred_at, payload")
+      .select("type, notes, occurred_at, payload, duration_minutes")
       .eq("child_id", childId)
       .in("type", ACTIVITY_EVENT_TYPES)
       .order("occurred_at", { ascending: false })
       .limit(RECENT_EVENTS_LIMIT),
     supabase
       .from("events")
-      .select("type, notes, occurred_at, payload")
+      .select("type, notes, occurred_at, payload, duration_minutes")
       .eq("child_id", childId)
       .eq("type", "observation")
       .order("occurred_at", { ascending: false })
       .limit(RECENT_OBSERVATIONS_LIMIT),
     supabase
       .from("events")
-      .select("type, notes, occurred_at, payload")
+      .select("type, notes, occurred_at, payload, duration_minutes")
       .eq("child_id", childId)
       .eq("type", "decision")
       .order("occurred_at", { ascending: false })
@@ -157,11 +162,13 @@ export async function getChildContext(
     notes: string;
     occurred_at: string;
     payload: Json;
+    duration_minutes: number | null;
   }): ChildContextEvent => ({
     type: row.type as EventType,
     notes: row.notes,
     occurredAt: row.occurred_at,
     payload: row.payload,
+    durationMinutes: row.duration_minutes,
   });
 
   return {
@@ -208,13 +215,28 @@ function formatMealDetail(payload: Json): string | null {
   return parts.length > 0 ? parts.join(" — ") : null;
 }
 
+// Sleep events (Fase 10) carry a structured payload (sleepType/endedAt)
+// beyond `notes` — when it parses cleanly, the prompt line says "Soneca
+// — 1h35" (or "em andamento" for a period not yet ended) instead of just
+// repeating whatever fallback text `notes` happened to get at write
+// time. Legacy 'sleep' events without this payload (Fase 3-8) fall back
+// to null, same as formatMealDetail's own defensive parse.
+function formatSleepDetail(payload: Json, durationMinutes: number | null): string | null {
+  const parsed = sleepEventPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+  const label = sleepTypeLabels[parsed.data.sleepType];
+  if (parsed.data.endedAt === null) return `${label} (em andamento)`;
+  return durationMinutes !== null ? `${label} — ${formatDurationMinutes(durationMinutes)}` : label;
+}
+
 function formatEventGroup(title: string, events: ChildContextEvent[]): string {
   if (events.length === 0) return "";
   const lines = events.map((event) => {
     const label = eventTypeLabels[event.type] ?? event.type;
     const date = new Date(event.occurredAt).toLocaleDateString("pt-BR");
     const mealDetail = event.type === "meal" ? formatMealDetail(event.payload) : null;
-    return `- [${label}] ${date}: ${mealDetail ?? event.notes}`;
+    const sleepDetail = event.type === "sleep" ? formatSleepDetail(event.payload, event.durationMinutes) : null;
+    return `- [${label}] ${date}: ${mealDetail ?? sleepDetail ?? event.notes}`;
   });
   return `${title}:\n${lines.join("\n")}`;
 }

@@ -3,14 +3,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getFamilySessionCaregiverId } from "@/lib/familySession";
 import { createServiceClient } from "@/lib/supabase/service";
-import { ageInMonths, toDatetimeLocalValue } from "@/lib/format";
+import { ageInMonths, toDatetimeLocalValue, groupByDay } from "@/lib/format";
 import {
   getChildFeedingMethod,
   getFeedingMethodOptions,
   getMealSuggestions,
   getMealHistory,
   guessMealSlot,
-  type MealHistoryEntry,
 } from "@/lib/feeding";
 import {
   mealSlots,
@@ -96,7 +95,7 @@ export default async function AlimentacaoPage({
     feedingMethodTitle: currentMethodLabel,
   });
 
-  const historyGroups = groupHistoryByDay(history);
+  const historyGroups = groupByDay(history, (entry) => entry.occurredAt);
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6">
@@ -309,33 +308,3 @@ function BackLink() {
   );
 }
 
-function dayLabel(dateStr: string): string {
-  const target = new Date(dateStr);
-  target.setHours(0, 0, 0, 0);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (target.getTime() === today.getTime()) return "Hoje";
-  if (target.getTime() === yesterday.getTime()) return "Ontem";
-
-  const label = target.toLocaleDateString("pt-BR", { day: "numeric", month: "long" });
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
-function groupHistoryByDay(history: MealHistoryEntry[]): { label: string; entries: MealHistoryEntry[] }[] {
-  const groups: { label: string; entries: MealHistoryEntry[] }[] = [];
-  for (const entry of history) {
-    const label = dayLabel(entry.occurredAt);
-    const lastGroup = groups[groups.length - 1];
-    if (lastGroup && lastGroup.label === label) {
-      lastGroup.entries.push(entry);
-    } else {
-      groups.push({ label, entries: [entry] });
-    }
-  }
-  return groups;
-}
