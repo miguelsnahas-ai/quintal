@@ -55,3 +55,17 @@ body {
   color: var(--palette-ink);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* The app leans on transition-* utilities for hover/press feedback
+   throughout (cards, buttons, chips) — this is the one global rule that
+   keeps all of them from moving for people who've asked the OS not to. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
