@@ -143,7 +143,7 @@ export default function PlaygroundChat({
               className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[75%] rounded-md px-3 py-2 text-sm shadow-sm ${
+                className={`max-w-[75%] rounded-md px-3 py-2 text-sm shadow-[var(--shadow-card)] ${
                   message.role === "user" ? "bg-[#dcf8c6] text-ink" : "bg-primary text-ink"
                 }`}
               >
@@ -157,7 +157,7 @@ export default function PlaygroundChat({
         )}
         {isPending && (
           <div className="flex justify-start">
-            <div className="max-w-[75%] rounded-md bg-primary px-3 py-2 text-sm text-ink-muted shadow-sm">
+            <div className="max-w-[75%] rounded-md bg-primary px-3 py-2 text-sm text-ink-muted shadow-[var(--shadow-card)]">
               digitando...
             </div>
           </div>

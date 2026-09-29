@@ -136,8 +136,8 @@ export default function ConversationChat({
               className={`flex flex-col gap-2 ${message.role === "user" ? "items-end" : "items-start"}`}
             >
               <div
-                className={`max-w-[80%] rounded-md px-3 py-2 text-sm shadow-sm ${
-                  message.role === "user" ? "bg-[#dcf8c6] text-ink" : "bg-white text-ink"
+                className={`max-w-[80%] rounded-md px-3 py-2 text-sm shadow-[var(--shadow-card)] ${
+                  message.role === "user" ? "bg-[#dcf8c6] text-ink" : "bg-primary text-ink"
                 }`}
               >
                 <p className="whitespace-pre-wrap">{message.content}</p>
@@ -159,7 +159,7 @@ export default function ConversationChat({
         )}
         {isPending && (
           <div className="flex justify-start">
-            <div className="max-w-[80%] rounded-md bg-white px-3 py-2 text-sm text-ink-muted shadow-sm">
+            <div className="max-w-[80%] rounded-md bg-primary px-3 py-2 text-sm text-ink-muted shadow-[var(--shadow-card)]">
               digitando...
             </div>
           </div>

@@ -75,8 +75,8 @@ export default function MonitorChat({
               className={`flex ${message.direction === "inbound" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[75%] rounded-md px-3 py-2 text-sm shadow-sm ${
-                  message.direction === "inbound" ? "bg-[#dcf8c6] text-ink" : "bg-white text-ink"
+                className={`max-w-[75%] rounded-md px-3 py-2 text-sm shadow-[var(--shadow-card)] ${
+                  message.direction === "inbound" ? "bg-[#dcf8c6] text-ink" : "bg-primary text-ink"
                 }`}
               >
                 <p className="whitespace-pre-wrap">{message.body}</p>
