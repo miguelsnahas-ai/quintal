@@ -1,0 +1,104 @@
+import { createServiceClient } from "@/lib/supabase/service";
+import type { ChildRoutinePreference, ChildActivityStyle } from "@/lib/validation/profile";
+
+// ---------------------------------------------------------------------
+// Fase 20 (Configurações > Crianças > Preferências) — preferências e
+// contexto de UMA criança. Módulo próprio, deliberadamente separado de
+// caregiverPreferences.ts (pessoal do CUIDADOR) e de familyContext.ts's
+// family_preferences (compartilhada pela FAMÍLIA) — mesma separação de
+// contexto USER/FAMILY/CHILD estabelecida na Fase 18, agora completa nos
+// três níveis. Toda função aqui é escopada por child_id apenas; nenhuma
+// aceita family_id/caregiver_id, e cada criança tem sua própria linha —
+// nunca há mistura entre irmãos.
+//
+// Não inclui interesses (children.interests, Fase 8 — editado junto
+// nesta mesma tela, mas persistido na tabela children) nem método
+// alimentar (children.feeding_method_id/custom — pedido explícito desta
+// fase para não duplicar o módulo de Alimentação, ver src/lib/feeding.ts).
+// ---------------------------------------------------------------------
+
+export type ChildPreferences = {
+  favoriteActivities: string[];
+  preferredMaterials: string[];
+  routinePreference: ChildRoutinePreference | null;
+  activityStyle: ChildActivityStyle | null;
+  routineNotes: string | null;
+  feedingNotes: string | null;
+  caregiverNotes: string | null;
+};
+
+const DEFAULT_PREFERENCES: ChildPreferences = {
+  favoriteActivities: [],
+  preferredMaterials: [],
+  routinePreference: null,
+  activityStyle: null,
+  routineNotes: null,
+  feedingNotes: null,
+  caregiverNotes: null,
+};
+
+// Ausência de linha (criança ainda sem preferências salvas) vira
+// DEFAULT_PREFERENCES aqui, mesmo espírito de getCaregiverPreferences —
+// a família nunca vê um estado de erro só porque ainda não configurou
+// nada.
+export async function getChildPreferences(childId: string): Promise<ChildPreferences> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("child_preferences")
+    .select(
+      "favorite_activities, preferred_materials, routine_preference, activity_style, routine_notes, feeding_notes, caregiver_notes",
+    )
+    .eq("child_id", childId)
+    .maybeSingle();
+
+  if (!data) return DEFAULT_PREFERENCES;
+
+  return {
+    favoriteActivities: data.favorite_activities,
+    preferredMaterials: data.preferred_materials,
+    routinePreference: data.routine_preference as ChildRoutinePreference | null,
+    activityStyle: data.activity_style as ChildActivityStyle | null,
+    routineNotes: data.routine_notes,
+    feedingNotes: data.feeding_notes,
+    caregiverNotes: data.caregiver_notes,
+  };
+}
+
+// Um único formulário/ação salva tudo aqui (diferente de "Minha conta",
+// Fase 18, que separa perfil/preferências/notificações em ações
+// distintas): interesses, brincadeiras favoritas, materiais, rotina,
+// alimentação e observações são todos a mesma aba "Preferências" desta
+// criança, então um save por seção não traria benefício de UX aqui.
+// interests mora em children (Fase 8), o resto em child_preferences — as
+// duas escritas ficam nesta única função para o chamador não precisar
+// saber que são tabelas diferentes.
+export async function updateChildPreferences(
+  childId: string,
+  input: ChildPreferences & { interests: string[] },
+): Promise<void> {
+  const supabase = createServiceClient();
+
+  const { error: interestsError } = await supabase
+    .from("children")
+    .update({ interests: input.interests })
+    .eq("id", childId);
+  if (interestsError) {
+    throw new Error(interestsError.message);
+  }
+
+  const { error } = await supabase.from("child_preferences").upsert({
+    child_id: childId,
+    favorite_activities: input.favoriteActivities,
+    preferred_materials: input.preferredMaterials,
+    routine_preference: input.routinePreference,
+    activity_style: input.activityStyle,
+    routine_notes: input.routineNotes,
+    feeding_notes: input.feedingNotes,
+    caregiver_notes: input.caregiverNotes,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}

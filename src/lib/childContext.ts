@@ -12,10 +12,15 @@ import {
   recommendationStyleLabels,
   routineFlexibilityLabels,
   routineActivityFocusLabels,
+  childRoutinePreferenceLabels,
+  childActivityStyleLabels,
   type RecommendationStyle,
   type RoutineFlexibility,
   type RoutineActivityFocus,
+  type ChildRoutinePreference,
+  type ChildActivityStyle,
 } from "@/lib/validation/profile";
+import type { ChildPreferences } from "@/lib/childPreferences";
 
 // Deterministic, documented limits — no vector search, no ranking, just
 // "last N by time". Tune here if evidence says otherwise; nothing else in
@@ -106,6 +111,11 @@ export type ChildContext = {
   recentObservations: ChildContextEvent[];
   recentDecisions: ChildContextEvent[];
   familyPreferences: FamilyPreferences | null;
+  // Preferências desta CRIANÇA (Fase 20, child_preferences) — não
+  // confundir com familyPreferences acima. null quando a criança ainda
+  // não tem nenhuma preferência configurada (linha criada sob demanda,
+  // mesmo padrão de family_preferences/caregiver_preferences).
+  childPreferences: ChildPreferences | null;
 };
 
 // The single place that knows how to assemble "what do we know about this
@@ -138,6 +148,7 @@ export async function getChildContext(
     { data: observationsRaw },
     { data: decisionsRaw },
     { data: preferencesRaw },
+    { data: childPreferencesRaw },
     { data: feedingMethodRaw },
   ] = await Promise.all([
     supabase
@@ -167,6 +178,13 @@ export async function getChildContext(
         "feeding_notes, routine_notes, play_notes, materials_notes, interaction_style, recommendation_style, routine_flexibility, routine_activity_focus, content_focus",
       )
       .eq("family_id", child.family_id)
+      .maybeSingle(),
+    supabase
+      .from("child_preferences")
+      .select(
+        "favorite_activities, preferred_materials, routine_preference, activity_style, routine_notes, feeding_notes, caregiver_notes",
+      )
+      .eq("child_id", childId)
       .maybeSingle(),
     // Sem feeding_method_id, esta query simplesmente não bate com
     // nenhuma linha (id vazio não existe) — mais simples do que pular a
@@ -220,6 +238,17 @@ export async function getChildContext(
           routineFlexibility: preferencesRaw.routine_flexibility as RoutineFlexibility | null,
           routineActivityFocus: preferencesRaw.routine_activity_focus as RoutineActivityFocus | null,
           contentFocus: preferencesRaw.content_focus as MaterialCategory[],
+        }
+      : null,
+    childPreferences: childPreferencesRaw
+      ? {
+          favoriteActivities: childPreferencesRaw.favorite_activities,
+          preferredMaterials: childPreferencesRaw.preferred_materials,
+          routinePreference: childPreferencesRaw.routine_preference as ChildRoutinePreference | null,
+          activityStyle: childPreferencesRaw.activity_style as ChildActivityStyle | null,
+          routineNotes: childPreferencesRaw.routine_notes,
+          feedingNotes: childPreferencesRaw.feeding_notes,
+          caregiverNotes: childPreferencesRaw.caregiver_notes,
         }
       : null,
   };
@@ -307,6 +336,30 @@ function formatFamilyPreferences(preferences: FamilyPreferences | null): string 
   return `Preferências da família:\n${lines.join("\n")}`;
 }
 
+function formatChildPreferences(preferences: ChildPreferences | null): string {
+  if (!preferences) return "";
+  const lines = [
+    preferences.favoriteActivities.length > 0
+      ? `- Brincadeiras favoritas: ${preferences.favoriteActivities.join(", ")}`
+      : null,
+    preferences.preferredMaterials.length > 0
+      ? `- Materiais de interesse: ${preferences.preferredMaterials.join(", ")}`
+      : null,
+    preferences.routinePreference
+      ? `- Preferência de rotina: ${childRoutinePreferenceLabels[preferences.routinePreference]}`
+      : null,
+    preferences.activityStyle
+      ? `- Estilo de atividades preferido: ${childActivityStyleLabels[preferences.activityStyle]}`
+      : null,
+    preferences.routineNotes ? `- Rotina (observações): ${preferences.routineNotes}` : null,
+    preferences.feedingNotes ? `- Alimentação (observações): ${preferences.feedingNotes}` : null,
+    preferences.caregiverNotes ? `- Observações dos cuidadores: ${preferences.caregiverNotes}` : null,
+  ].filter((line): line is string => line !== null);
+
+  if (lines.length === 0) return "";
+  return `Preferências desta criança:\n${lines.join("\n")}`;
+}
+
 // Compact, predictable text block for the AI prompts — the only place
 // that turns a ChildContext into prose, so suggestEvent/suggestReply never
 // need to know how events are shaped or grouped. Empty groups are simply
@@ -329,6 +382,7 @@ export function formatChildContextForPrompt(context: ChildContext): string {
     parts.push(`Método alimentar escolhido pela família: ${context.child.feedingMethod}`);
   }
 
+  parts.push(formatChildPreferences(context.childPreferences));
   parts.push(formatFamilyPreferences(context.familyPreferences));
   parts.push(formatEventGroup("Decisões recentes da família", context.recentDecisions));
   parts.push(formatEventGroup("Observações recentes", context.recentObservations));

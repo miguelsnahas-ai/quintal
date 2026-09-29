@@ -1,15 +1,29 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
-import { Check, Heart, Sparkles } from "lucide-react";
-import { getSessionCaregiver, canAccessChild } from "@/lib/authorization";
+import { Check, Heart, Sparkles, NotebookText } from "lucide-react";
+import { getSessionCaregiver, canAccessChild, canEditChild, canManageFamily } from "@/lib/authorization";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getChildContext, formatChildContextForPrompt } from "@/lib/childContext";
+import { getChildPreferences } from "@/lib/childPreferences";
+import { getFeedingMethodOptions, getChildFeedingMethod } from "@/lib/feeding";
+import {
+  childRoutinePreferences,
+  childRoutinePreferenceLabels,
+  childActivityStyles,
+  childActivityStyleLabels,
+} from "@/lib/validation/profile";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import SettingsTabs from "@/components/settings/SettingsTabs";
 import EmptyState from "@/components/settings/EmptyState";
-import { Input, Label, FieldError } from "@/components/ui/Field";
+import { Input, Textarea, Label, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
-import { saveChildEssentialsAction } from "../actions";
+import {
+  saveChildProfileAction,
+  saveChildPreferencesAction,
+  saveChildContextNotesAction,
+  saveChildFeedingMethodAction,
+  removeChildAction,
+} from "../actions";
 
 export const metadata: Metadata = {
   title: "Criança — Configurações — Quintal",
@@ -22,15 +36,15 @@ const TABS = [
   { value: "contexto", label: "Contexto" },
 ];
 
-// Página de uma criança específica (Fase 17). Perfil reaproveita o
-// mesmo formulário de essenciais que já existia em /quintal/perfil
-// (nome/nascimento/interesses), agora com sua própria URL em vez de
-// dividir espaço com as outras crianças numa lista só. Preferências (por
-// criança, diferente das preferências da família) ainda não existe como
-// conceito no schema — estado vazio honesto. Contexto reaproveita 100%
-// getChildContext/formatChildContextForPrompt (já existentes, usados
-// hoje só internamente pelos prompts de IA): mostra à família,
-// literalmente, o que o Quintal já sabe sobre a criança.
+// Página de uma criança específica (Fase 17, completa desde a Fase 20).
+// Cada seção lê e escreve só pelo childId da URL — nunca há um "criança
+// ativa" implícito aqui como em outras telas do produto, então dado de
+// uma criança nunca aparece na página de outra. canEditChild (distinto
+// de canAccessChild, ver src/lib/authorization.ts) decide se cada aba
+// mostra um formulário ou um resumo somente-leitura: hoje todo cuidador
+// com acesso à criança também tem permissão de edição (não existe ainda
+// o conceito de cuidador só-leitura), mas a UI já está pronta para o dia
+// em que essa distinção existir.
 export default async function ChildSettingsPage({
   params,
   searchParams,
@@ -47,29 +61,36 @@ export default async function ChildSettingsPage({
     redirect("/comecar");
   }
 
-  const allowed = await canAccessChild(session.caregiverId, childId);
-  if (!allowed) {
+  const hasAccess = await canAccessChild(session.caregiverId, childId);
+  if (!hasAccess) {
     notFound();
   }
 
   const supabase = createServiceClient();
-  const { data: child } = await supabase
-    .from("children")
-    .select("id, name, birth_date, interests")
-    .eq("id", childId)
-    .maybeSingle();
+  const [{ data: child }, isEditor, isOwner, preferences, feedingMethodOptions, feedingMethod] = await Promise.all([
+    supabase.from("children").select("id, name, birth_date, sex, notes, avatar_url, interests").eq("id", childId).maybeSingle(),
+    canEditChild(session.caregiverId, childId),
+    canManageFamily(session.caregiverId, session.familyId),
+    getChildPreferences(childId),
+    getFeedingMethodOptions(),
+    getChildFeedingMethod(childId),
+  ]);
 
   if (!child) {
     notFound();
   }
 
+  const initials = child.name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+  const currentMethodLabel = feedingMethod.option?.title ?? feedingMethod.custom ?? null;
+
   return (
     <div className="space-y-6">
-      <SettingsPageHeader
-        title={child.name}
-        backHref="/quintal/configuracoes/criancas"
-        backLabel="Crianças"
-      />
+      <SettingsPageHeader title={child.name} backHref="/quintal/configuracoes/criancas" backLabel="Crianças" />
       <SettingsTabs basePath={`/quintal/configuracoes/criancas/${childId}`} tabs={TABS} active={activeTab} />
 
       <FieldError>{error}</FieldError>
@@ -81,42 +102,312 @@ export default async function ChildSettingsPage({
       )}
 
       {activeTab === "perfil" && (
-        <form action={saveChildEssentialsAction} className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
-          <input type="hidden" name="child_id" value={child.id} />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="name">Nome</Label>
-              <Input id="name" name="name" defaultValue={child.name} required />
+        <div className="space-y-4">
+          {isEditor ? (
+            <form
+              action={saveChildProfileAction}
+              className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]"
+            >
+              <input type="hidden" name="child_id" value={child.id} />
+              <div className="flex items-center gap-4">
+                {child.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- URL externa arbitrária, não um asset do projeto.
+                  <img src={child.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-lg font-semibold text-ink">
+                    {initials || "?"}
+                  </span>
+                )}
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="avatar_url">Foto (URL)</Label>
+                  <Input
+                    id="avatar_url"
+                    name="avatar_url"
+                    type="url"
+                    placeholder="https://..."
+                    defaultValue={child.avatar_url ?? ""}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="name">Nome</Label>
+                  <Input id="name" name="name" defaultValue={child.name} required />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="birth_date">Data de nascimento</Label>
+                  <Input id="birth_date" type="date" name="birth_date" defaultValue={child.birth_date ?? ""} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="sex">Sexo</Label>
+                <Input id="sex" name="sex" defaultValue={child.sex ?? ""} placeholder="Opcional" />
+              </div>
+              <Button type="submit">Salvar perfil</Button>
+            </form>
+          ) : (
+            <div className="flex items-center gap-4 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
+              {child.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element -- URL externa arbitrária, não um asset do projeto.
+                <img src={child.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
+              ) : (
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-lg font-semibold text-ink">
+                  {initials || "?"}
+                </span>
+              )}
+              <div>
+                <p className="text-sm font-semibold text-ink">{child.name}</p>
+                <p className="text-sm text-ink-muted">
+                  Você não tem permissão para editar o perfil desta criança.
+                </p>
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="birth_date">Data de nascimento</Label>
-              <Input id="birth_date" type="date" name="birth_date" defaultValue={child.birth_date ?? ""} />
+          )}
+
+          <details id="metodo" className="group rounded-lg bg-primary shadow-[var(--shadow-card)]" open={!currentMethodLabel}>
+            <summary className="cursor-pointer list-none p-4 text-sm font-medium text-ink marker:content-none">
+              <span className="inline-flex items-center gap-1.5">
+                Método alimentar
+                <span className="text-ink-muted transition-transform duration-200 group-open:rotate-90">›</span>
+              </span>
+              <p className="mt-1 text-xs font-normal text-ink-muted">
+                {currentMethodLabel ? `Atual: ${currentMethodLabel}` : "Ainda não configurado — a escolha é sua."}
+              </p>
+            </summary>
+            <div className="space-y-3 border-t border-neutral p-4">
+              <p className="text-xs text-ink-muted">
+                Isto configura a abordagem escolhida para {child.name} — o registro do dia a dia das
+                refeições continua no módulo Alimentação.
+              </p>
+              {isEditor ? (
+                <form action={saveChildFeedingMethodAction} className="space-y-2">
+                  <input type="hidden" name="child_id" value={child.id} />
+                  {feedingMethodOptions.map((option) => (
+                    <label
+                      key={option.id}
+                      className="flex cursor-pointer items-start gap-2 rounded-lg border-[1.5px] border-neutral p-3 has-[:checked]:border-accent has-[:checked]:bg-accent/20"
+                    >
+                      <input
+                        type="radio"
+                        name="method_id"
+                        value={option.id}
+                        defaultChecked={feedingMethod.option?.id === option.id}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-ink">{option.title}</span>
+                        {option.howItWorks && (
+                          <span className="block text-xs text-ink-muted">{option.howItWorks}</span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                  <label className="flex cursor-pointer items-start gap-2 rounded-lg border-[1.5px] border-neutral p-3 has-[:checked]:border-accent has-[:checked]:bg-accent/20">
+                    <input
+                      type="radio"
+                      name="method_id"
+                      value=""
+                      defaultChecked={!feedingMethod.option}
+                      className="mt-1"
+                    />
+                    <span className="block text-sm font-medium text-ink">Outro / personalizado</span>
+                  </label>
+                  <div className="space-y-1">
+                    <Label htmlFor="method_custom">Descreva (se escolheu &quot;outro&quot;)</Label>
+                    <Input
+                      id="method_custom"
+                      name="method_custom"
+                      defaultValue={feedingMethod.custom ?? ""}
+                      placeholder="Ex.: seguimos orientação da nutricionista"
+                    />
+                  </div>
+                  <Button type="submit">Salvar método</Button>
+                </form>
+              ) : (
+                <p className="text-sm text-ink-muted">
+                  Você não tem permissão para alterar o método alimentar desta criança.
+                </p>
+              )}
             </div>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="interests">
-              Interesses <span className="font-normal text-ink-muted">(separados por vírgula)</span>
-            </Label>
-            <Input
-              id="interests"
-              name="interests"
-              defaultValue={child.interests.join(", ")}
-              placeholder="Ex.: carros, música, animais"
-            />
-          </div>
-          <Button type="submit">Salvar</Button>
-        </form>
+          </details>
+
+          {isOwner && (
+            <details className="group rounded-lg bg-primary shadow-[var(--shadow-card)]">
+              <summary className="cursor-pointer list-none p-4 text-sm font-medium text-red-600 marker:content-none">
+                Remover criança
+              </summary>
+              <form action={removeChildAction} className="space-y-2 border-t border-neutral p-4">
+                <input type="hidden" name="child_id" value={child.id} />
+                <p className="text-xs text-ink-muted">
+                  Remove {child.name} e todo o histórico dela (sono, alimentação, brincadeiras, conversas).
+                  Não pode ser desfeito.
+                </p>
+                <Button type="submit" variant="danger">
+                  Confirmar remoção
+                </Button>
+              </form>
+            </details>
+          )}
+        </div>
       )}
 
-      {activeTab === "preferencias" && (
-        <EmptyState
-          icon={Heart}
-          title="Preferências desta criança em breve"
-          description={`Uma preferência específica de ${child.name} (diferente das preferências da família) vai poder ser configurada aqui.`}
-        />
-      )}
+      {activeTab === "preferencias" &&
+        (isEditor ? (
+          <form
+            action={saveChildPreferencesAction}
+            className="space-y-6 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]"
+          >
+            <input type="hidden" name="child_id" value={child.id} />
 
-      {activeTab === "contexto" && <ChildContextView childId={child.id} />}
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-medium text-ink">Interesses e brincadeiras</legend>
+              <div className="space-y-1">
+                <Label htmlFor="interests">
+                  Interesses <span className="font-normal text-ink-muted">(separados por vírgula)</span>
+                </Label>
+                <Input
+                  id="interests"
+                  name="interests"
+                  defaultValue={child.interests.join(", ")}
+                  placeholder="Ex.: carros, música, animais"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="favorite_activities">
+                  Brincadeiras favoritas <span className="font-normal text-ink-muted">(separadas por vírgula)</span>
+                </Label>
+                <Input
+                  id="favorite_activities"
+                  name="favorite_activities"
+                  defaultValue={preferences.favoriteActivities.join(", ")}
+                  placeholder="Ex.: esconde-esconde, massinha"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="preferred_materials">
+                  Materiais de interesse <span className="font-normal text-ink-muted">(separados por vírgula)</span>
+                </Label>
+                <Input
+                  id="preferred_materials"
+                  name="preferred_materials"
+                  defaultValue={preferences.preferredMaterials.join(", ")}
+                  placeholder="Ex.: blocos de montar, giz de cera"
+                />
+              </div>
+            </fieldset>
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-ink">Preferência de rotina</legend>
+              <div className="flex flex-wrap gap-3">
+                {childRoutinePreferences.map((option) => (
+                  <label key={option} className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="radio"
+                      name="routine_preference"
+                      value={option}
+                      defaultChecked={preferences.routinePreference === option}
+                    />
+                    {childRoutinePreferenceLabels[option]}
+                  </label>
+                ))}
+              </div>
+              <Textarea
+                name="routine_notes"
+                rows={2}
+                defaultValue={preferences.routineNotes ?? ""}
+                placeholder="Ex.: dorme às 20h, soneca depois do almoço"
+              />
+            </fieldset>
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-ink">Preferência de atividades</legend>
+              <div className="flex flex-wrap gap-3">
+                {childActivityStyles.map((option) => (
+                  <label key={option} className="flex items-center gap-2 text-sm text-ink">
+                    <input
+                      type="radio"
+                      name="activity_style"
+                      value={option}
+                      defaultChecked={preferences.activityStyle === option}
+                    />
+                    {childActivityStyleLabels[option]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div className="space-y-1">
+              <Label htmlFor="feeding_notes">Alimentação — preferências e contexto</Label>
+              <Textarea
+                id="feeding_notes"
+                name="feeding_notes"
+                rows={2}
+                defaultValue={preferences.feedingNotes ?? ""}
+                placeholder="Ex.: não gosta de melancia, prefere comer sozinha"
+              />
+              <p className="text-xs text-ink-muted">
+                O método alimentar em si fica na aba Perfil — aqui é só preferência e contexto do dia a dia.
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="caregiver_notes">Observações dos cuidadores</Label>
+              <Textarea
+                id="caregiver_notes"
+                name="caregiver_notes"
+                rows={2}
+                defaultValue={preferences.caregiverNotes ?? ""}
+                placeholder="Ex.: precisa de um tempo para se adaptar a lugares novos"
+              />
+            </div>
+
+            <Button type="submit">Salvar preferências</Button>
+          </form>
+        ) : (
+          <EmptyState
+            icon={Heart}
+            title="Você não pode editar as preferências"
+            description={`Você não tem permissão de edição para ${child.name}.`}
+          />
+        ))}
+
+      {activeTab === "contexto" && (
+        <div className="space-y-4">
+          {isEditor ? (
+            <form
+              action={saveChildContextNotesAction}
+              className="space-y-2 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]"
+            >
+              <input type="hidden" name="child_id" value={child.id} />
+              <div className="flex items-center gap-1.5">
+                <NotebookText className="h-4 w-4 text-ink-muted" aria-hidden />
+                <Label htmlFor="notes">Sobre esta criança</Label>
+              </div>
+              <p className="text-xs text-ink-muted">
+                Um espaço livre para qualquer contexto relevante que não se encaixa nas preferências
+                estruturadas acima.
+              </p>
+              <Textarea
+                id="notes"
+                name="notes"
+                rows={3}
+                defaultValue={child.notes ?? ""}
+                placeholder="Ex.: está em fase de adaptação na escola nova"
+              />
+              <Button type="submit">Salvar</Button>
+            </form>
+          ) : (
+            child.notes && (
+              <div className="rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
+                <p className="text-sm font-medium text-ink">Sobre esta criança</p>
+                <p className="mt-1 text-sm text-ink-muted">{child.notes}</p>
+              </div>
+            )
+          )}
+
+          <ChildContextView childId={child.id} />
+        </div>
+      )}
     </div>
   );
 }
@@ -124,7 +415,10 @@ export default async function ChildSettingsPage({
 // À parte, para o fetch de getChildContext ficar isolado — só roda
 // quando a aba "contexto" está ativa, e é o único trecho desta página
 // que precisa de uma consulta mais pesada (histórico recente, preferências
-// da família, método alimentar...).
+// da família e da criança, método alimentar...). Mostra DADOS
+// ESTRUTURADOS e OBSERVAÇÕES LIVRES juntos, exatamente como a IA os vê —
+// não é editável diretamente aqui (a edição vive nas seções acima e na
+// aba Preferências).
 async function ChildContextView({ childId }: { childId: string }) {
   const supabase = createServiceClient();
   const context = await getChildContext(supabase, childId);
@@ -145,7 +439,7 @@ async function ChildContextView({ childId }: { childId: string }) {
     <div className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
       <p className="text-xs text-ink-muted">
         Isto é, em texto simples, o que o Quintal considera hoje ao conversar e sugerir coisas para{" "}
-        {context.child.name} — não é editável diretamente aqui.
+        {context.child.name} — inclui o que está estruturado nas abas acima e as observações livres.
       </p>
       <pre className="whitespace-pre-wrap font-sans text-sm text-ink">{formatted}</pre>
     </div>

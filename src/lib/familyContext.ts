@@ -4,7 +4,13 @@ import type { FamilyPreferences } from "@/lib/childContext";
 import type { PreferenceCategory } from "@/lib/validation/chatAction";
 import type { AccessRole } from "@/lib/authorization";
 import type { MaterialCategory } from "@/lib/validation/library";
-import type { RecommendationStyle, RoutineFlexibility, RoutineActivityFocus } from "@/lib/validation/profile";
+import {
+  type RecommendationStyle,
+  type RoutineFlexibility,
+  type RoutineActivityFocus,
+  type ChildRoutinePreference,
+  childRoutinePreferenceLabels,
+} from "@/lib/validation/profile";
 
 // The read+write counterpart to childContext.ts's getChildContext: that
 // one is READ-ONLY and shaped for the AI prompt (per child, with recent
@@ -20,6 +26,12 @@ export type FamilyProfileChild = {
   sex: string | null;
   notes: string | null;
   interests: string[];
+  avatarUrl: string | null;
+  // Linha única (Fase 20) para a lista de crianças — construída a partir
+  // de dados já estruturados (interesses, brincadeiras favoritas, rotina),
+  // nunca uma nova consulta pesada por criança. null quando a criança
+  // ainda não tem nenhuma preferência configurada.
+  contextSummary: string | null;
 };
 
 export type FamilyProfileCaregiver = {
@@ -55,7 +67,7 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
         .order("created_at", { ascending: true }),
       supabase
         .from("children")
-        .select("id, name, birth_date, sex, notes, interests")
+        .select("id, name, birth_date, sex, notes, interests, avatar_url")
         .eq("family_id", familyId)
         .order("created_at", { ascending: true }),
       supabase
@@ -68,6 +80,23 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
     ]);
 
   if (!family) return null;
+
+  // Segunda consulta, batelada por família (não uma por criança): resumo
+  // contextual da lista de crianças (Fase 20) reaproveita child_preferences
+  // já existente em vez de repetir a leitura pesada de getChildContext
+  // (histórico de eventos) só para montar uma linha de card.
+  const childIds = (children ?? []).map((child) => child.id);
+  const { data: childPreferencesRaw } =
+    childIds.length > 0
+      ? await supabase
+          .from("child_preferences")
+          .select("child_id, favorite_activities, routine_preference")
+          .in("child_id", childIds)
+      : { data: [] as { child_id: string; favorite_activities: string[]; routine_preference: string | null }[] };
+
+  const preferencesByChildId = new Map(
+    (childPreferencesRaw ?? []).map((row) => [row.child_id, row]),
+  );
 
   return {
     family: { id: family.id, name: family.name, notes: family.notes, avatarUrl: family.avatar_url },
@@ -87,6 +116,8 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
       sex: child.sex,
       notes: child.notes,
       interests: child.interests,
+      avatarUrl: child.avatar_url,
+      contextSummary: summarizeChildContext(child.interests, preferencesByChildId.get(child.id)),
     })),
     preferences: preferencesRaw
       ? {
@@ -104,10 +135,61 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
   };
 }
 
-// Essential fields only, on purpose (progressive disclosure lives in the
-// UI, not here): name, birth date, interests. Notes/sex stay
-// operator-editable via /ops/children/[id] for now — this is the
-// family's own light-touch edit, not a full profile system.
+function summarizeChildContext(
+  interests: string[],
+  preferences: { favorite_activities: string[]; routine_preference: string | null } | undefined,
+): string | null {
+  const parts: string[] = [];
+  if (interests.length > 0) parts.push(`Interesses: ${interests.slice(0, 3).join(", ")}`);
+  if (preferences && preferences.favorite_activities.length > 0) {
+    parts.push(`Brincadeiras favoritas: ${preferences.favorite_activities.slice(0, 2).join(", ")}`);
+  }
+  if (preferences?.routine_preference) {
+    parts.push(`Rotina: ${childRoutinePreferenceLabels[preferences.routine_preference as ChildRoutinePreference]}`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+// Informações básicas de UMA criança (Fase 16/20): nome, nascimento,
+// avatar, sexo. Interesses NÃO entram aqui (ver childPreferences.ts,
+// onde moram junto de brincadeiras favoritas/materiais desde a Fase 20).
+export async function updateChildProfile(
+  childId: string,
+  input: { name: string; birthDate: string | null; avatarUrl: string | null; sex: string | null },
+): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("children")
+    .update({
+      name: input.name,
+      birth_date: input.birthDate,
+      avatar_url: input.avatarUrl,
+      sex: input.sex,
+    })
+    .eq("id", childId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// "Sobre esta criança" (Fase 20, aba Contexto) — observação livre e
+// geral, separada das observações por área que vivem em
+// child_preferences (childPreferences.ts). Era só editável por operador
+// (/ops/families/[id]) até esta fase.
+export async function updateChildContextNotes(childId: string, notes: string | null): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase.from("children").update({ notes }).eq("id", childId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// Essential fields only, on purpose — nome/nascimento/interesses (usado
+// hoje só pelo helper de chat addChildInterest abaixo; o formulário de
+// Configurações usa updateChildProfile + childPreferences.ts em vez
+// disso, ver Fase 20).
 export async function updateChildEssentials(
   childId: string,
   input: { name: string; birthDate: string | null; interests: string[] },

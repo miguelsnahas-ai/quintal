@@ -1,30 +1,18 @@
 import { z } from "zod";
 import { materialCategories } from "@/lib/validation/library";
 
-// Essentials only — see familyContext.ts's updateChildEssentials. Interests
-// arrive from the form as one comma-separated string (simplest possible
-// input for a family on a phone — no tag-picker component, no new
-// dependency); parsed here into a clean array: trimmed, empty entries
-// dropped, so "carros,, música ,  " becomes ["carros", "música"].
-export const childEssentialsInputSchema = z.object({
-  child_id: z.uuid("Criança inválida."),
-  name: z.string().trim().min(1, "Informe o nome da criança."),
-  birth_date: z
-    .string()
-    .optional()
-    .transform((value) => (value ? value : null)),
-  interests: z
-    .string()
-    .optional()
-    .transform((value) =>
-      (value ?? "")
-        .split(",")
-        .map((interest) => interest.trim())
-        .filter((interest) => interest.length > 0),
-    ),
-});
-
-export type ChildEssentialsInput = z.infer<typeof childEssentialsInputSchema>;
+// Comma-separated free text is the simplest possible input for a family
+// on a phone (no tag-picker component, no new dependency) — parsed here
+// into a clean array: trimmed, empty entries dropped, so
+// "carros,, música ,  " becomes ["carros", "música"]. Compartilhado por
+// todo campo desse formato (interesses, brincadeiras favoritas, materiais
+// de interesse — ver childPreferencesInputSchema abaixo).
+function csvToArray(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
 
 // "Adicionar criança" (Fase 16, /quintal/familia) — fluxo simples pedido:
 // nome + data de nascimento, sem foto/avatar (ver o comentário em
@@ -170,6 +158,79 @@ export const familyPreferencesInputSchema = z.object({
 });
 
 export type FamilyPreferencesInput = z.infer<typeof familyPreferencesInputSchema>;
+
+// "Configurações > Crianças > [criança] > Perfil" (Fase 20) — informações
+// básicas de UMA criança: nome, nascimento, avatar, sexo. Reaproveita o
+// mesmo padrão de avatar de updateFamilyProfileInputSchema/
+// updateCaregiverProfileInputSchema. Não inclui interesses (isso mudou de
+// aba nesta fase — ver childPreferencesInputSchema abaixo, onde
+// conceitualmente pertence, junto de brincadeiras favoritas e materiais).
+export const updateChildProfileInputSchema = z.object({
+  child_id: z.uuid("Criança inválida."),
+  name: z.string().trim().min(1, "Informe o nome da criança."),
+  birth_date: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value : null)),
+  avatar_url: z
+    .string()
+    .optional()
+    .transform(emptyToNull)
+    .refine((value) => value === null || z.url().safeParse(value).success, {
+      message: "Informe uma URL válida para a foto.",
+    }),
+  sex: z.string().optional().transform(emptyToNull),
+});
+
+export type UpdateChildProfileInput = z.infer<typeof updateChildProfileInputSchema>;
+
+// "Configurações > Crianças > [criança] > Preferências" (Fase 20) —
+// mesma separação DADOS ESTRUTURADOS / OBSERVAÇÕES LIVRES já usada em
+// family_preferences (Fase 19): routine_preference/activity_style têm
+// vocabulário fixo; os *_notes são texto livre. Não inclui método
+// alimentar (children.feeding_method_id/custom, pedido explícito desta
+// fase para não duplicar — ver childFeedingMethodInputSchema abaixo, que
+// só reexpõe o schema já existente de src/lib/validation/feeding.ts).
+export const childRoutinePreferences = ["predictable", "flexible", "balanced"] as const;
+export type ChildRoutinePreference = (typeof childRoutinePreferences)[number];
+export const childRoutinePreferenceLabels: Record<ChildRoutinePreference, string> = {
+  predictable: "Mais previsível",
+  flexible: "Mais flexível",
+  balanced: "Equilíbrio",
+};
+
+export const childActivityStyles = ["calm", "energetic", "balanced"] as const;
+export type ChildActivityStyle = (typeof childActivityStyles)[number];
+export const childActivityStyleLabels: Record<ChildActivityStyle, string> = {
+  calm: "Mais calmas",
+  energetic: "Mais agitadas",
+  balanced: "Equilíbrio",
+};
+
+export const childPreferencesInputSchema = z.object({
+  child_id: z.uuid("Criança inválida."),
+  interests: z.string().optional().transform(csvToArray),
+  favorite_activities: z.string().optional().transform(csvToArray),
+  preferred_materials: z.string().optional().transform(csvToArray),
+  routine_preference: optionalEnum(childRoutinePreferences),
+  activity_style: optionalEnum(childActivityStyles),
+  routine_notes: z.string().optional().transform(emptyToNull),
+  feeding_notes: z.string().optional().transform(emptyToNull),
+  caregiver_notes: z.string().optional().transform(emptyToNull),
+});
+
+export type ChildPreferencesInput = z.infer<typeof childPreferencesInputSchema>;
+
+// "Configurações > Crianças > [criança] > Contexto > Sobre esta criança"
+// (Fase 20) — observação livre e geral (children.notes), separada das
+// observações por área que já vivem em child_preferences acima. Era só
+// editável por operador (/ops) até esta fase.
+export const updateChildContextNotesInputSchema = z.object({
+  child_id: z.uuid("Criança inválida."),
+  notes: z.string().optional().transform(emptyToNull),
+});
+
+export type UpdateChildContextNotesInput = z.infer<typeof updateChildContextNotesInputSchema>;
 
 function emptyToNull(value: string | undefined): string | null {
   const trimmed = value?.trim();

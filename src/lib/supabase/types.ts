@@ -335,8 +335,53 @@ export type Database = {
           },
         ]
       }
+      child_preferences: {
+        Row: {
+          activity_style: string | null
+          caregiver_notes: string | null
+          child_id: string
+          favorite_activities: string[]
+          feeding_notes: string | null
+          preferred_materials: string[]
+          routine_notes: string | null
+          routine_preference: string | null
+          updated_at: string
+        }
+        Insert: {
+          activity_style?: string | null
+          caregiver_notes?: string | null
+          child_id: string
+          favorite_activities?: string[]
+          feeding_notes?: string | null
+          preferred_materials?: string[]
+          routine_notes?: string | null
+          routine_preference?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activity_style?: string | null
+          caregiver_notes?: string | null
+          child_id?: string
+          favorite_activities?: string[]
+          feeding_notes?: string | null
+          preferred_materials?: string[]
+          routine_notes?: string | null
+          routine_preference?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_preferences_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: true
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       children: {
         Row: {
+          avatar_url: string | null
           birth_date: string | null
           created_at: string
           family_id: string
@@ -349,6 +394,7 @@ export type Database = {
           sex: string | null
         }
         Insert: {
+          avatar_url?: string | null
           birth_date?: string | null
           created_at?: string
           family_id: string
@@ -361,6 +407,7 @@ export type Database = {
           sex?: string | null
         }
         Update: {
+          avatar_url?: string | null
           birth_date?: string | null
           created_at?: string
           family_id?: string

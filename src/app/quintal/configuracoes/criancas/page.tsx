@@ -16,9 +16,14 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// Lista de crianças + adicionar (Fase 17) — movida de /quintal/familia,
-// mesmos componentes/ações. Cada card agora abre a página própria da
-// criança (/criancas/[id]) em vez de linkar pro antigo /quintal/perfil.
+// Lista de crianças + adicionar (Fase 17, avatar/resumo contextual desde
+// a Fase 20). Uma família pode ter múltiplas crianças — nada aqui assume
+// uma só: cada card é só um resumo (avatar, nome, idade CALCULADA a
+// partir de birth_date — nunca armazenada, ver ageLabel em
+// src/lib/format.ts — data de nascimento e um resumo contextual já
+// estruturado, sem consulta pesada por criança, ver
+// summarizeChildContext em familyContext.ts), o contexto completo de cada
+// uma vive só na própria página (/criancas/[id]), nunca misturado aqui.
 export default async function CriancasPage({
   searchParams,
 }: {
@@ -53,33 +58,65 @@ export default async function CriancasPage({
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {profile.children.map((child) => (
-            <Card key={child.id} className="space-y-2 p-4">
-              <Link href={`/quintal/configuracoes/criancas/${child.id}`} className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-ink">{child.name}</p>
-                  <p className="text-xs text-ink-muted">{ageLabel(child.birthDate) ?? "Idade não informada"}</p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden />
-              </Link>
-              {isOwner && (
-                <details className="group">
-                  <summary className="cursor-pointer list-none text-xs font-medium text-red-600 marker:content-none">
-                    Remover
-                  </summary>
-                  <form action={removeChildAction} className="mt-1.5 space-y-1.5">
-                    <input type="hidden" name="child_id" value={child.id} />
-                    <p className="text-[11px] text-ink-muted">
-                      Remove {child.name} e todo o histórico dela. Não pode ser desfeito.
+          {profile.children.map((child) => {
+            const initials = child.name
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part[0]?.toUpperCase())
+              .join("");
+
+            return (
+              <Card key={child.id} className="space-y-2 p-4">
+                <Link
+                  href={`/quintal/configuracoes/criancas/${child.id}`}
+                  className="flex items-center gap-3"
+                >
+                  {child.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- URL externa arbitrária, não um asset do projeto.
+                    <img
+                      src={child.avatarUrl}
+                      alt=""
+                      className="h-11 w-11 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-ink">
+                      {initials || "?"}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-ink">{child.name}</p>
+                    <p className="text-xs text-ink-muted">
+                      {ageLabel(child.birthDate) ?? "Idade não informada"}
+                      {child.birthDate
+                        ? ` · nascida em ${new Date(child.birthDate).toLocaleDateString("pt-BR")}`
+                        : ""}
                     </p>
-                    <Button type="submit" variant="danger" className="w-full justify-center px-2 py-1 text-xs">
-                      Confirmar remoção
-                    </Button>
-                  </form>
-                </details>
-              )}
-            </Card>
-          ))}
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden />
+                </Link>
+                <p className="text-xs text-ink-muted">
+                  {child.contextSummary ?? "Ainda sem preferências registradas."}
+                </p>
+                {isOwner && (
+                  <details className="group">
+                    <summary className="cursor-pointer list-none text-xs font-medium text-red-600 marker:content-none">
+                      Remover
+                    </summary>
+                    <form action={removeChildAction} className="mt-1.5 space-y-1.5">
+                      <input type="hidden" name="child_id" value={child.id} />
+                      <p className="text-[11px] text-ink-muted">
+                        Remove {child.name} e todo o histórico dela. Não pode ser desfeito.
+                      </p>
+                      <Button type="submit" variant="danger" className="w-full justify-center px-2 py-1 text-xs">
+                        Confirmar remoção
+                      </Button>
+                    </form>
+                  </details>
+                )}
+              </Card>
+            );
+          })}
         </div>
       )}
 
