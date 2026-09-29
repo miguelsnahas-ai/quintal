@@ -126,6 +126,33 @@ export async function updateChildEssentials(
 // quando houver evidência de necessidade). Vincula (caregiver_child) a
 // TODO cuidador já existente da família automaticamente — o owner
 // sempre tem acesso à criança que acabou de cadastrar, e qualquer outro
+// "Perfil da família" (Fase 17, /quintal/configuracoes/familia) — antes
+// desta fase, o nome da família só era editável via /ops (updateFamily,
+// operador). Agora a própria família consegue, na área de
+// Configurações — mesma coluna, mesmo dado, só um segundo caminho de
+// escrita family-facing.
+export async function updateFamilyName(familyId: string, name: string): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase.from("families").update({ name }).eq("id", familyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// "Minha conta > Perfil" (Fase 17, /quintal/configuracoes/conta) — um
+// cuidador editando o próprio nome. Escopado por caregiverId apenas (não
+// por família): quem chama isto já resolveu a sessão e só tem o próprio
+// caregiverId em mãos, nunca o de outra pessoa.
+export async function updateCaregiverName(caregiverId: string, name: string): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase.from("caregivers").update({ name }).eq("id", caregiverId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 // cuidador da família também, mesmo comportamento implícito que já
 // existia antes desta fase para toda criança/cuidador de uma família.
 export async function createChild(

@@ -19,7 +19,7 @@ export default function DashboardHeader({
 }) {
   return (
     <div className="mb-6 flex items-start justify-between gap-3">
-      <Link href="/quintal/perfil" className="group flex min-w-0 items-center gap-1">
+      <Link href="/quintal/configuracoes" className="group flex min-w-0 items-center gap-1">
         <div className="min-w-0">
           <h1 className="truncate text-lg font-bold text-ink">
             Quintal {childName ? `de ${childName}` : ""}

@@ -38,6 +38,26 @@ export const addChildInputSchema = z.object({
 
 export type AddChildInput = z.infer<typeof addChildInputSchema>;
 
+// "Perfil da família" (Fase 17, /quintal/configuracoes/familia) — só o
+// nome, campo único hoje (ver updateFamilyName em familyContext.ts).
+export const updateFamilyNameInputSchema = z.object({
+  name: z.string().trim().min(1, "Informe o nome da família."),
+});
+
+export type UpdateFamilyNameInput = z.infer<typeof updateFamilyNameInputSchema>;
+
+// "Minha conta > Perfil" (Fase 17, /quintal/configuracoes/conta) — só o
+// nome do próprio cuidador. Telefone fica fora de propósito (é a chave
+// de identidade da sessão, ver src/lib/familySession.ts — mudar sem
+// reverificação seria um jeito de sequestrar o acesso de outra pessoa);
+// papel de acesso (owner/caregiver) também fica fora, não é o próprio
+// cuidador quem decide isso.
+export const updateCaregiverNameInputSchema = z.object({
+  name: z.string().trim().min(1, "Informe seu nome."),
+});
+
+export type UpdateCaregiverNameInput = z.infer<typeof updateCaregiverNameInputSchema>;
+
 // Every field optional/free text on purpose — this is the "configurações
 // avançadas" progressive-disclosure section of /quintal/perfil, not a
 // form with required fields. Empty string means "cleared", not "unset"
