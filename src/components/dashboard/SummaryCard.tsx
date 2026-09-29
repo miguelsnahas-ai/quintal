@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
+import { cardClassName, cardHoverLift } from "@/components/ui/Card";
 
 // One compact tile in the dashboard's "resumo do dia" grid. Deliberately
 // dumb/presentational — it never decides what counts as data vs. empty,
@@ -38,14 +39,11 @@ export default function SummaryCard({
 
   if (href) {
     return (
-      <Link
-        href={href}
-        className="block space-y-2 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)]"
-      >
+      <Link href={href} className={cardClassName(`block space-y-2 p-4 ${cardHoverLift}`)}>
         {content}
       </Link>
     );
   }
 
-  return <div className="space-y-2 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">{content}</div>;
+  return <div className={cardClassName("space-y-2 p-4")}>{content}</div>;
 }

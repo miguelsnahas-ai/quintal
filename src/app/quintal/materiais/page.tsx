@@ -23,6 +23,9 @@ import {
 } from "@/lib/validation/library";
 import { Input, Select } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { cardClassName, inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageHeader } from "@/components/layout/PageHeader";
 import MaterialCard from "@/components/library/MaterialCard";
 
 export const metadata: Metadata = {
@@ -60,12 +63,12 @@ export default async function MateriaisPage({
 
   if (!activeChild) {
     return (
-      <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
-        <BackLink />
-        <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+      <PageContainer space={6}>
+        <PageHeader title="Materiais" backHref="/quintal" backLabel="Quintal" />
+        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -105,15 +108,10 @@ export default async function MateriaisPage({
       });
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6">
-      <BackLink />
+    <PageContainer>
+      <PageHeader title="Materiais" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
 
-      <div>
-        <h1 className="text-lg font-bold text-ink">Materiais</h1>
-        <p className="text-sm text-ink-muted">{activeChild.name}</p>
-      </div>
-
-      <form method="get" className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
+      <form method="get" className={cardClassName("space-y-3 p-4")}>
         <div className="flex gap-2">
           <Input name="q" defaultValue={q ?? ""} placeholder="Buscar (ex.: sono, papinha, cabana)" className="flex-1" />
           <Button type="submit" variant="secondary" aria-label="Buscar">
@@ -155,7 +153,7 @@ export default async function MateriaisPage({
               ))}
             </div>
           ) : (
-            <p className="rounded-lg bg-secondary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+            <p className={inviteCardClassName("p-4 text-sm text-ink-muted")}>
               Nada encontrado com esses termos ou filtros.
             </p>
           )}
@@ -177,7 +175,7 @@ export default async function MateriaisPage({
                 ))}
               </div>
             ) : (
-              <p className="rounded-lg bg-secondary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+              <p className={inviteCardClassName("p-4 text-sm text-ink-muted")}>
                 Ainda não há recomendações — busque por um tema ou escolha uma categoria abaixo.
               </p>
             )}
@@ -190,7 +188,7 @@ export default async function MateriaisPage({
                 <Link
                   key={c}
                   href={`/quintal/materiais?categoria=${c}`}
-                  className="rounded-lg bg-primary p-3 text-center text-sm font-medium text-ink shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)]"
+                  className={cardClassName(`p-3 text-center text-sm font-medium text-ink ${cardHoverLift}`)}
                 >
                   {materialCategoryLabels[c]}
                 </Link>
@@ -199,14 +197,6 @@ export default async function MateriaisPage({
           </section>
         </>
       )}
-    </div>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link href="/quintal" className="text-sm text-ink-muted hover:text-ink">
-      ← Quintal
-    </Link>
+    </PageContainer>
   );
 }

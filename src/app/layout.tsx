@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
-import { Gabarito, Hanken_Grotesk, Caveat, JetBrains_Mono } from "next/font/google";
+import { Gabarito, Hanken_Grotesk, Caveat, Caveat_Brush, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 // Design system Quintal: Gabarito (títulos, Gabarito 600 — ver globals.css)
 // + Hanken Grotesk (texto corrido) + Caveat (notas manuscritas, uso
-// pontual) + JetBrains Mono (eyebrows/meta, já usado antes desta troca).
-// Self-hosted via next/font — mesmo resultado visual do
+// pontual) + Caveat Brush (só o Wordmark — "stand-in" do design system
+// até a marca ser desenhada por um designer) + JetBrains Mono
+// (eyebrows/meta, já usado antes desta troca). Self-hosted via
+// next/font — mesmo resultado visual do
 // `@import url(fonts.googleapis.com/...)` do design system, sem depender
 // de rede em runtime.
 const gabarito = Gabarito({
@@ -26,6 +28,12 @@ const caveat = Caveat({
   weight: ["500", "600", "700"],
 });
 
+const caveatBrush = Caveat_Brush({
+  variable: "--font-caveat-brush",
+  subsets: ["latin"],
+  weight: "400",
+});
+
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
@@ -40,7 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
-      className={`${gabarito.variable} ${hankenGrotesk.variable} ${caveat.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${gabarito.variable} ${hankenGrotesk.variable} ${caveat.variable} ${caveatBrush.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
@@ -20,6 +19,9 @@ import {
 } from "@/lib/validation/feeding";
 import { Input, Label, Select, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { cardClassName } from "@/components/ui/Card";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageHeader } from "@/components/layout/PageHeader";
 import MealSuggestionCard from "@/components/feeding/MealSuggestionCard";
 import { logMeal, saveFeedingMethod } from "./actions";
 
@@ -49,12 +51,12 @@ export default async function AlimentacaoPage({
 
   if (!activeChild) {
     return (
-      <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
-        <BackLink />
-        <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+      <PageContainer space={6}>
+        <PageHeader title="Alimentação" backHref="/quintal" backLabel="Quintal" />
+        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -79,23 +81,15 @@ export default async function AlimentacaoPage({
   const historyGroups = groupByDay(history, (entry) => entry.occurredAt);
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6">
-      <BackLink />
-
-      <div>
-        <h1 className="text-lg font-bold text-ink">Alimentação</h1>
-        <p className="text-sm text-ink-muted">{activeChild.name}</p>
-      </div>
+    <PageContainer>
+      <PageHeader title="Alimentação" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
 
       <FieldError>{error}</FieldError>
       {success && <p className="text-sm text-ink-muted">Salvo com sucesso.</p>}
 
       <section id="registrar" className="scroll-mt-4 space-y-3">
         <h2 className="text-sm font-medium text-ink-muted">Registrar refeição</h2>
-        <form
-          action={logMeal}
-          className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]"
-        >
+        <form action={logMeal} className={cardClassName("space-y-3 p-4")}>
           <input type="hidden" name="child_id" value={activeChild.id} />
           {suggestionParam && <input type="hidden" name="suggestion_id" value={suggestionParam} />}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -166,7 +160,7 @@ export default async function AlimentacaoPage({
             ))}
           </div>
         ) : (
-          <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+          <p className={cardClassName("p-4 text-sm text-ink-muted")}>
             Nenhuma sugestão disponível para essa faixa etária ainda.
           </p>
         )}
@@ -179,7 +173,7 @@ export default async function AlimentacaoPage({
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-ink-muted">Histórico</h2>
         {historyGroups.length === 0 ? (
-          <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+          <p className={cardClassName("p-4 text-sm text-ink-muted")}>
             Nenhuma refeição registrada ainda.
           </p>
         ) : (
@@ -191,10 +185,7 @@ export default async function AlimentacaoPage({
                 </h3>
                 <div className="space-y-2">
                   {group.entries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex gap-3 rounded-lg bg-primary p-3 text-sm shadow-[var(--shadow-card)]"
-                    >
+                    <div key={entry.id} className={cardClassName("flex gap-3 p-3 text-sm")}>
                       <span className="shrink-0 pt-0.5 font-mono text-xs text-ink-muted">
                         {new Date(entry.occurredAt).toLocaleTimeString("pt-BR", {
                           hour: "2-digit",
@@ -217,7 +208,7 @@ export default async function AlimentacaoPage({
         )}
       </section>
 
-      <details id="metodo" className="group scroll-mt-4 rounded-lg bg-primary shadow-[var(--shadow-card)]" open={!currentMethodLabel}>
+      <details id="metodo" className={cardClassName("group scroll-mt-4")} open={!currentMethodLabel}>
         <summary className="cursor-pointer list-none p-4 text-sm font-medium text-ink marker:content-none">
           <span className="inline-flex items-center gap-1.5">
             Método alimentar
@@ -277,15 +268,7 @@ export default async function AlimentacaoPage({
           </form>
         </div>
       </details>
-    </div>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link href="/quintal" className="text-sm text-ink-muted hover:text-ink">
-      ← Quintal
-    </Link>
+    </PageContainer>
   );
 }
 

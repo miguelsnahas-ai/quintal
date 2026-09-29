@@ -9,6 +9,7 @@ import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import SettingsTabs from "@/components/settings/SettingsTabs";
 import { Input, Textarea, Label, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { Switch } from "@/components/ui/Switch";
 import {
   updateCaregiverProfileAction,
   updateCaregiverPersonalPreferencesAction,
@@ -177,31 +178,19 @@ export default async function ContaPage({
           action={updateCaregiverNotificationPreferencesAction}
           className="space-y-4 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]"
         >
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm text-ink">
-              <input type="checkbox" name="notify_general" defaultChecked={preferences.notifyGeneral} />
-              Notificações gerais
-            </label>
-            <label className="flex items-center gap-2 text-sm text-ink">
-              <input type="checkbox" name="notify_reminders" defaultChecked={preferences.notifyReminders} />
-              Lembretes
-            </label>
-            <label className="flex items-center gap-2 text-sm text-ink">
-              <input
-                type="checkbox"
-                name="notify_recommendations"
-                defaultChecked={preferences.notifyRecommendations}
-              />
-              Recomendações
-            </label>
-            <label className="flex items-center gap-2 text-sm text-ink">
-              <input
-                type="checkbox"
-                name="notify_routine_updates"
-                defaultChecked={preferences.notifyRoutineUpdates}
-              />
-              Atualizações da rotina
-            </label>
+          <div className="space-y-3">
+            <Switch name="notify_general" defaultChecked={preferences.notifyGeneral} label="Notificações gerais" />
+            <Switch name="notify_reminders" defaultChecked={preferences.notifyReminders} label="Lembretes" />
+            <Switch
+              name="notify_recommendations"
+              defaultChecked={preferences.notifyRecommendations}
+              label="Recomendações"
+            />
+            <Switch
+              name="notify_routine_updates"
+              defaultChecked={preferences.notifyRoutineUpdates}
+              label="Atualizações da rotina"
+            />
           </div>
           <p className="flex items-start gap-1.5 text-xs text-ink-muted">
             <Bell className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />

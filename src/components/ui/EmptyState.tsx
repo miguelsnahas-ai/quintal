@@ -1,12 +1,11 @@
 import type { LucideIcon } from "lucide-react";
 
-// Estado vazio para as seções de Configurações que ainda não têm lógica
-// por trás (Preferências pessoais, Notificações, Preferências da
-// criança, Permissões — Fase 17 pede explicitamente estrutura e
-// navegação, não a lógica completa ainda). Deliberadamente não um
-// formulário fantasma que pareceria salvar algo e não salva nada —
-// melhor ser honesto que isso ainda não existe do que fingir.
-export default function EmptyState({
+// Estado vazio genérico — ícone num círculo amber, título, descrição.
+// Nascido em Configurações (Fase 17 pedia estrutura e navegação para
+// seções sem lógica ainda, sem fingir um formulário que não salva nada)
+// e promovido para uso geral nesta troca, já que o mesmo visual serve
+// qualquer lista/seção vazia do app.
+export function EmptyState({
   icon: Icon,
   title,
   description,

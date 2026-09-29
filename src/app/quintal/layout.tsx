@@ -1,5 +1,4 @@
-import BottomNav from "@/components/navigation/BottomNav";
-import ChildSwitcher from "@/components/navigation/ChildSwitcher";
+import { AppShell } from "@/components/layout/AppShell";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
 
@@ -20,10 +19,8 @@ export default async function QuintalLayout({ children }: { children: React.Reac
     : { active: null, children: [] };
 
   return (
-    <div className="pb-20">
-      {activeChild && <ChildSwitcher activeChild={activeChild} childrenList={accessibleChildren} />}
+    <AppShell activeChild={activeChild} childrenList={accessibleChildren}>
       {children}
-      <BottomNav />
-    </div>
+    </AppShell>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
+import { Chip } from "@/components/ui/Chip";
 import { activityFeedbackOptions, activityFeedbackLabels, type ActivityFeedback } from "@/lib/validation/play";
 import { logActivityOutcomeAction } from "./actions";
 
@@ -40,15 +41,9 @@ export default function LogActivityOutcome({ activityId }: { activityId: string 
       <p className="text-sm font-medium text-ink">Fizeram essa atividade? Como foi?</p>
       <div className="flex flex-wrap gap-2">
         {activityFeedbackOptions.map((option) => (
-          <button
-            key={option}
-            type="button"
-            disabled={isPending}
-            onClick={() => send(option)}
-            className="rounded-full border-[1.5px] border-neutral px-3 py-2 text-sm text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
-          >
+          <Chip key={option} disabled={isPending} onClick={() => send(option)}>
             {activityFeedbackLabels[option]}
-          </button>
+          </Chip>
         ))}
       </div>
       {error && <p className="text-xs text-danger">Não foi possível registrar. Tente de novo.</p>}

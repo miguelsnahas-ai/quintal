@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FileText, Video, BookOpen, Compass, CheckSquare, Sparkles, UtensilsCrossed, BookMarked } from "lucide-react";
+import { inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 import { getMaterialHref, type LibraryMaterial } from "@/lib/library";
 import { materialTypeLabels, materialCategoryLabels, type MaterialType } from "@/lib/validation/library";
 
@@ -23,10 +24,7 @@ export default function MaterialCard({ material, reason }: { material: LibraryMa
   const Icon = TYPE_ICONS[material.type];
 
   return (
-    <Link
-      href={getMaterialHref(material)}
-      className="block rounded-lg bg-secondary p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)]"
-    >
+    <Link href={getMaterialHref(material)} className={inviteCardClassName(`block p-4 ${cardHoverLift}`)}>
       <div className="flex items-start gap-3">
         {material.imageUrl ? (
           // External Drive-hosted URL, not a local/optimizable asset (see activity.ts).

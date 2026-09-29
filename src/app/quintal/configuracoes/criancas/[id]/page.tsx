@@ -14,7 +14,7 @@ import {
 } from "@/lib/validation/profile";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import SettingsTabs from "@/components/settings/SettingsTabs";
-import EmptyState from "@/components/settings/EmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input, Textarea, Label, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import {

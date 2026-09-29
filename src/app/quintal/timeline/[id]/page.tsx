@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSessionCaregiver, canAccessChild } from "@/lib/authorization";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -8,6 +7,9 @@ import { getTimelineEntry, describeEntry, getTimelineDetailLines } from "@/lib/t
 import { eventOriginLabels } from "@/lib/validation/events";
 import { Input, Label, Textarea, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { cardClassName } from "@/components/ui/Card";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { updateTimelineEntryAction, deleteTimelineEntryAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -57,18 +59,20 @@ export default async function TimelineEntryPage({
   const detailLines = getTimelineDetailLines(entry);
   const hasStructuredPayload = entry.type === "meal" || entry.type === "sleep" || entry.type === "free_play";
 
-  return (
-    <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-8">
-      <BackLink />
+  const occurredAtLabel = new Date(entry.occurredAt).toLocaleString("pt-BR", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
 
-      <div className="space-y-1">
-        <h1 className="text-xl font-bold text-ink">{verb}</h1>
-        <p className="text-sm text-ink-muted">
-          {child.name} ·{" "}
-          {new Date(entry.occurredAt).toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short" })}
-        </p>
-        <p className="text-xs text-ink-muted">{eventOriginLabels[entry.origin]}</p>
-      </div>
+  return (
+    <PageContainer space={6}>
+      <PageHeader
+        title={verb}
+        description={`${child.name} · ${occurredAtLabel}`}
+        backHref="/quintal/timeline"
+        backLabel="Timeline"
+      />
+      <p className="text-xs text-ink-muted">{eventOriginLabels[entry.origin]}</p>
 
       {detailLines.length > 0 && (
         <div className="space-y-1 rounded-lg bg-secondary p-4">
@@ -83,10 +87,7 @@ export default async function TimelineEntryPage({
       <FieldError>{error}</FieldError>
       {success && <p className="text-sm text-ink-muted">Salvo com sucesso.</p>}
 
-      <form
-        action={updateTimelineEntryAction.bind(null, entry.id)}
-        className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]"
-      >
+      <form action={updateTimelineEntryAction.bind(null, entry.id)} className={cardClassName("space-y-3 p-4")}>
         <h2 className="text-sm font-medium text-ink-muted">Editar</h2>
         <div className="space-y-1">
           <Label htmlFor="occurred_at">Quando</Label>
@@ -111,7 +112,7 @@ export default async function TimelineEntryPage({
         <Button type="submit">Salvar</Button>
       </form>
 
-      <details className="group rounded-lg bg-primary shadow-[var(--shadow-card)]">
+      <details className={cardClassName("group")}>
         <summary className="cursor-pointer list-none p-4 text-sm font-medium text-danger marker:content-none">
           Excluir este registro
         </summary>
@@ -124,14 +125,6 @@ export default async function TimelineEntryPage({
           </form>
         </div>
       </details>
-    </div>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link href="/quintal/timeline" className="text-sm text-ink-muted hover:text-ink">
-      ← Timeline
-    </Link>
+    </PageContainer>
   );
 }

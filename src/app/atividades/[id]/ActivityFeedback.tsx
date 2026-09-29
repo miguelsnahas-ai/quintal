@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Check, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { submitActivityFeedback } from "./actions";
 
 export default function ActivityFeedback({ activityId }: { activityId: string }) {
@@ -34,24 +35,14 @@ export default function ActivityFeedback({ activityId }: { activityId: string })
     <div className="space-y-2">
       <p className="text-sm font-medium text-ink">Essa atividade ajudou?</p>
       <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => send(true)}
-          className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-neutral px-4 py-2 text-sm text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
-        >
+        <Button type="button" variant="secondary" disabled={isPending} onClick={() => send(true)}>
           <ThumbsUp className="h-4 w-4" aria-hidden />
           Ajudou
-        </button>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => send(false)}
-          className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-neutral px-4 py-2 text-sm text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
-        >
+        </Button>
+        <Button type="button" variant="secondary" disabled={isPending} onClick={() => send(false)}>
           <ThumbsDown className="h-4 w-4" aria-hidden />
           Não ajudou
-        </button>
+        </Button>
       </div>
       {error && <p className="text-xs text-danger">Não foi possível registrar. Tente de novo.</p>}
     </div>

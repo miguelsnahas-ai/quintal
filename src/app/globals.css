@@ -16,11 +16,25 @@
   --palette-success: #2f7d5b; /* positive state */
   --palette-decorative: #dd8a5f; /* terracota — small accents */
   --palette-danger: #c1553d; /* attention — errors, destructive actions */
+  --palette-border-strong: #cfc6b2; /* border-strong — secondary button border */
 
   /* Text always forest — never pure black. Text on amber/sage/sand
      surfaces is always forest too (AA fails otherwise on all three). */
   --palette-ink: #22402c; /* verde */
   --palette-ink-muted: #55604f; /* text-secondary */
+
+  /* Decoration-only — sticky notes and crayon drawings (HandNote,
+     CrayonMark), never text or UI chrome. Areia/pêssego/folha in the
+     brand kit. */
+  --palette-sand: #f6e3cc; /* areia — sticky notes, warm fills */
+  --palette-peach: #f7d3be; /* pêssego — third sticky-note tone */
+  --palette-leaf: #6e8b67; /* folha — crayon sprigs and grass only */
+
+  /* The WhatsApp thread is the product (brand guide) — but its exact
+     colours are the brand's own take, not literal WhatsApp green/grey,
+     so the chat UI (ConversationChat) never hardcodes those hexes. */
+  --palette-chat-thread: #ede6dc; /* chat wallpaper behind the bubbles */
+  --palette-chat-bubble-mine: #dcf3d4; /* outgoing bubble */
 
   --palette-radius-sm: 8px; /* --radius-field — buttons, inputs */
   --palette-radius-md: 20px; /* --radius-block — larger sections */
@@ -46,8 +60,16 @@
   --color-success: var(--palette-success);
   --color-decorative: var(--palette-decorative);
   --color-danger: var(--palette-danger);
+  --color-border-strong: var(--palette-border-strong);
   --color-ink: var(--palette-ink);
   --color-ink-muted: var(--palette-ink-muted);
+
+  --color-sand: var(--palette-sand);
+  --color-peach: var(--palette-peach);
+  --color-leaf: var(--palette-leaf);
+
+  --color-chat-thread: var(--palette-chat-thread);
+  --color-chat-bubble-mine: var(--palette-chat-bubble-mine);
 
   --radius-sm: var(--palette-radius-sm);
   --radius-md: var(--palette-radius-md);
@@ -61,6 +83,7 @@
   --font-sans: var(--font-hanken-grotesk);
   --font-display: var(--font-gabarito);
   --font-hand: var(--font-caveat);
+  --font-logo: var(--font-caveat-brush); /* só o Wordmark */
   --font-mono: var(--font-jetbrains-mono);
 }
 

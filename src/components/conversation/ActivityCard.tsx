@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
+import { inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 import type { ActivitySummary } from "@/lib/activity";
 
 // Deliberately warmer than the operator tool's `Card` (rounded-sm,
@@ -26,10 +27,7 @@ export default function ActivityCard({
     : `/atividades/${activity.id}`;
 
   return (
-    <Link
-      href={href}
-      className="block rounded-lg bg-secondary p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)]"
-    >
+    <Link href={href} className={inviteCardClassName(`block p-4 ${cardHoverLift}`)}>
       <div className="flex items-start gap-3">
         {activity.imageUrl ? (
           // External Drive-hosted URL, not a local/optimizable asset (see activity.ts).

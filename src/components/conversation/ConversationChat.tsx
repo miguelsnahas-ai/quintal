@@ -130,7 +130,7 @@ export default function ConversationChat({
 
       <FieldError>{error}</FieldError>
 
-      <div className="min-h-[400px] flex-1 space-y-3 rounded-sm border border-neutral bg-[#e5ddd5] p-4">
+      <div className="min-h-[400px] flex-1 space-y-3 rounded-sm border border-neutral bg-chat-thread p-4">
         {messages.length === 0 ? (
           <p className="text-center text-sm text-ink-muted">
             Escreva uma mensagem abaixo para começar.
@@ -143,7 +143,7 @@ export default function ConversationChat({
             >
               <div
                 className={`max-w-[80%] rounded-md px-3 py-2 text-sm shadow-[var(--shadow-card)] ${
-                  message.role === "user" ? "bg-[#dcf8c6] text-ink" : "bg-primary text-ink"
+                  message.role === "user" ? "bg-chat-bubble-mine text-ink" : "bg-primary text-ink"
                 }`}
               >
                 <p className="whitespace-pre-wrap">{message.content}</p>

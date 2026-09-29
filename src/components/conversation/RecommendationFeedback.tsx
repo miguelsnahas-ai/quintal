@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
+import { Chip } from "@/components/ui/Chip";
 import type { RecommendationFeedback as FeedbackValue } from "@/lib/recommendation";
 
 // Deliberately small and discreet — three pill buttons, an optional
@@ -48,30 +49,15 @@ export default function RecommendationFeedback({
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => send("worked")}
-          className="rounded-full border-[1.5px] border-neutral px-3 py-2 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
-        >
+        <Chip disabled={isPending} onClick={() => send("worked")}>
           Funcionou
-        </button>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => send("did_not_work")}
-          className="rounded-full border-[1.5px] border-neutral px-3 py-2 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
-        >
+        </Chip>
+        <Chip disabled={isPending} onClick={() => send("did_not_work")}>
           Não funcionou
-        </button>
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() => send("wants_another")}
-          className="rounded-full border-[1.5px] border-neutral px-3 py-2 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
-        >
+        </Chip>
+        <Chip disabled={isPending} onClick={() => send("wants_another")}>
           Quero outra ideia
-        </button>
+        </Chip>
         {!showNote && (
           <button
             type="button"

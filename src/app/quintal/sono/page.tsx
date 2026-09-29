@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
@@ -8,6 +7,9 @@ import { getSleepHistory, getOpenSleepSession, getTodaySleepSummary, type SleepH
 import { sleepTypes, sleepTypeLabels } from "@/lib/validation/sleep";
 import { Input, Label, Select, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { cardClassName } from "@/components/ui/Card";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { startSleepAction, endSleepAction, recordSleepPeriodAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -50,12 +52,12 @@ export default async function SonoPage({
 
   if (!activeChild) {
     return (
-      <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
-        <BackLink />
-        <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+      <PageContainer space={6}>
+        <PageHeader title="Sono" backHref="/quintal" backLabel="Quintal" />
+        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -69,13 +71,8 @@ export default async function SonoPage({
   const now = toDatetimeLocalValue(new Date());
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6">
-      <BackLink />
-
-      <div>
-        <h1 className="text-lg font-bold text-ink">Sono</h1>
-        <p className="text-sm text-ink-muted">{activeChild.name}</p>
-      </div>
+    <PageContainer>
+      <PageHeader title="Sono" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
 
       <FieldError>{error}</FieldError>
       {success && <p className="text-sm text-ink-muted">Salvo com sucesso.</p>}
@@ -87,7 +84,7 @@ export default async function SonoPage({
 
       <section id="registrar" className="scroll-mt-4 space-y-3">
         {openSession ? (
-          <div className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
+          <div className={cardClassName("space-y-3 p-4")}>
             <p className="text-sm text-ink">
               <span className="font-medium">Dormindo desde {timeLabel(openSession.startedAt)}</span>
               <span className="text-ink-muted"> — {sleepTypeLabels[openSession.sleepType]}</span>
@@ -128,7 +125,7 @@ export default async function SonoPage({
         )}
       </section>
 
-      <details className="group rounded-lg bg-primary shadow-[var(--shadow-card)]">
+      <details className={cardClassName("group")}>
         <summary className="cursor-pointer list-none p-4 text-sm font-medium text-ink marker:content-none">
           <span className="inline-flex items-center gap-1.5">
             Registro retroativo
@@ -173,7 +170,7 @@ export default async function SonoPage({
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-ink-muted">Resumo de hoje</h2>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
+          <div className={cardClassName("space-y-1 p-4")}>
             <p className="text-xs font-medium text-ink-muted">Sonecas</p>
             <p className="text-sm font-semibold text-ink">
               {summary.napCount > 0
@@ -181,7 +178,7 @@ export default async function SonoPage({
                 : "Nenhuma ainda hoje"}
             </p>
           </div>
-          <div className="space-y-1 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
+          <div className={cardClassName("space-y-1 p-4")}>
             <p className="text-xs font-medium text-ink-muted">Último período</p>
             <p className="text-sm font-semibold text-ink">
               {summary.lastPeriod ? sleepEntryLine(summary.lastPeriod) : "Nenhum registro ainda hoje"}
@@ -193,7 +190,7 @@ export default async function SonoPage({
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-ink-muted">Histórico</h2>
         {historyGroups.length === 0 ? (
-          <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+          <p className={cardClassName("p-4 text-sm text-ink-muted")}>
             Nenhum sono registrado ainda.
           </p>
         ) : (
@@ -212,10 +209,7 @@ export default async function SonoPage({
                     const fallbackLabel = entry.sleepType ? sleepTypeLabels[entry.sleepType] : null;
                     const hasExtraNote = entry.notes && entry.notes !== fallbackLabel;
                     return (
-                      <div
-                        key={entry.id}
-                        className="flex gap-3 rounded-lg bg-primary p-3 text-sm shadow-[var(--shadow-card)]"
-                      >
+                      <div key={entry.id} className={cardClassName("flex gap-3 p-3 text-sm")}>
                         <p className="text-ink">
                           {sleepEntryLine(entry)}
                           {hasExtraNote && <span className="text-ink-muted"> · {entry.notes}</span>}
@@ -232,14 +226,6 @@ export default async function SonoPage({
           Períodos que atravessam a meia-noite aparecem inteiros no dia em que começaram.
         </p>
       </section>
-    </div>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link href="/quintal" className="text-sm text-ink-muted hover:text-ink">
-      ← Quintal
-    </Link>
+    </PageContainer>
   );
 }

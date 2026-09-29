@@ -7,7 +7,7 @@ import { getFamilyProfile } from "@/lib/familyContext";
 import { getFamilyInvitations, type FamilyInvitation } from "@/lib/invitations";
 import SettingsPageHeader from "@/components/settings/SettingsPageHeader";
 import SettingsTabs from "@/components/settings/SettingsTabs";
-import EmptyState from "@/components/settings/EmptyState";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input, Label, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";

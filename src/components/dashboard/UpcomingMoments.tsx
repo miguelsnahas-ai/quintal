@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Sparkles, Blocks, MapPin, Utensils, Moon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { cardClassName, cardHoverLift } from "@/components/ui/Card";
 import type { RoutineSuggestion, RoutineSuggestionKind } from "@/lib/routineEngine";
 
 const ICONS: Record<RoutineSuggestionKind, LucideIcon> = {
@@ -34,10 +35,7 @@ export default function UpcomingMoments({ suggestions }: { suggestions: RoutineS
           const Icon = ICONS[suggestion.kind];
           return (
             <li key={suggestion.id}>
-              <Link
-                href={suggestion.href}
-                className="flex items-start gap-3 rounded-lg bg-primary p-3 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)]"
-              >
+              <Link href={suggestion.href} className={cardClassName(`flex items-start gap-3 p-3 ${cardHoverLift}`)}>
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
                   <Icon className="h-4 w-4 text-ink" aria-hidden />
                 </span>

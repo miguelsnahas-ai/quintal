@@ -15,6 +15,10 @@ import {
   type TimelineIcon,
 } from "@/lib/timeline";
 import { eventOriginLabels } from "@/lib/validation/events";
+import { cardClassName } from "@/components/ui/Card";
+import { FilterChips } from "@/components/ui/FilterChips";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export const metadata: Metadata = {
   title: "Timeline — Quintal",
@@ -77,12 +81,12 @@ export default async function TimelinePage({
 
   if (!activeChild) {
     return (
-      <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
-        <BackLink />
-        <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+      <PageContainer space={6}>
+        <PageHeader title="Timeline" backHref="/quintal" backLabel="Quintal" />
+        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -105,15 +109,10 @@ export default async function TimelinePage({
   const filterQuery = filter ? `&filtro=${filter}` : "";
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
-      <BackLink />
+    <PageContainer space={6}>
+      <PageHeader title="Timeline" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
 
-      <div>
-        <h1 className="text-lg font-bold text-ink">Timeline</h1>
-        <p className="text-sm text-ink-muted">{activeChild.name}</p>
-      </div>
-
-      <div className="flex items-center justify-between rounded-lg bg-primary p-3 shadow-[var(--shadow-card)]">
+      <div className={cardClassName("flex items-center justify-between p-3")}>
         <Link
           href={`/quintal/timeline?dia=${prevDayParam}${filterQuery}`}
           className="rounded-full p-1.5 text-ink-muted transition-colors hover:bg-neutral/40 hover:text-ink"
@@ -131,20 +130,20 @@ export default async function TimelinePage({
         </Link>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <FilterChip href={`/quintal/timeline?dia=${dia ?? toDayParam(dayStart)}`} active={!filter} label="Todos" />
-        {TIMELINE_FILTERS.map((f) => (
-          <FilterChip
-            key={f}
-            href={`/quintal/timeline?dia=${dia ?? toDayParam(dayStart)}&filtro=${f}`}
-            active={filter === f}
-            label={TIMELINE_FILTER_LABELS[f]}
-          />
-        ))}
-      </div>
+      <FilterChips
+        activeValue={filter ?? "todos"}
+        options={[
+          { value: "todos", label: "Todos", href: `/quintal/timeline?dia=${dia ?? toDayParam(dayStart)}` },
+          ...TIMELINE_FILTERS.map((f) => ({
+            value: f,
+            label: TIMELINE_FILTER_LABELS[f],
+            href: `/quintal/timeline?dia=${dia ?? toDayParam(dayStart)}&filtro=${f}`,
+          })),
+        ]}
+      />
 
       {entries.length === 0 ? (
-        <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           {filter
             ? "Nada por aqui nesse filtro, nesse dia."
             : "Nada registrado ainda nesse dia — o dia da família aparece aqui assim que algo for registrado."}
@@ -157,7 +156,7 @@ export default async function TimelinePage({
               <li key={entry.displayKey}>
                 <Link
                   href={`/quintal/timeline/${entry.id}`}
-                  className="flex items-start gap-3 rounded-lg bg-primary p-3 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)]"
+                  className={cardClassName("flex items-start gap-3 p-3 transition-all duration-200 hover:shadow-[var(--shadow-lift)]")}
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
                     <Icon className="h-4 w-4 text-ink" aria-hidden />
@@ -180,27 +179,6 @@ export default async function TimelinePage({
           })}
         </ol>
       )}
-    </div>
-  );
-}
-
-function FilterChip({ href, active, label }: { href: string; active: boolean; label: string }) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-full px-3 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-accent text-ink" : "border-[1.5px] border-neutral text-ink-muted hover:bg-neutral/40"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link href="/quintal" className="text-sm text-ink-muted hover:text-ink">
-      ← Quintal
-    </Link>
+    </PageContainer>
   );
 }

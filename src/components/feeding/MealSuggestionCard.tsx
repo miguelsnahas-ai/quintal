@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { UtensilsCrossed } from "lucide-react";
+import { inviteCardClassName } from "@/components/ui/Card";
 import type { MealSuggestion } from "@/lib/feeding";
 import type { MealSlot } from "@/lib/validation/feeding";
 
@@ -20,7 +21,7 @@ export default function MealSuggestionCard({
   )}&suggestion=${suggestion.id}#registrar`;
 
   return (
-    <div className="space-y-3 rounded-lg bg-secondary p-4 shadow-[var(--shadow-card)]">
+    <div className={inviteCardClassName("space-y-3 p-4")}>
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
           <UtensilsCrossed className="h-4 w-4 text-ink" aria-hidden />

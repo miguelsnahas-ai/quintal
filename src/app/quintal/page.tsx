@@ -7,6 +7,7 @@ import { getActiveChildContext } from "@/lib/activeChild";
 import { ageLabel, formatDurationMinutes } from "@/lib/format";
 import { getDashboardSummary } from "@/lib/dashboard";
 import { buttonClassName } from "@/components/ui/Button";
+import { cardClassName, inviteCardClassName } from "@/components/ui/Card";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 import Timeline from "@/components/dashboard/Timeline";
@@ -92,7 +93,7 @@ export default async function QuintalDashboardPage() {
       />
 
       {!activeChild ? (
-        <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
       ) : (
@@ -162,7 +163,7 @@ export default async function QuintalDashboardPage() {
               // para a idade da criança.
               <ActivityCard activity={summary.playSuggestion} />
             ) : (
-              <div className="space-y-2 rounded-lg bg-secondary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+              <div className={inviteCardClassName("space-y-2 p-4 text-sm text-ink-muted")}>
                 <p>Nenhuma sugestão ainda hoje.</p>
                 <Link href="/quintal/chat" className="font-medium text-ink underline underline-offset-2">
                   Conte pro Quintal como está o dia

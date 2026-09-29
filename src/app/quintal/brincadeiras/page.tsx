@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { getSessionCaregiver } from "@/lib/authorization";
@@ -16,6 +15,9 @@ import {
 import { activityFeedbackLabels } from "@/lib/validation/play";
 import { Input, Label, Select } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
+import { cardClassName, inviteCardClassName } from "@/components/ui/Card";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageHeader } from "@/components/layout/PageHeader";
 import ActivityCard from "@/components/conversation/ActivityCard";
 
 export const metadata: Metadata = {
@@ -66,12 +68,12 @@ export default async function BrincadeirasPage({
 
   if (!activeChild) {
     return (
-      <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
-        <BackLink />
-        <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+      <PageContainer space={6}>
+        <PageHeader title="Brincadeiras" backHref="/quintal" backLabel="Quintal" />
+        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -108,15 +110,10 @@ export default async function BrincadeirasPage({
   const historyGroups = groupByDay(history, (entry) => entry.occurredAt);
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6">
-      <BackLink />
+    <PageContainer>
+      <PageHeader title="Brincadeiras" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
 
-      <div>
-        <h1 className="text-lg font-bold text-ink">Brincadeiras</h1>
-        <p className="text-sm text-ink-muted">{activeChild.name}</p>
-      </div>
-
-      <form method="get" className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">
+      <form method="get" className={cardClassName("space-y-3 p-4")}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="ambiente">Ambiente</Label>
@@ -172,7 +169,7 @@ export default async function BrincadeirasPage({
             ))}
           </div>
         ) : (
-          <p className="rounded-lg bg-secondary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+          <p className={inviteCardClassName("p-4 text-sm text-ink-muted")}>
             Nenhuma atividade encontrada com esses filtros ainda — tente ajustar o ambiente, o
             tempo ou os materiais.
           </p>
@@ -188,7 +185,7 @@ export default async function BrincadeirasPage({
             ))}
           </div>
         ) : (
-          <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+          <p className={cardClassName("p-4 text-sm text-ink-muted")}>
             Nenhuma atividade encontrada com esses filtros.
           </p>
         )}
@@ -197,7 +194,7 @@ export default async function BrincadeirasPage({
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-ink-muted">Histórico</h2>
         {historyGroups.length === 0 ? (
-          <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
+          <p className={cardClassName("p-4 text-sm text-ink-muted")}>
             Nenhuma atividade registrada ainda.
           </p>
         ) : (
@@ -209,10 +206,7 @@ export default async function BrincadeirasPage({
                 </h3>
                 <div className="space-y-2">
                   {group.entries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex gap-3 rounded-lg bg-primary p-3 text-sm shadow-[var(--shadow-card)]"
-                    >
+                    <div key={entry.id} className={cardClassName("flex gap-3 p-3 text-sm")}>
                       <span className="shrink-0 pt-0.5 font-mono text-xs text-ink-muted">
                         {new Date(entry.occurredAt).toLocaleTimeString("pt-BR", {
                           hour: "2-digit",
@@ -233,14 +227,6 @@ export default async function BrincadeirasPage({
           </div>
         )}
       </section>
-    </div>
-  );
-}
-
-function BackLink() {
-  return (
-    <Link href="/quintal" className="text-sm text-ink-muted hover:text-ink">
-      ← Quintal
-    </Link>
+    </PageContainer>
   );
 }
