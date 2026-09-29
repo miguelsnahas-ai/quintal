@@ -3,6 +3,7 @@ import { ageLabel } from "@/lib/format";
 import type { FamilyPreferences } from "@/lib/childContext";
 import type { PreferenceCategory } from "@/lib/validation/chatAction";
 import type { AccessRole } from "@/lib/authorization";
+import { canRemoveCaregiverRole } from "@/lib/authorization";
 import type { MaterialCategory } from "@/lib/validation/library";
 import {
   type RecommendationStyle,
@@ -173,19 +174,6 @@ export async function updateChildProfile(
   }
 }
 
-// "Sobre esta criança" (Fase 20, aba Contexto) — observação livre e
-// geral, separada das observações por área que vivem em
-// child_preferences (childPreferences.ts). Era só editável por operador
-// (/ops/families/[id]) até esta fase.
-export async function updateChildContextNotes(childId: string, notes: string | null): Promise<void> {
-  const supabase = createServiceClient();
-  const { error } = await supabase.from("children").update({ notes }).eq("id", childId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-}
-
 // Essential fields only, on purpose — nome/nascimento/interesses (usado
 // hoje só pelo helper de chat addChildInterest abaixo; o formulário de
 // Configurações usa updateChildProfile + childPreferences.ts em vez
@@ -297,6 +285,38 @@ export async function createChild(
 export async function deleteChild(childId: string, familyId: string): Promise<void> {
   const supabase = createServiceClient();
   const { error } = await supabase.from("children").delete().eq("id", childId).eq("family_id", familyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// "Remover cuidador" (revisão da área de Configurações) — Cuidadores
+// tinha "Convidar" mas nunca "Remover", diferente de Crianças (que já
+// tem os dois desde a Fase 16) — a mesma assimetria que esta revisão
+// corrige. Nunca remove um owner por aqui: a única forma de uma família
+// ficar sem administrador seria essa, e trocar quem administra é uma
+// decisão maior, fora do escopo desta ação. Cascata (caregiver_child,
+// caregiver_sessions, caregiver_preferences — todas com on delete
+// cascade) tira o acesso e encerra a sessão do cuidador removido
+// imediatamente.
+export async function removeCaregiver(caregiverId: string, familyId: string): Promise<void> {
+  const supabase = createServiceClient();
+  const { data: target } = await supabase
+    .from("caregivers")
+    .select("access_role")
+    .eq("id", caregiverId)
+    .eq("family_id", familyId)
+    .maybeSingle();
+
+  if (!target) {
+    throw new Error("Cuidador não encontrado.");
+  }
+  if (!canRemoveCaregiverRole(target.access_role as AccessRole)) {
+    throw new Error("Não é possível remover quem administra a família.");
+  }
+
+  const { error } = await supabase.from("caregivers").delete().eq("id", caregiverId).eq("family_id", familyId);
 
   if (error) {
     throw new Error(error.message);

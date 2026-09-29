@@ -11,10 +11,17 @@ import type { ChildRoutinePreference, ChildActivityStyle } from "@/lib/validatio
 // aceita family_id/caregiver_id, e cada criança tem sua própria linha —
 // nunca há mistura entre irmãos.
 //
-// Não inclui interesses (children.interests, Fase 8 — editado junto
-// nesta mesma tela, mas persistido na tabela children) nem método
-// alimentar (children.feeding_method_id/custom — pedido explícito desta
-// fase para não duplicar o módulo de Alimentação, ver src/lib/feeding.ts).
+// Não inclui interesses (children.interests, Fase 8) nem "sobre esta
+// criança" (children.notes, Fase 8/20) — editados junto nesta mesma tela,
+// mas persistidos em children, não aqui (ver updateChildPreferences).
+// Revisão da área de Configurações (pós-Fase 20): child_preferences
+// chegou a ter um segundo campo de texto livre, caregiver_notes
+// ("Observações dos cuidadores"), sobrepondo children.notes ("Sobre esta
+// criança") sem diferença de propósito clara — removido do schema para
+// não haver duas caixas de observação livre por criança. Não inclui
+// método alimentar (children.feeding_method_id/custom — pedido explícito
+// da Fase 20 para não duplicar o módulo de Alimentação, ver
+// src/lib/feeding.ts).
 // ---------------------------------------------------------------------
 
 export type ChildPreferences = {
@@ -24,7 +31,6 @@ export type ChildPreferences = {
   activityStyle: ChildActivityStyle | null;
   routineNotes: string | null;
   feedingNotes: string | null;
-  caregiverNotes: string | null;
 };
 
 const DEFAULT_PREFERENCES: ChildPreferences = {
@@ -34,7 +40,6 @@ const DEFAULT_PREFERENCES: ChildPreferences = {
   activityStyle: null,
   routineNotes: null,
   feedingNotes: null,
-  caregiverNotes: null,
 };
 
 // Ausência de linha (criança ainda sem preferências salvas) vira
@@ -45,9 +50,7 @@ export async function getChildPreferences(childId: string): Promise<ChildPrefere
   const supabase = createServiceClient();
   const { data } = await supabase
     .from("child_preferences")
-    .select(
-      "favorite_activities, preferred_materials, routine_preference, activity_style, routine_notes, feeding_notes, caregiver_notes",
-    )
+    .select("favorite_activities, preferred_materials, routine_preference, activity_style, routine_notes, feeding_notes")
     .eq("child_id", childId)
     .maybeSingle();
 
@@ -60,30 +63,29 @@ export async function getChildPreferences(childId: string): Promise<ChildPrefere
     activityStyle: data.activity_style as ChildActivityStyle | null,
     routineNotes: data.routine_notes,
     feedingNotes: data.feeding_notes,
-    caregiverNotes: data.caregiver_notes,
   };
 }
 
 // Um único formulário/ação salva tudo aqui (diferente de "Minha conta",
 // Fase 18, que separa perfil/preferências/notificações em ações
-// distintas): interesses, brincadeiras favoritas, materiais, rotina,
-// alimentação e observações são todos a mesma aba "Preferências" desta
-// criança, então um save por seção não traria benefício de UX aqui.
-// interests mora em children (Fase 8), o resto em child_preferences — as
-// duas escritas ficam nesta única função para o chamador não precisar
-// saber que são tabelas diferentes.
+// distintas): interesses, "sobre esta criança", brincadeiras favoritas,
+// materiais, rotina e alimentação são todos a mesma aba "Preferências"
+// desta criança, então um save por seção não traria benefício de UX
+// aqui. interests/notes moram em children (Fase 8), o resto em
+// child_preferences — as duas escritas ficam nesta única função para o
+// chamador não precisar saber que são tabelas diferentes.
 export async function updateChildPreferences(
   childId: string,
-  input: ChildPreferences & { interests: string[] },
+  input: ChildPreferences & { interests: string[]; notes: string | null },
 ): Promise<void> {
   const supabase = createServiceClient();
 
-  const { error: interestsError } = await supabase
+  const { error: childError } = await supabase
     .from("children")
-    .update({ interests: input.interests })
+    .update({ interests: input.interests, notes: input.notes })
     .eq("id", childId);
-  if (interestsError) {
-    throw new Error(interestsError.message);
+  if (childError) {
+    throw new Error(childError.message);
   }
 
   const { error } = await supabase.from("child_preferences").upsert({
@@ -94,7 +96,6 @@ export async function updateChildPreferences(
     activity_style: input.activityStyle,
     routine_notes: input.routineNotes,
     feeding_notes: input.feedingNotes,
-    caregiver_notes: input.caregiverNotes,
     updated_at: new Date().toISOString(),
   });
 

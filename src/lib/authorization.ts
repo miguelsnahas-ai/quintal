@@ -131,3 +131,12 @@ export async function canInviteCaregiver(caregiverId: string, familyId: string):
 export async function canEditChild(caregiverId: string, childId: string): Promise<boolean> {
   return canAccessChild(caregiverId, childId);
 }
+
+// "Remover cuidador" (revisão da área de Configurações, ver
+// familyContext.ts's removeCaregiver) nunca remove um owner — a regra
+// central que garante que uma família nunca fica sem administrador.
+// Extraída como função pura (sem banco) porque é uma decisão de negócio
+// testável isoladamente, não uma consulta — ver authorization.test.ts.
+export function canRemoveCaregiverRole(targetAccessRole: AccessRole): boolean {
+  return targetAccessRole !== "owner";
+}

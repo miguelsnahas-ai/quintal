@@ -207,6 +207,12 @@ export const childActivityStyleLabels: Record<ChildActivityStyle, string> = {
   balanced: "Equilíbrio",
 };
 
+// notes ("Sobre esta criança") mora em children.notes, não em
+// child_preferences — mesmo padrão de interests logo acima. Revisão da
+// área de Configurações: antes vivia numa aba "Contexto" à parte, com
+// sua própria ação de salvar; consolidado nesta mesma aba/ação (única
+// forma de "observação livre" desta criança, sem uma segunda caixa de
+// texto redundante — ver o comentário em childPreferences.ts).
 export const childPreferencesInputSchema = z.object({
   child_id: z.uuid("Criança inválida."),
   interests: z.string().optional().transform(csvToArray),
@@ -216,21 +222,10 @@ export const childPreferencesInputSchema = z.object({
   activity_style: optionalEnum(childActivityStyles),
   routine_notes: z.string().optional().transform(emptyToNull),
   feeding_notes: z.string().optional().transform(emptyToNull),
-  caregiver_notes: z.string().optional().transform(emptyToNull),
-});
-
-export type ChildPreferencesInput = z.infer<typeof childPreferencesInputSchema>;
-
-// "Configurações > Crianças > [criança] > Contexto > Sobre esta criança"
-// (Fase 20) — observação livre e geral (children.notes), separada das
-// observações por área que já vivem em child_preferences acima. Era só
-// editável por operador (/ops) até esta fase.
-export const updateChildContextNotesInputSchema = z.object({
-  child_id: z.uuid("Criança inválida."),
   notes: z.string().optional().transform(emptyToNull),
 });
 
-export type UpdateChildContextNotesInput = z.infer<typeof updateChildContextNotesInputSchema>;
+export type ChildPreferencesInput = z.infer<typeof childPreferencesInputSchema>;
 
 function emptyToNull(value: string | undefined): string | null {
   const trimmed = value?.trim();

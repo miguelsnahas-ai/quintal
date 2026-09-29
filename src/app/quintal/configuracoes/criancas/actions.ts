@@ -3,14 +3,13 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSessionCaregiver, canEditChild, canManageFamily } from "@/lib/authorization";
-import { createChild, deleteChild, updateChildProfile, updateChildContextNotes } from "@/lib/familyContext";
+import { createChild, deleteChild, updateChildProfile } from "@/lib/familyContext";
 import { updateChildPreferences } from "@/lib/childPreferences";
 import { updateChildFeedingMethod } from "@/lib/feeding";
 import {
   addChildInputSchema,
   updateChildProfileInputSchema,
   childPreferencesInputSchema,
-  updateChildContextNotesInputSchema,
 } from "@/lib/validation/profile";
 import { feedingMethodInputSchema } from "@/lib/validation/feeding";
 
@@ -126,10 +125,11 @@ export async function saveChildProfileAction(formData: FormData) {
   redirect(`${backTo}&success=1`);
 }
 
-// "Preferências" (Fase 20) — interesses + brincadeiras favoritas +
-// materiais + rotina + alimentação (contexto, não o método em si — ver
-// saveChildFeedingMethodAction) + observações dos cuidadores, tudo desta
-// criança específica, nunca misturado com a de um irmão.
+// "Preferências" (Fase 20, consolidada na revisão da área de
+// Configurações) — interesses + "sobre esta criança" + brincadeiras
+// favoritas + materiais + rotina + alimentação (contexto, não o método
+// em si — ver saveChildFeedingMethodAction), tudo desta criança
+// específica, nunca misturado com a de um irmão.
 export async function saveChildPreferencesAction(formData: FormData) {
   const session = await getSessionCaregiver();
   if (!session) {
@@ -145,7 +145,7 @@ export async function saveChildPreferencesAction(formData: FormData) {
     activity_style: formData.get("activity_style"),
     routine_notes: formData.get("routine_notes"),
     feeding_notes: formData.get("feeding_notes"),
-    caregiver_notes: formData.get("caregiver_notes"),
+    notes: formData.get("notes"),
   });
 
   const childId = String(formData.get("child_id") ?? "");
@@ -163,13 +163,13 @@ export async function saveChildPreferencesAction(formData: FormData) {
   try {
     await updateChildPreferences(parsed.data.child_id, {
       interests: parsed.data.interests,
+      notes: parsed.data.notes,
       favoriteActivities: parsed.data.favorite_activities,
       preferredMaterials: parsed.data.preferred_materials,
       routinePreference: parsed.data.routine_preference,
       activityStyle: parsed.data.activity_style,
       routineNotes: parsed.data.routine_notes,
       feedingNotes: parsed.data.feeding_notes,
-      caregiverNotes: parsed.data.caregiver_notes,
     });
   } catch {
     redirect(`${backTo}&error=${encodeURIComponent("Não foi possível salvar. Tente de novo.")}`);
@@ -178,42 +178,6 @@ export async function saveChildPreferencesAction(formData: FormData) {
   revalidatePath(`/quintal/configuracoes/criancas/${childId}`);
   revalidatePath("/quintal/configuracoes/criancas");
   revalidatePath("/quintal");
-  redirect(`${backTo}&success=1`);
-}
-
-// "Contexto > Sobre esta criança" (Fase 20) — observação livre e geral
-// (children.notes), separada das observações por área da aba
-// Preferências.
-export async function saveChildContextNotesAction(formData: FormData) {
-  const session = await getSessionCaregiver();
-  if (!session) {
-    redirect("/comecar");
-  }
-
-  const parsed = updateChildContextNotesInputSchema.safeParse({
-    child_id: formData.get("child_id"),
-    notes: formData.get("notes"),
-  });
-
-  const childId = String(formData.get("child_id") ?? "");
-  const backTo = `/quintal/configuracoes/criancas/${childId}?aba=contexto`;
-
-  if (!parsed.success) {
-    redirect(`${backTo}&error=${encodeURIComponent(parsed.error.issues[0].message)}`);
-  }
-
-  const allowed = await canEditChild(session.caregiverId, parsed.data.child_id);
-  if (!allowed) {
-    redirect(`/quintal/configuracoes/criancas?error=${encodeURIComponent("Criança inválida.")}`);
-  }
-
-  try {
-    await updateChildContextNotes(parsed.data.child_id, parsed.data.notes);
-  } catch {
-    redirect(`${backTo}&error=${encodeURIComponent("Não foi possível salvar. Tente de novo.")}`);
-  }
-
-  revalidatePath(`/quintal/configuracoes/criancas/${childId}`);
   redirect(`${backTo}&success=1`);
 }
 

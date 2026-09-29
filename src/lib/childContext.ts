@@ -181,9 +181,7 @@ export async function getChildContext(
       .maybeSingle(),
     supabase
       .from("child_preferences")
-      .select(
-        "favorite_activities, preferred_materials, routine_preference, activity_style, routine_notes, feeding_notes, caregiver_notes",
-      )
+      .select("favorite_activities, preferred_materials, routine_preference, activity_style, routine_notes, feeding_notes")
       .eq("child_id", childId)
       .maybeSingle(),
     // Sem feeding_method_id, esta query simplesmente não bate com
@@ -248,7 +246,6 @@ export async function getChildContext(
           activityStyle: childPreferencesRaw.activity_style as ChildActivityStyle | null,
           routineNotes: childPreferencesRaw.routine_notes,
           feedingNotes: childPreferencesRaw.feeding_notes,
-          caregiverNotes: childPreferencesRaw.caregiver_notes,
         }
       : null,
   };
@@ -353,7 +350,6 @@ function formatChildPreferences(preferences: ChildPreferences | null): string {
       : null,
     preferences.routineNotes ? `- Rotina (observações): ${preferences.routineNotes}` : null,
     preferences.feedingNotes ? `- Alimentação (observações): ${preferences.feedingNotes}` : null,
-    preferences.caregiverNotes ? `- Observações dos cuidadores: ${preferences.caregiverNotes}` : null,
   ].filter((line): line is string => line !== null);
 
   if (lines.length === 0) return "";

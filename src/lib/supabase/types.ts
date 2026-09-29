@@ -338,7 +338,6 @@ export type Database = {
       child_preferences: {
         Row: {
           activity_style: string | null
-          caregiver_notes: string | null
           child_id: string
           favorite_activities: string[]
           feeding_notes: string | null
@@ -349,7 +348,6 @@ export type Database = {
         }
         Insert: {
           activity_style?: string | null
-          caregiver_notes?: string | null
           child_id: string
           favorite_activities?: string[]
           feeding_notes?: string | null
@@ -360,7 +358,6 @@ export type Database = {
         }
         Update: {
           activity_style?: string | null
-          caregiver_notes?: string | null
           child_id?: string
           favorite_activities?: string[]
           feeding_notes?: string | null

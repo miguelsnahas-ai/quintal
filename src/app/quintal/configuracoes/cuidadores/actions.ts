@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getSessionCaregiver, canManageFamily, canInviteCaregiver } from "@/lib/authorization";
 import { createInvitation, revokeInvitation, resendInvitation } from "@/lib/invitations";
+import { removeCaregiver } from "@/lib/familyContext";
 import { createInvitationInputSchema } from "@/lib/validation/invitation";
 
 // Movidas de /quintal/familia/actions.ts (Fase 17) — mesmas funções,
@@ -103,4 +104,35 @@ export async function resendInvitationAction(formData: FormData) {
 
   revalidatePath("/quintal/configuracoes/cuidadores");
   redirect("/quintal/configuracoes/cuidadores?aba=convites&resent=1");
+}
+
+// "Remover cuidador" (revisão da área de Configurações) — restrita ao
+// owner, mesma regra de removeChildAction. removeCaregiver (familyContext.ts)
+// já recusa remover um owner, mas a mensagem de erro chega igual até
+// aqui se alguém tentar via um formulário adulterado.
+export async function removeCaregiverAction(formData: FormData) {
+  const session = await getSessionCaregiver();
+  if (!session) {
+    redirect("/comecar");
+  }
+
+  const allowed = await canManageFamily(session.caregiverId, session.familyId);
+  if (!allowed) {
+    redirect(
+      `/quintal/configuracoes/cuidadores?aba=ativos&error=${encodeURIComponent("Só quem administra a família pode remover cuidadores.")}`,
+    );
+  }
+
+  const caregiverId = String(formData.get("caregiver_id") ?? "");
+
+  try {
+    await removeCaregiver(caregiverId, session.familyId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Não foi possível remover. Tente de novo.";
+    redirect(`/quintal/configuracoes/cuidadores?aba=ativos&error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/quintal/configuracoes/cuidadores");
+  revalidatePath("/quintal/configuracoes");
+  redirect("/quintal/configuracoes/cuidadores?aba=ativos&removed=1");
 }

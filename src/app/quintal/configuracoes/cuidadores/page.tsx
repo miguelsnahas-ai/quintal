@@ -12,7 +12,7 @@ import { Input, Label, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { createInvitationAction, revokeInvitationAction, resendInvitationAction } from "./actions";
+import { createInvitationAction, revokeInvitationAction, resendInvitationAction, removeCaregiverAction } from "./actions";
 
 export const metadata: Metadata = {
   title: "Cuidadores — Configurações — Quintal",
@@ -42,9 +42,9 @@ const INVITATION_STATUS_LABELS: Record<FamilyInvitation["status"], string> = {
 export default async function CuidadoresPage({
   searchParams,
 }: {
-  searchParams: Promise<{ aba?: string; error?: string; invited?: string; resent?: string }>;
+  searchParams: Promise<{ aba?: string; error?: string; invited?: string; resent?: string; removed?: string }>;
 }) {
-  const { aba, error, invited, resent } = await searchParams;
+  const { aba, error, invited, resent, removed } = await searchParams;
   const activeTab = TABS.some((tab) => tab.value === aba) ? aba! : TABS[0].value;
 
   const session = await getSessionCaregiver();
@@ -75,19 +75,39 @@ export default async function CuidadoresPage({
       <FieldError>{error}</FieldError>
       {invited && <p className="text-sm text-ink-muted">Convite criado — copie o link na aba de convites.</p>}
       {resent && <p className="text-sm text-ink-muted">Novo link gerado.</p>}
+      {removed && <p className="text-sm text-ink-muted">Cuidador removido.</p>}
 
       {activeTab === "ativos" && (
         <Card className="divide-y divide-neutral">
           {profile.caregivers.map((caregiver) => (
-            <div key={caregiver.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-              <div>
-                <span className="font-medium text-ink">{caregiver.name}</span>
-                {caregiver.id === session.caregiverId && <span className="text-ink-muted"> (você)</span>}
-                <div className="text-xs text-ink-muted">
-                  {caregiver.accessRole === "owner" ? "Administrador(a)" : "Cuidador(a)"}
-                  {caregiver.role ? ` · ${caregiver.role}` : ""}
+            <div key={caregiver.id} className="space-y-1.5 px-4 py-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <span className="font-medium text-ink">{caregiver.name}</span>
+                  {caregiver.id === session.caregiverId && <span className="text-ink-muted"> (você)</span>}
+                  <div className="text-xs text-ink-muted">
+                    {caregiver.accessRole === "owner" ? "Administrador(a)" : "Cuidador(a)"}
+                    {caregiver.role ? ` · ${caregiver.role}` : ""}
+                  </div>
                 </div>
               </div>
+              {isOwner && caregiver.accessRole !== "owner" && (
+                <details className="group">
+                  <summary className="cursor-pointer list-none text-xs font-medium text-red-600 marker:content-none">
+                    Remover
+                  </summary>
+                  <form action={removeCaregiverAction} className="mt-1.5 space-y-1.5">
+                    <input type="hidden" name="caregiver_id" value={caregiver.id} />
+                    <p className="text-[11px] text-ink-muted">
+                      Remove {caregiver.name} da família. A sessão dela é encerrada e o acesso às crianças é
+                      revogado imediatamente. Não pode ser desfeito.
+                    </p>
+                    <Button type="submit" variant="danger" className="px-2 py-1 text-xs">
+                      Confirmar remoção
+                    </Button>
+                  </form>
+                </details>
+              )}
             </div>
           ))}
         </Card>
