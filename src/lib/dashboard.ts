@@ -16,8 +16,7 @@ import type { Json } from "@/lib/supabase/types";
 const DASHBOARD_MATERIALS_LIMIT = 2;
 
 // How many of today's recommendations to surface in the "Para hoje" card
-// — a dashboard summary, not the full history (that lives in
-// /ops/children/[id] for the Concierge).
+// — a dashboard summary, not the full history.
 const RECOMMENDATIONS_TODAY_LIMIT = 3;
 
 // Generous but bounded — a real day's worth of sleep/routine/free_play/

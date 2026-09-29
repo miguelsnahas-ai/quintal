@@ -161,6 +161,7 @@ export async function getFeedingMethodOptions(): Promise<FeedingMethodOption[]> 
     .from("knowledge_chunks")
     .select("id, title, content")
     .eq("category", FEEDING_METHOD_CATEGORY)
+    .eq("status", "published")
     .order("id", { ascending: true });
 
   return (data ?? []).map((row) => {
@@ -320,6 +321,7 @@ export async function getMealSuggestions(input: {
     .from("knowledge_chunks")
     .select("id, title, age_min_months, content")
     .eq("category", RECIPE_CATEGORY)
+    .eq("status", "published")
     .order("id", { ascending: true });
 
   const ageAppropriate = (data ?? [])

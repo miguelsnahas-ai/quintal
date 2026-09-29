@@ -641,8 +641,10 @@ export type Database = {
           id: string
           image_url: string | null
           search: unknown
+          status: string
           tags: string[] | null
           title: string
+          updated_at: string
         }
         Insert: {
           age_max_months?: number | null
@@ -653,8 +655,10 @@ export type Database = {
           id: string
           image_url?: string | null
           search?: unknown
+          status?: string
           tags?: string[] | null
           title: string
+          updated_at?: string
         }
         Update: {
           age_max_months?: number | null
@@ -665,8 +669,10 @@ export type Database = {
           id?: string
           image_url?: string | null
           search?: unknown
+          status?: string
           tags?: string[] | null
           title?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -769,6 +775,7 @@ export type Database = {
           challenges_other: string | null
           child_age: string[]
           child_count: string | null
+          converted_family_id: string | null
           course_taken: string | null
           course_which: string | null
           created_at: string
@@ -779,9 +786,12 @@ export type Database = {
           how_found_other: string | null
           id: string
           name: string
+          notes: string | null
           professionals: string[] | null
+          status: string
           support_network: string[] | null
           support_network_other: string | null
+          updated_at: string | null
           utm_campaign: string | null
           utm_medium: string | null
           utm_source: string | null
@@ -796,6 +806,7 @@ export type Database = {
           challenges_other?: string | null
           child_age?: string[]
           child_count?: string | null
+          converted_family_id?: string | null
           course_taken?: string | null
           course_which?: string | null
           created_at?: string
@@ -806,9 +817,12 @@ export type Database = {
           how_found_other?: string | null
           id?: string
           name: string
+          notes?: string | null
           professionals?: string[] | null
+          status?: string
           support_network?: string[] | null
           support_network_other?: string | null
+          updated_at?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
@@ -823,6 +837,7 @@ export type Database = {
           challenges_other?: string | null
           child_age?: string[]
           child_count?: string | null
+          converted_family_id?: string | null
           course_taken?: string | null
           course_which?: string | null
           created_at?: string
@@ -833,15 +848,26 @@ export type Database = {
           how_found_other?: string | null
           id?: string
           name?: string
+          notes?: string | null
           professionals?: string[] | null
+          status?: string
           support_network?: string[] | null
           support_network_other?: string | null
+          updated_at?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           whatsapp?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_leads_converted_family_id_fkey"
+            columns: ["converted_family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

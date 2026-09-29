@@ -1,209 +1,120 @@
 import Link from "next/link";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { Radio, Send, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { ageLabel } from "@/lib/format";
-import { Button } from "@/components/ui/Button";
-import { Card, cardClassName } from "@/components/ui/Card";
+import { CheckCircle2 } from "lucide-react";
+import { getFamilyDetail } from "@/lib/ops/families";
+import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { Input, Label, Textarea, FieldError } from "@/components/ui/Field";
-import {
-  addCaregiver,
-  addChild,
-  deleteCaregiver,
-  deleteChild,
-  updateFamily,
-} from "./actions";
 
+// Detalhe operacional da família (refatoração do /ops): "quem é essa
+// família e o que está acontecendo com ela?" — dados agregados, nunca uma
+// segunda versão de Dashboard/Alimentação/Sono/Brincadeiras/Chat (pedido
+// explícito desta fase). Somente leitura: editar família/cuidadores/
+// crianças é responsabilidade do próprio produto (/quintal/configuracoes),
+// que já faz isso corretamente (caregiver_child, convites, permissões) —
+// os formulários antigos daqui não sabiam desse modelo e ficariam quebrados.
 export default async function FamilyDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ converted?: string }>;
 }) {
   const { id: familyId } = await params;
-  const { error } = await searchParams;
-  const supabase = await createClient();
-  const headersList = await headers();
-  const origin = `${headersList.get("x-forwarded-proto") ?? "https"}://${headersList.get("host")}`;
-
-  const [{ data: family }, { data: caregivers }, { data: children }] =
-    await Promise.all([
-      supabase
-        .from("families")
-        .select("id, name, notes")
-        .eq("id", familyId)
-        .maybeSingle(),
-      supabase
-        .from("caregivers")
-        .select("id, name, role, phone_number, is_primary_contact")
-        .eq("family_id", familyId)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("children")
-        .select("id, name, birth_date, sex, notes")
-        .eq("family_id", familyId)
-        .order("created_at", { ascending: true }),
-    ]);
+  const { converted } = await searchParams;
+  const family = await getFamilyDetail(familyId);
 
   if (!family) {
     notFound();
   }
 
   return (
-    <div className="space-y-10">
-      <FieldError>{error}</FieldError>
-
-      <section className="space-y-3">
+    <div className="space-y-8">
+      <div>
+        <Link href="/ops/families" className="text-sm text-ink-muted hover:text-ink">
+          ← Famílias
+        </Link>
         <h1 className="text-lg font-bold text-ink">{family.name}</h1>
-        <form action={updateFamily} className={cardClassName("space-y-3 p-4")}>
-          <input type="hidden" name="family_id" value={family.id} />
-          <div className="space-y-1">
-            <Label htmlFor="name">Nome da família</Label>
-            <Input id="name" name="name" defaultValue={family.name} required />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea id="notes" name="notes" defaultValue={family.notes ?? ""} rows={3} />
-          </div>
-          <Button type="submit">Salvar</Button>
-        </form>
+      </div>
+
+      {converted && (
+        <p className="flex items-center gap-2 rounded-sm bg-success/20 px-3 py-2 text-sm text-ink" role="status">
+          <CheckCircle2 className="h-4 w-4" aria-hidden />
+          Convertido da lista de interesse.
+        </p>
+      )}
+
+      <section className={"grid grid-cols-2 gap-4 sm:grid-cols-4"}>
+        <Card className="space-y-1 p-4">
+          <p className="text-xs text-ink-muted">Status</p>
+          <Badge variant={family.status === "active" ? "success" : "neutral"}>
+            {family.status === "active" ? "Ativa" : "Inativa"}
+          </Badge>
+        </Card>
+        <Card className="space-y-1 p-4">
+          <p className="text-xs text-ink-muted">Criada em</p>
+          <p className="text-sm font-medium text-ink">{new Date(family.createdAt).toLocaleDateString("pt-BR")}</p>
+        </Card>
+        <Card className="space-y-1 p-4">
+          <p className="text-xs text-ink-muted">Última atividade</p>
+          <p className="text-sm font-medium text-ink">{family.lastActivityLabel}</p>
+        </Card>
+        <Card className="space-y-1 p-4">
+          <p className="text-xs text-ink-muted">Eventos registrados</p>
+          <p className="text-sm font-medium text-ink">{family.eventCount}</p>
+        </Card>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink">Cuidadores</h2>
+      {family.notes && (
+        <p className="text-sm text-ink-muted">
+          <span className="font-medium text-ink">Notas internas:</span> {family.notes}
+        </p>
+      )}
 
-        {caregivers && caregivers.length > 0 && (
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-ink">Crianças ({family.children.length})</h2>
+        {family.children.length === 0 ? (
+          <p className="text-sm text-ink-muted">Nenhuma criança cadastrada.</p>
+        ) : (
           <Card className="divide-y divide-neutral">
-            {caregivers.map((caregiver) => (
-              <div key={caregiver.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                <div>
-                  <span className="font-medium text-ink">{caregiver.name}</span>
-                  {caregiver.role && <span className="text-ink-muted"> · {caregiver.role}</span>}
-                  {caregiver.is_primary_contact && (
-                    <Badge className="ml-2">contato principal</Badge>
-                  )}
-                  <div className="text-ink-muted">{caregiver.phone_number}</div>
-                  <div className="mt-1 flex flex-wrap items-center gap-3">
-                    <Link
-                      href={`/test/${caregiver.id}`}
-                      target="_blank"
-                      className="flex items-center gap-1 text-xs text-ink-muted underline hover:text-ink"
-                    >
-                      <Send className="h-3 w-3" aria-hidden />
-                      Link de teste
-                    </Link>
-                    <Link
-                      href={`/ops/playground/monitor/${caregiver.id}`}
-                      className="flex items-center gap-1 text-xs text-ink-muted underline hover:text-ink"
-                    >
-                      <Radio className="h-3 w-3" aria-hidden />
-                      Monitorar
-                    </Link>
-                  </div>
-                  <div className="mt-1 max-w-xs truncate text-[11px] text-ink-muted">
-                    {origin}/test/{caregiver.id}
-                  </div>
-                </div>
-                <form action={deleteCaregiver}>
-                  <input type="hidden" name="family_id" value={family.id} />
-                  <input type="hidden" name="caregiver_id" value={caregiver.id} />
-                  <Button type="submit" variant="danger" className="px-2 py-1">
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                    Remover
-                  </Button>
-                </form>
+            {family.children.map((child) => (
+              <div key={child.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <span className="font-medium text-ink">{child.name}</span>
+                <span className="text-ink-muted">
+                  {child.ageLabel ?? "Idade não informada"}
+                  {child.birthDate && ` · ${new Date(child.birthDate).toLocaleDateString("pt-BR")}`}
+                </span>
               </div>
             ))}
           </Card>
         )}
-
-        <form
-          action={addCaregiver}
-          className={cardClassName("grid grid-cols-1 gap-3 p-4 sm:grid-cols-2")}
-        >
-          <input type="hidden" name="family_id" value={family.id} />
-          <div className="space-y-1">
-            <Label>Nome</Label>
-            <Input name="name" required />
-          </div>
-          <div className="space-y-1">
-            <Label>Papel (mãe, pai, avó...)</Label>
-            <Input name="role" />
-          </div>
-          <div className="space-y-1">
-            <Label>WhatsApp (formato +5511999999999)</Label>
-            <Input name="phone_number" placeholder="+5511999999999" required />
-          </div>
-          <label className="flex items-center gap-2 self-end pb-2 text-sm text-ink">
-            <input type="checkbox" name="is_primary_contact" defaultChecked />
-            Contato principal
-          </label>
-          <div className="sm:col-span-2">
-            <Button type="submit">Adicionar cuidador</Button>
-          </div>
-        </form>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink">Crianças</h2>
-
-        {children && children.length > 0 && (
+        <h2 className="text-sm font-medium text-ink">Cuidadores ({family.caregivers.length})</h2>
+        {family.caregivers.length === 0 ? (
+          <p className="text-sm text-ink-muted">Nenhum cuidador cadastrado.</p>
+        ) : (
           <Card className="divide-y divide-neutral">
-            {children.map((child) => (
-              <div key={child.id} className="flex items-center justify-between px-4 py-3 text-sm">
-                <div>
-                  <Link
-                    href={`/ops/children/${child.id}`}
-                    className="font-medium text-ink hover:underline"
-                  >
-                    {child.name}
-                  </Link>
-                  {ageLabel(child.birth_date) && (
-                    <span className="text-ink-muted"> · {ageLabel(child.birth_date)}</span>
-                  )}
-                  {child.notes && <div className="text-ink-muted">{child.notes}</div>}
+            {family.caregivers.map((caregiver) => (
+              <div key={caregiver.id} className="space-y-1 px-4 py-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-ink">
+                    {caregiver.name}
+                    {caregiver.role && <span className="text-ink-muted"> · {caregiver.role}</span>}
+                  </span>
+                  <Badge variant={caregiver.accessRole === "owner" ? "accent" : "neutral"}>
+                    {caregiver.accessRole === "owner" ? "Administrador(a)" : "Cuidador(a)"}
+                  </Badge>
                 </div>
-                <form action={deleteChild}>
-                  <input type="hidden" name="family_id" value={family.id} />
-                  <input type="hidden" name="child_id" value={child.id} />
-                  <Button type="submit" variant="danger" className="px-2 py-1">
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                    Remover
-                  </Button>
-                </form>
+                <div className="flex flex-wrap items-center gap-x-3 text-xs text-ink-muted">
+                  <span>{caregiver.phoneNumber}</span>
+                  {caregiver.isPrimaryContact && <span>Contato principal</span>}
+                  <span>Última interação: {caregiver.lastActivityLabel}</span>
+                </div>
               </div>
             ))}
           </Card>
         )}
-
-        <form
-          action={addChild}
-          className={cardClassName("grid grid-cols-1 gap-3 p-4 sm:grid-cols-2")}
-        >
-          <input type="hidden" name="family_id" value={family.id} />
-          <div className="space-y-1">
-            <Label>Nome</Label>
-            <Input name="name" required />
-          </div>
-          <div className="space-y-1">
-            <Label>Data de nascimento</Label>
-            <Input type="date" name="birth_date" />
-          </div>
-          <div className="space-y-1">
-            <Label>Sexo</Label>
-            <Input name="sex" />
-          </div>
-          <div className="space-y-1">
-            <Label>Notas</Label>
-            <Input name="notes" />
-          </div>
-          <div className="sm:col-span-2">
-            <Button type="submit">Adicionar criança</Button>
-          </div>
-        </form>
       </section>
     </div>
   );

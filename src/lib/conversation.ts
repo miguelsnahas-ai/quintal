@@ -46,11 +46,12 @@ export type ConversationTurn = {
 // same window.
 export const RECENT_MESSAGES_LIMIT = 8;
 
-// Shared by the authenticated playground (/ops/playground), the public
-// test-user chat (/test/[caregiverId]) and the real product experience
-// (/quintal) — same recording logic, just called with a different
-// Supabase client (session-scoped vs. service-role) and a different
-// `source` tag on raw_payload for auditing.
+// Shared by the public test-user chat (/test/[caregiverId]) and the real
+// product experience (/quintal) — same recording logic, just called with
+// a different Supabase client (session-scoped vs. service-role) and a
+// different `source` tag on raw_payload for auditing. (Refatoração do
+// /ops: o "chat de teste" autenticado que também chamava isto,
+// /ops/playground, foi removido — redundante com estes dois.)
 export async function recordConversationTurn(
   supabase: SupabaseClient<Database>,
   input: {

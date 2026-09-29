@@ -273,6 +273,7 @@ async function getActivityCandidates(): Promise<Activity[]> {
     .from("knowledge_chunks")
     .select("id, category, title, age_min_months, age_max_months, tags, content, image_url")
     .in("category", ["brincadeiras", "materiais"])
+    .eq("status", "published")
     .order("id", { ascending: true });
 
   return (data ?? [])

@@ -173,6 +173,7 @@ async function getAllMaterials(sourceCategories: string[]): Promise<LibraryMater
     .from("knowledge_chunks")
     .select("id, category, title, age_min_months, age_max_months, tags, content, image_url")
     .in("category", sourceCategories)
+    .eq("status", "published")
     .order("id", { ascending: true });
 
   return (data ?? [])
