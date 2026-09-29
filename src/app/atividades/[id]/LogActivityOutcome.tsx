@@ -45,7 +45,7 @@ export default function LogActivityOutcome({ activityId }: { activityId: string 
             type="button"
             disabled={isPending}
             onClick={() => send(option)}
-            className="rounded-full border-[1.5px] border-neutral px-3 py-1.5 text-sm text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
+            className="rounded-full border-[1.5px] border-neutral px-3 py-2 text-sm text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
           >
             {activityFeedbackLabels[option]}
           </button>

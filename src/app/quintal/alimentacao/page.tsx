@@ -161,7 +161,7 @@ export default async function AlimentacaoPage({
                     defaultChecked={index === 0}
                     required
                   />
-                  <span className="block rounded-full border-[1.5px] border-neutral px-3 py-1.5 text-sm text-ink transition-colors peer-checked:border-transparent peer-checked:bg-accent">
+                  <span className="block rounded-full border-[1.5px] border-neutral px-3 py-2 text-sm text-ink transition-colors peer-checked:border-transparent peer-checked:bg-accent">
                     {mealAcceptanceLabels[acceptance]}
                   </span>
                 </label>

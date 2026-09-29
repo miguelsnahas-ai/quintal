@@ -103,7 +103,7 @@ export default async function FamilyDetailPage({
                       Monitorar
                     </Link>
                   </div>
-                  <div className="mt-1 max-w-xs truncate text-[11px] text-ink-muted/80">
+                  <div className="mt-1 max-w-xs truncate text-[11px] text-ink-muted">
                     {origin}/test/{caregiver.id}
                   </div>
                 </div>

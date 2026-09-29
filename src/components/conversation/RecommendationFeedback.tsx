@@ -52,7 +52,7 @@ export default function RecommendationFeedback({
           type="button"
           disabled={isPending}
           onClick={() => send("worked")}
-          className="rounded-full border-[1.5px] border-neutral px-3 py-1 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
+          className="rounded-full border-[1.5px] border-neutral px-3 py-2 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
         >
           Funcionou
         </button>
@@ -60,7 +60,7 @@ export default function RecommendationFeedback({
           type="button"
           disabled={isPending}
           onClick={() => send("did_not_work")}
-          className="rounded-full border-[1.5px] border-neutral px-3 py-1 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
+          className="rounded-full border-[1.5px] border-neutral px-3 py-2 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
         >
           Não funcionou
         </button>
@@ -68,7 +68,7 @@ export default function RecommendationFeedback({
           type="button"
           disabled={isPending}
           onClick={() => send("wants_another")}
-          className="rounded-full border-[1.5px] border-neutral px-3 py-1 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
+          className="rounded-full border-[1.5px] border-neutral px-3 py-2 text-xs text-ink transition-colors hover:bg-neutral/40 disabled:opacity-50"
         >
           Quero outra ideia
         </button>

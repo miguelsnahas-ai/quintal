@@ -190,7 +190,7 @@ export default async function TimelinePage({
                         {line}
                       </p>
                     ))}
-                    <p className="pt-0.5 text-[11px] text-ink-muted/70">{eventOriginLabels[entry.origin]}</p>
+                    <p className="pt-0.5 text-[11px] text-ink-muted">{eventOriginLabels[entry.origin]}</p>
                   </div>
                 </Link>
               </li>
@@ -206,7 +206,7 @@ function FilterChip({ href, active, label }: { href: string; active: boolean; la
   return (
     <Link
       href={href}
-      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+      className={`rounded-full px-3 py-2 text-sm font-medium transition-colors ${
         active ? "bg-accent text-ink" : "border-[1.5px] border-neutral text-ink-muted hover:bg-neutral/40"
       }`}
     >
