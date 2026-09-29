@@ -6,6 +6,7 @@ import { getOpenSleepSession, type OpenSleepSession } from "@/lib/sleep";
 import { getActivitySuggestions, getRecentNegativeLibraryFeedbackActivityIds } from "@/lib/play";
 import { getRecommendedMaterials, getRecentCategoryBoosts, type RecommendedMaterial } from "@/lib/library";
 import { getChildFeedingMethod } from "@/lib/feeding";
+import { getRoutineSuggestions, type RoutineSuggestion } from "@/lib/routineEngine";
 import { sleepEventPayloadSchema } from "@/lib/validation/sleep";
 import type { EventType } from "@/lib/validation/events";
 import type { Json } from "@/lib/supabase/types";
@@ -80,6 +81,11 @@ export type DashboardSummary = {
   // (getRecommendedMaterials recusa recomendar sem isso), nunca um
   // preenchimento forçado.
   recommendedMaterials: RecommendedMaterial[];
+  // Fase 14: "Próximos momentos" — uma sequência curta e adaptativa
+  // para o resto do dia (nunca uma agenda fixa), vazia quando a criança
+  // está dormindo agora (getRoutineSuggestions nunca inventa uma hora
+  // de despertar) ou quando não há dado suficiente ainda.
+  upcomingMoments: RoutineSuggestion[];
 };
 
 // The Dashboard's single data source — every number and card on
@@ -166,6 +172,8 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     limit: DASHBOARD_MATERIALS_LIMIT,
   });
 
+  const { suggestions: upcomingMoments } = await getRoutineSuggestions(childId);
+
   return {
     sleepCount: timeline.filter((event) => event.type === "sleep").length,
     mealCount: timeline.filter((event) => event.type === "meal").length,
@@ -181,5 +189,6 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     recommendationsToday: recommendedActivities.map(toActivitySummary),
     playSuggestion: playSuggestions[0] ?? null,
     recommendedMaterials,
+    upcomingMoments,
   };
 }

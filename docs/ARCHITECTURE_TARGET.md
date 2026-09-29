@@ -2409,3 +2409,191 @@ schema real (`izattwaiqjzhydzhxlns`), em transação com rollback:
   esse dado.
 - **Continua assumindo uma criança por família** — mesma simplificação
   já feita pelas demais páginas de `/quintal`.
+
+## Rotina adaptativa (Fase 14)
+
+### Objetivo
+
+Até aqui, cada módulo (Sono, Alimentação, Brincadeiras) olhava só para
+trás — registro e histórico do que já aconteceu. Esta fase é a primeira
+que olha para a FRENTE: dado o que já foi registrado hoje (e o padrão
+recente da família), o que faz sentido sugerir para o resto do dia?
+Pedido explícito: nunca uma agenda, sempre uma possibilidade; regras
+simples, explícitas, testáveis — nada de agente autônomo.
+
+### Por que nenhuma tabela nova
+
+A "rotina adaptativa" não é um dado a persistir — é uma DERIVAÇÃO,
+recalculada a cada vez que o Dashboard é aberto, a partir de dado que
+os outros módulos já gravam (`events` via Sono/Alimentação/
+Brincadeiras). Não existe uma "sugestão salva" em lugar nenhum: se a
+família registra uma refeição entre duas visitas ao Dashboard, a
+sugestão de refeição simplesmente já vem diferente na próxima vez, sem
+nenhuma sincronização a fazer.
+
+### Separação DECISÃO/REDAÇÃO, aplicada à rotina
+
+Mesmo padrão de `recommendation.ts` (Fase 5): uma camada pura decide, uma
+camada fina busca dado real e monta o texto final.
+
+```ts
+// src/lib/routineEngine.ts — camada pura, sem banco, sem relógio escondido
+detectState(inputs)               // "o que está acontecendo agora"
+computeTypicalMealTimes(history)  // "rotina histórica" — mediana real, não tabela fixa
+computeTypicalBedtimeMinutes(history)
+buildRoutineSuggestions(state, …) // a sequência final, com motivo
+
+// getRoutineSuggestions(childId) — o único ponto assíncrono: busca
+// getOpenSleepSession/getSleepHistory/getMealHistory/getActivityHistory
+// (todos já existentes, Fases 9/10/11) e delega toda decisão às
+// funções puras acima.
+```
+
+`now` é sempre um parâmetro explícito, nunca `new Date()` direto dentro
+de uma função de regra — é isso que torna `detectState`/
+`buildRoutineSuggestions` 100% determinísticos e testáveis com um
+relógio fixo (ver "Testes" abaixo).
+
+### "Rotina histórica" de verdade: mediana, não tabela
+
+O pedido listava "rotina histórica" como um input — em vez de um
+horário fixo por idade (ex.: "bebês de 8 meses jantam às 18h"), que
+seria uma afirmação inventada sem base nos dados reais desta família
+específica, `computeTypicalMealTimes`/`computeTypicalBedtimeMinutes`
+calculam a MEDIANA dos horários que a própria família já registrou
+(via `getMealHistory`/`getSleepHistory`, já existentes). Uma família
+que janta cedo tem uma sugestão de jantar cedo; uma que janta tarde,
+tarde — sem nenhuma tabela de referência etária inventada.
+
+Simplificação assumida e documentada: a mediana trata cada horário como
+"minutos desde a meia-noite", o que quebraria se os horários se
+espalhassem pelos dois lados da meia-noite — não é o caso realista para
+refeições, e para o horário de dormir (a única coisa aqui que poderia,
+em teoria, cruzar a meia-noite) a suposição de que bedtimes ficam
+concentrados à noite (não de madrugada) é razoável.
+
+### As três regras de adaptação, uma a uma
+
+1. **"Se a soneca foi muito curta → priorizar atividades mais
+   tranquilas"**: `detectState` marca `lastNapWasShort` quando a
+   soneca mais recente (não sono noturno — checado explicitamente) durou
+   menos de `SHORT_NAP_THRESHOLD_MINUTES` (30). Quando isso é verdade,
+   `getRoutineSuggestions` passa `CALM_ACTIVITY_KEYWORDS` (["calmo",
+   "tranquilo", "aconchego", "sensorial", "relaxante"]) como
+   `interests` para `getActivitySuggestions` (Fase 11) — reaproveitando
+   o desempate por interesses que a Biblioteca de Brincadeiras já
+   tinha, em vez de inventar um novo filtro de "intensidade" no modelo
+   de `Activity`.
+2. **"Se a criança acabou de comer → não sugerir imediatamente outra
+   refeição"**: `nextMealSuggestion` (privada) empurra o horário da
+   próxima refeição para depois de `MEAL_MIN_GAP_MINUTES` (120) desde a
+   última, quando o horário típico cairia antes disso — a sugestão
+   nunca desaparece, só se ajusta, com o motivo dizendo isso
+   explicitamente ("Ainda não faz muito tempo desde a última
+   refeição").
+3. **"Se uma atividade foi registrada como favorita → considerar
+   novamente"**: `detectState` procura, no histórico de Brincadeiras
+   (`getActivityHistory`, Fase 11), a entrada mais recente com
+   `feedback === "loved"`. Se existir e não estiver na lista de "evitar
+   por enquanto" (`getRecentNegativeLibraryFeedbackActivityIds`, Fase
+   11 — uma atividade amada uma vez, mas marcada negativamente depois,
+   não é insistida), ela é sugerida de novo, com o motivo "Essa
+   atividade já foi um sucesso antes". Sem favorita disponível, cai
+   para uma sugestão genérica por idade/interesses, igual ao resto do
+   produto.
+
+### Nunca inventar o que não se sabe
+
+Três casos em que a função explicitamente devolve menos, não mais:
+
+- **Dormindo agora**: `buildRoutineSuggestions` devolve `[]`
+  imediatamente — não há como saber quando a criança vai acordar, então
+  nenhum horário é sugerido "chutando" um despertar.
+- **Sem sono noturno no histórico**: `typicalBedtimeMinutes` é `null`,
+  e a sugestão de "Preparação para dormir" simplesmente não aparece —
+  nunca um horário de dormir genérico de tabela.
+- **Sem próximo horário de refeição plausível hoje**: se todos os
+  horários típicos já passaram, não há sugestão de refeição — a família
+  não vê uma sugestão simplesmente presa no passado.
+
+### Linguagem: nunca uma prescrição
+
+Pedido explícito ("Não apresentar isso como prescrição", "Uma
+possibilidade para o restante do dia") — atendido em dois lugares:
+`UpcomingMoments.tsx` (o componente do Dashboard) abre com esse texto
+literal, e cada `RoutineSuggestion.reason` é sempre visível, nunca uma
+ordem ("Brincadeira" com o motivo ao lado, não "É hora de brincar").
+Nenhuma linguagem médica em nenhum texto gerado por esta camada.
+
+### Dashboard: "Próximos momentos"
+
+`DashboardSummary.upcomingMoments` (novo) chama `getRoutineSuggestions`
+uma vez por visita — o mesmo padrão de "tudo calculado de novo a cada
+carregamento" já usado por `playSuggestion`/`recommendedMaterials`
+(Fases 11/12). `UpcomingMoments.tsx` (novo componente,
+`src/components/dashboard/`) só renderiza quando há pelo menos uma
+sugestão real — sem estado vazio "sem sugestões ainda", porque não há
+nada de errado em não ter contexto suficiente, só não faz sentido
+mostrar uma seção vazia para isso.
+
+### Testes: a primeira infraestrutura de teste do repositório
+
+Toda fase anterior documentava "sem framework de testes automatizados
+no repositório" como um débito técnico. Esta fase adiciona Vitest
+(`vitest.config.mts`, alias `@/` espelhando o `tsconfig.json`) — o
+`routineEngine.ts` foi desenhado especificamente para caber nesse
+molde: nenhuma das funções testadas toca banco, rede ou relógio de
+verdade. `src/lib/routineEngine.test.ts` cobre, com 21 testes:
+
+- `detectState`: dormindo vs. acordada, cálculo de `minutesAwake`/
+  `minutesSinceLastMeal`, detecção de soneca curta (e que sono noturno
+  curto NÃO conta como soneca curta), e a escolha da atividade
+  favorita mais recente.
+- `computeTypicalMealTimes`/`computeTypicalBedtimeMinutes`: mediana
+  correta, e que sonecas nunca contam para o horário de dormir.
+- `buildRoutineSuggestions`: a sequência completa do exemplo do
+  pedido (brincadeira → passeio → refeição → preparação para dormir,
+  em ordem cronológica de verdade), as três regras de adaptação uma a
+  uma, e os três casos de "nunca inventar" acima.
+
+`src/lib/format.test.ts` (5 testes) foi escrito como verificação do
+próprio setup do Vitest, cobrindo de brinde uma função pura já
+existente (`formatDurationMinutes`/`dayLabel`, Fase 10) que nunca tinha
+teste — não fazia sentido validar a infraestrutura de teste sem
+escrever nenhum teste real com ela.
+
+`npm test` roda `vitest run` (script novo em `package.json`). Rodado
+nesta fase: 26 testes, todos passando.
+
+### Arquivos novos e alterados
+
+- **`package.json`**: `vitest` (novo devDependency), `@types/node`
+  atualizado de `^20` para `^22` (só correção de tipos — o Node real do
+  ambiente já é v22; nenhuma mudança de comportamento), script `test`.
+- **Novo `vitest.config.mts`** — alias `@/*`, ambiente `node` (sem DOM,
+  desnecessário para funções puras).
+- **Novo `src/lib/routineEngine.ts`** — descrito nas seções acima.
+- **Novo `src/lib/routineEngine.test.ts`** (21 testes) e
+  **`src/lib/format.test.ts`** (5 testes, novo).
+- **`src/lib/dashboard.ts`**: `DashboardSummary.upcomingMoments` (novo).
+- **Novo `src/components/dashboard/UpcomingMoments.tsx`**.
+- **`src/app/quintal/page.tsx`**: renderiza `UpcomingMoments` entre a
+  seção "Hoje" e "Para hoje".
+
+### Limitações
+
+- **"Rotina histórica" não distingue dia de semana/fim de semana nem
+  tendências recentes** — é a mediana de tudo que existe no histórico
+  recente, sem peso maior para o mais novo.
+- **Idade só influencia a escolha de atividade** (via
+  `getActivitySuggestions`, que já filtra por idade) — não há ajuste
+  fino de espaçamento entre sugestões por faixa etária.
+- **`family_preferences` (Fase 8) não é lida por esta camada** ainda —
+  candidato natural de continuação.
+- **Sem módulo de registro de Rotina** — esta fase sugere, não
+  registra; um módulo de Rotina estruturado (paralelo a Alimentação/
+  Sono/Brincadeiras) continua um candidato separado no roadmap.
+- **Cobertura de teste automatizado limitada a esta camada** — o
+  restante do backend (feeding.ts, sleep.ts, play.ts, library.ts...)
+  continua verificado só manualmente contra o banco real, como em
+  todas as fases anteriores.

@@ -1137,7 +1137,99 @@ desenho completo e os testes realizados.
   edição foi verificada direto contra o banco real, em transação com
   rollback.
 
-## Fase 14 — candidatos (não implementados)
+## Fase 14 — rotina adaptativa (concluída)
+
+Objetivo: uma camada de regras simples que sugere o resto do dia a
+partir do que já foi registrado (sono, alimentação, atividades) — nunca
+uma agenda fixa, nunca uma prescrição. Primeira fase do projeto com
+testes automatizados de verdade.
+
+### O que foi entregue
+
+1. **Sem nenhuma migração**: a rotina adaptativa é uma camada de
+   leitura sobre `events` (via os módulos que já existem — Sono,
+   Alimentação, Brincadeiras), sem tabela nem coluna nova.
+2. **`src/lib/routineEngine.ts`**: um pipeline de funções pequenas e
+   nomeadas — `detectState` (o que está acontecendo agora: dormindo?
+   há quanto tempo acordou? a última soneca foi curta? há uma atividade
+   favorita?), `computeTypicalMealTimes`/`computeTypicalBedtimeMinutes`
+   ("rotina histórica" de verdade: a mediana dos horários já
+   registrados por esta família, não um horário fixo de tabela), e
+   `buildRoutineSuggestions` (a sequência final). As três primeiras são
+   puras — sem banco, sem relógio escondido (`now` é sempre parâmetro)
+   — exatamente o pedido de "regras explícitas, testáveis, fáceis de
+   modificar".
+3. **As três regras de adaptação pedidas, implementadas literalmente**:
+   soneca curta → prioriza uma atividade mais calma (via as mesmas
+   palavras-chave de interesse que a Biblioteca de Brincadeiras já usa
+   para desempate, Fase 11); acabou de comer → a próxima refeição é
+   empurrada para depois de um intervalo mínimo, nunca sugerida em
+   cima da hora; atividade favorita (feedback "Adorou", Fase 11) →
+   considerada de novo antes de qualquer sugestão genérica.
+4. **Sequência igual ao exemplo do pedido**: acordou → brincadeira →
+   passeio → refeição → preparação para dormir, cada uma com um motivo
+   visível e um link para o módulo onde a família pode agir de verdade.
+5. **Nunca uma prescrição**: nenhuma sugestão aparece sem seu "porquê";
+   o texto de abertura é literal ao pedido — "Uma possibilidade para o
+   restante do dia" — e nenhuma linguagem médica em lugar nenhum.
+6. **Nunca inventa um horário sem dado**: dormindo agora → nenhuma
+   sugestão (não há como saber quando a criança vai acordar); sem
+   nenhum sono noturno no histórico → sem sugestão de "preparação para
+   dormir"; sem nenhuma refeição futura plausível ainda hoje → sem
+   sugestão de refeição.
+7. **Dashboard: "Próximos momentos"** — uma timeline leve e curta
+   (até 4 itens), cada um com ícone, horário, motivo, e link — nunca
+   aparece quando não há nada real para sugerir.
+8. **Testes automatizados**: `npm test` (Vitest, adicionado nesta
+   fase — primeiro framework de teste do repositório) roda 26 testes
+   cobrindo as principais regras (detecção de estado, medianas
+   históricas, e cada regra de adaptação). Escopo deliberadamente
+   restrito às funções puras — nenhum teste toca o banco ou a rede.
+
+Ver `docs/ARCHITECTURE_TARGET.md`, "Rotina adaptativa (Fase 14)", para
+o desenho completo e a lista de testes.
+
+### Como testar manualmente
+
+1. `npm run build && npm run start`.
+2. `npm test` → confirma que as 26 regras passam.
+3. Abrir `/quintal` → se houver dado suficiente (sono/refeição/idade
+   conhecidos), "Próximos momentos" aparece com uma sequência curta.
+4. Registrar uma soneca curta (menos de 30 min) em `/quintal/sono` →
+   recarregar `/quintal` → a sugestão de brincadeira deve vir com o
+   motivo mencionando a soneca curta.
+5. Registrar uma refeição agora em `/quintal/alimentacao` → recarregar
+   `/quintal` → a próxima sugestão de refeição não deve aparecer logo
+   em seguida (empurrada para mais tarde).
+6. Marcar uma atividade como "Adorou" em `/atividades/[id]` →
+   recarregar `/quintal` → a sugestão de brincadeira deve citar essa
+   atividade especificamente.
+7. Iniciar uma soneca (sem terminar) em `/quintal/sono` → "Próximos
+   momentos" some do Dashboard enquanto a criança está dormindo.
+
+### Limitações conhecidas desta fase
+
+- **"Rotina histórica" é só a mediana de horários recentes** — não
+  distingue dia de semana/fim de semana, nem tendências (uma família
+  que mudou de rotina recentemente ainda pesa os dados antigos).
+- **Idade influencia pouco** — hoje só afeta a escolha de atividade
+  (via `getActivitySuggestions`, que já filtra por idade); não há
+  ajuste de espaçamento entre sugestões por faixa etária (ex.: bebês
+  menores provavelmente precisam de janelas mais curtas entre
+  atividades e sono).
+- **Preferências da família (`family_preferences`) não entram na
+  regra** — são mostradas em `/quintal/perfil`, mas o motor de rotina
+  ainda não as lê; um candidato natural de continuação.
+- **Sem módulo de registro de Rotina** — esta fase é sobre SUGERIR o
+  resto do dia, não sobre registrar rotina estruturada (isso continua
+  um candidato separado no roadmap, ver abaixo).
+- **Sem chamada real ao Groq nesta sessão** — a rotina adaptativa não
+  depende de IA em nenhum ponto (é regra determinística, por pedido
+  explícito), então essa limitação não se aplica da forma usual; a
+  lógica foi testada de verdade via Vitest, não só verificada contra o
+  banco.
+
+## Fase 15 — candidatos (não implementados)
 
 Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 
@@ -1183,19 +1275,19 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
     (uma falha em qualquer outro ponto do fluxo ainda pode deixar uma
     família sem cuidador).
 11. **Módulo completo de Rotina** (registro estruturado, não só via
-    `/ops`) — as Fases 9, 10 e 11 fizeram isso para Alimentação, Sono e
-    Brincadeiras; Rotina/Desenvolvimento/Passeio/Observação continuam
-    só criáveis pelo operador, embora já apareçam na Timeline central
-    (Fase 13).
+    `/ops`, e distinto da rotina ADAPTATIVA da Fase 14, que sugere sem
+    registrar nada) — as Fases 9, 10 e 11 fizeram isso para
+    Alimentação, Sono e Brincadeiras; Rotina/Desenvolvimento/Passeio/
+    Observação continuam só criáveis pelo operador.
 12. **Edição de cuidadores e foto no perfil** — `/quintal/perfil` (Fase
     8) edita só os essenciais da criança e as preferências da família.
 13. **Camada de recomendação/IA real para sugestões de refeição,
-    brincadeira e materiais** — as Fases 9, 11 e 12 deixaram
-    `getMealSuggestions`, `getActivitySuggestions` e
-    `getRecommendedMaterials` prontas para serem substituídas sem mudar
-    o formato de saída nem os componentes que as consomem, mas as três
-    continuam filtro/ordenação/regra simples, sem nenhum julgamento de
-    IA.
+    brincadeira, materiais e rotina** — as Fases 9, 11, 12 e 14
+    deixaram `getMealSuggestions`, `getActivitySuggestions`,
+    `getRecommendedMaterials` e `buildRoutineSuggestions` prontas para
+    serem substituídas sem mudar o formato de saída nem os componentes
+    que as consomem, mas todas continuam filtro/ordenação/regra
+    simples, sem nenhum julgamento de IA.
 14. **Regras explícitas de personalização a partir do feedback**
     (ex.: "essa criança gosta de atividades com água", "essa família
     prefere atividades de até 15 minutos") — a Fase 11 preparou o dado
@@ -1220,3 +1312,10 @@ Nenhum destes foi tocado ainda. Em ordem sugerida de valor/risco:
 19. **Registro de Rotina/Desenvolvimento/Passeio/Observação pela própria
     Timeline** — hoje ela só lê e edita o que outros módulos (ou o
     operador) já criaram.
+20. **Rotina adaptativa considerando preferências da família e idade de
+    forma mais fina** — a Fase 14 deixou os dois como limitações
+    conhecidas (ver acima).
+21. **Cobertura de teste automatizado para o restante do backend** — a
+    Fase 14 trouxe Vitest para o repositório, mas só cobriu a camada de
+    rotina; toda a lógica anterior (feeding.ts, sleep.ts, play.ts,
+    library.ts...) continua verificada só manualmente contra o banco.

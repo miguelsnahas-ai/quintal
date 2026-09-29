@@ -10,6 +10,7 @@ import { buttonClassName } from "@/components/ui/Button";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 import Timeline from "@/components/dashboard/Timeline";
+import UpcomingMoments from "@/components/dashboard/UpcomingMoments";
 import ActivityCard from "@/components/conversation/ActivityCard";
 import MaterialCard from "@/components/library/MaterialCard";
 
@@ -72,6 +73,7 @@ export default async function QuintalDashboardPage() {
         recommendationsToday: [],
         playSuggestion: null,
         recommendedMaterials: [],
+        upcomingMoments: [],
       };
 
   const dateLabel = capitalize(
@@ -160,6 +162,8 @@ export default async function QuintalDashboardPage() {
               />
             </div>
           </section>
+
+          <UpcomingMoments suggestions={summary.upcomingMoments} />
 
           <section className="space-y-3">
             <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
