@@ -100,7 +100,7 @@ export default async function CriancasPage({
                 </p>
                 {isOwner && (
                   <details className="group">
-                    <summary className="cursor-pointer list-none text-xs font-medium text-red-600 marker:content-none">
+                    <summary className="cursor-pointer list-none text-xs font-medium text-danger marker:content-none">
                       Remover
                     </summary>
                     <form action={removeChildAction} className="mt-1.5 space-y-1.5">

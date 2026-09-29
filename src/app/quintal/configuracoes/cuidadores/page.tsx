@@ -93,7 +93,7 @@ export default async function CuidadoresPage({
               </div>
               {isOwner && caregiver.accessRole !== "owner" && (
                 <details className="group">
-                  <summary className="cursor-pointer list-none text-xs font-medium text-red-600 marker:content-none">
+                  <summary className="cursor-pointer list-none text-xs font-medium text-danger marker:content-none">
                     Remover
                   </summary>
                   <form action={removeCaregiverAction} className="mt-1.5 space-y-1.5">
@@ -147,7 +147,7 @@ export default async function CuidadoresPage({
                           <button
                             type="submit"
                             aria-label="Cancelar convite"
-                            className="rounded-full p-1.5 text-ink-muted transition-colors hover:bg-neutral/40 hover:text-red-600"
+                            className="rounded-full p-1.5 text-ink-muted transition-colors hover:bg-neutral/40 hover:text-danger"
                           >
                             <Ban className="h-3.5 w-3.5" aria-hidden />
                           </button>

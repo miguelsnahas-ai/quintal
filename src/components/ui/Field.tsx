@@ -40,7 +40,7 @@ Select.displayName = "Select";
 export function FieldError({ children }: { children?: React.ReactNode }) {
   if (!children) return null;
   return (
-    <p className="text-sm text-red-600" role="alert">
+    <p className="text-sm text-danger" role="alert">
       {children}
     </p>
   );

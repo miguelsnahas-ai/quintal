@@ -1,11 +1,29 @@
 import type { Metadata } from "next";
-import { Nunito, JetBrains_Mono } from "next/font/google";
+import { Gabarito, Hanken_Grotesk, Caveat, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const nunito = Nunito({
-  variable: "--font-nunito",
+// Design system Quintal: Gabarito (títulos, Gabarito 600 — ver globals.css)
+// + Hanken Grotesk (texto corrido) + Caveat (notas manuscritas, uso
+// pontual) + JetBrains Mono (eyebrows/meta, já usado antes desta troca).
+// Self-hosted via next/font — mesmo resultado visual do
+// `@import url(fonts.googleapis.com/...)` do design system, sem depender
+// de rede em runtime.
+const gabarito = Gabarito({
+  variable: "--font-gabarito",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["500", "600", "700"],
+});
+
+const hankenGrotesk = Hanken_Grotesk({
+  variable: "--font-hanken-grotesk",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const caveat = Caveat({
+  variable: "--font-caveat",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -22,7 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
-      className={`${nunito.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${gabarito.variable} ${hankenGrotesk.variable} ${caveat.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

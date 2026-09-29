@@ -112,7 +112,7 @@ export default async function TimelineEntryPage({
       </form>
 
       <details className="group rounded-lg bg-primary shadow-[var(--shadow-card)]">
-        <summary className="cursor-pointer list-none p-4 text-sm font-medium text-red-600 marker:content-none">
+        <summary className="cursor-pointer list-none p-4 text-sm font-medium text-danger marker:content-none">
           Excluir este registro
         </summary>
         <div className="space-y-3 border-t border-neutral p-4">

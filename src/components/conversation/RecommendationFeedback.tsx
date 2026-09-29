@@ -91,7 +91,7 @@ export default function RecommendationFeedback({
           className="w-full max-w-xs rounded-full border-[1.5px] border-neutral bg-primary px-3 py-2 text-xs text-ink placeholder:text-ink-muted outline-none focus:border-transparent focus:ring-2 focus:ring-accent"
         />
       )}
-      {error && <p className="text-xs text-red-600">Não foi possível registrar. Tente de novo.</p>}
+      {error && <p className="text-xs text-danger">Não foi possível registrar. Tente de novo.</p>}
     </div>
   );
 }

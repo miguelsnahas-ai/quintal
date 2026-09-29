@@ -235,7 +235,7 @@ export default async function ChildSettingsPage({
 
           {isOwner && (
             <details className="group rounded-lg bg-primary shadow-[var(--shadow-card)]">
-              <summary className="cursor-pointer list-none p-4 text-sm font-medium text-red-600 marker:content-none">
+              <summary className="cursor-pointer list-none p-4 text-sm font-medium text-danger marker:content-none">
                 Remover criança
               </summary>
               <form action={removeChildAction} className="space-y-2 border-t border-neutral p-4">

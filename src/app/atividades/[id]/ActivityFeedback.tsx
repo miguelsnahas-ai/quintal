@@ -53,7 +53,7 @@ export default function ActivityFeedback({ activityId }: { activityId: string })
           Não ajudou
         </button>
       </div>
-      {error && <p className="text-xs text-red-600">Não foi possível registrar. Tente de novo.</p>}
+      {error && <p className="text-xs text-danger">Não foi possível registrar. Tente de novo.</p>}
     </div>
   );
 }
