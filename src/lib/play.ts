@@ -80,6 +80,62 @@ export async function logActivityOutcome(input: {
   return { id: data.id };
 }
 
+// Segundo ponto de gravação de 'free_play' (Fase 15) — deliberadamente
+// separado de logActivityOutcome acima, não uma variante dele: aquele é
+// o fluxo da Biblioteca, onde activityId (uma atividade catalogada) e
+// feedback (a pergunta "Como foi?") são sempre obrigatórios por design
+// de produto. O chat descreve brincadeiras em texto livre
+// ("empilhamos blocos, 20 min") que nem sempre bate com o catálogo e nem
+// sempre vem com uma reação explícita — forçar os dois campos aqui
+// inventaria dado que a família não disse. Grava o mesmo events.type =
+// 'free_play', só que com activityId/feedback nullable (ver
+// src/lib/validation/play.ts) e duration_minutes (a mesma coluna
+// genérica que sleep.ts já usa, nunca específica de sono).
+export async function recordPlayEvent(input: {
+  childId: string;
+  activityTitle: string;
+  activityId?: string | null;
+  feedback?: ActivityFeedback | null;
+  durationMinutes?: number | null;
+  occurredAt?: string;
+  origin: EventOrigin;
+  sourceMessageId?: string | null;
+}): Promise<{ id: string }> {
+  const supabase = createServiceClient();
+
+  const activityId = input.activityId ?? null;
+  const feedback = input.feedback ?? null;
+
+  const payload: PlayEventPayload = {
+    activityId,
+    activityTitle: input.activityTitle,
+    feedback,
+  };
+  const notes = feedback ? `${input.activityTitle} — ${activityFeedbackLabels[feedback]}` : input.activityTitle;
+
+  const { data, error } = await supabase
+    .from("events")
+    .insert({
+      child_id: input.childId,
+      type: "free_play",
+      occurred_at: input.occurredAt ?? new Date().toISOString(),
+      notes,
+      payload: payload as unknown as Json,
+      duration_minutes: input.durationMinutes ?? null,
+      origin: input.origin,
+      source_message_id: input.sourceMessageId ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error || !data) {
+    console.error("Failed to record play event", error);
+    throw new Error("Não foi possível registrar a brincadeira.");
+  }
+
+  return { id: data.id };
+}
+
 export type ActivityHistoryEntry = {
   id: string;
   occurredAt: string;
@@ -141,9 +197,12 @@ export async function getRecentNegativeLibraryFeedbackActivityIds(childId: strin
     .order("occurred_at", { ascending: false })
     .limit(RECENT_NEGATIVE_LIBRARY_FEEDBACK_LIMIT);
 
+  // O filtro .not("payload->>activityId", "is", null) já garante isso em
+  // SQL — o .filter abaixo só repete a garantia no nível de tipos, já
+  // que activityId é nullable desde a Fase 15 (registros livres do chat).
   const ids = (data ?? [])
     .map((row) => parsePlayPayload(row.payload))
-    .filter((payload): payload is PlayEventPayload => payload !== null)
+    .filter((payload): payload is PlayEventPayload & { activityId: string } => payload?.activityId != null)
     .map((payload) => payload.activityId);
 
   return new Set(ids);

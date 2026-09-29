@@ -238,6 +238,9 @@ function formatSleepDetail(payload: Json, durationMinutes: number | null): strin
 function formatPlayDetail(payload: Json): string | null {
   const parsed = playEventPayloadSchema.safeParse(payload);
   if (!parsed.success) return null;
+  // feedback é null para um registro livre vindo do chat sem reação
+  // explícita (Fase 15) — nunca inventamos uma reação aqui.
+  if (parsed.data.feedback === null) return parsed.data.activityTitle;
   return `${parsed.data.activityTitle} — ${activityFeedbackLabels[parsed.data.feedback]}`;
 }
 

@@ -2,11 +2,35 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { suggestEventFromMessage } from "@/lib/groq/suggestEvent";
 import { suggestReply } from "@/lib/groq/suggestReply";
+import { extractChatAction } from "@/lib/groq/extractAction";
 import { getChildContext } from "@/lib/childContext";
 import { recommendActivity, type RecommendationResult } from "@/lib/recommendation";
+import {
+  dispatchChatAction,
+  applyConfirmedAction,
+  matchesAffirmativeConfirmation,
+  type DispatchOutcome,
+} from "@/lib/chatActions";
+import { chatActionSchema, type ChatAction } from "@/lib/validation/chatAction";
 import type { ActivitySummary } from "@/lib/activity";
 import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 import type { Database, Json } from "@/lib/supabase/types";
+
+// Lê a ação pendente (se houver) deixada pela última mensagem de SAÍDA
+// da família — ver o comentário sobre confirmação entre turnos em
+// src/lib/chatActions.ts. raw_payload é jsonb solto, nunca confiamos
+// nele sem revalidar contra chatActionSchema.
+function extractPendingAction(rawPayload: Json | null | undefined): ChatAction | null {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) return null;
+  const candidate = (rawPayload as Record<string, unknown>).pendingAction;
+  if (!candidate) return null;
+  const parsed = chatActionSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
+}
+
+function replyFromOutcome(outcome: DispatchOutcome, fallback: string): string {
+  return outcome.status === "not_applicable" ? fallback : outcome.reply;
+}
 
 export type ConversationTurn = {
   role: "user" | "assistant";
@@ -59,19 +83,30 @@ export async function recordConversationTurn(
     // message from the window. Scoped by family, not by child: `messages`
     // has no child_id column, so in a family with more than one child this
     // window can include messages about a sibling — see
-    // docs/ARCHITECTURE_TARGET.md.
+    // docs/ARCHITECTURE_TARGET.md. raw_payload is fetched too (Fase 15):
+    // it's where a pending chat-action confirmation question (if any)
+    // travels between turns — see extractPendingAction above.
     supabase
       .from("messages")
-      .select("direction, body")
+      .select("direction, body, raw_payload")
       .eq("family_id", caregiver.family_id)
       .not("body", "is", null)
       .order("created_at", { ascending: false })
       .limit(RECENT_MESSAGES_LIMIT),
   ]);
 
-  const recentMessages = (recentMessagesRaw ?? [])
+  const recentRowsDesc = recentMessagesRaw ?? [];
+  const recentMessages = recentRowsDesc
+    .slice()
     .reverse()
     .map((message) => ({ direction: message.direction, body: message.body! }));
+
+  // O turno anterior do Quintal — se ele deixou uma ação pendente (ver
+  // chatActions.ts, "Confirmação entre turnos"), é contra ELA que a
+  // mensagem atual pode estar confirmando, não uma nova extração.
+  const pendingAction = extractPendingAction(
+    recentRowsDesc.find((row) => row.direction === "outbound")?.raw_payload,
+  );
 
   // Real inbound record — same shape the WhatsApp webhook would produce,
   // marked "sim-" so it's flagged as not having come through the real
@@ -96,70 +131,102 @@ export async function recordConversationTurn(
     throw new Error(inboundError?.message ?? "Falha ao registrar a mensagem.");
   }
 
-  // The Recommendation Engine (src/lib/recommendation.ts) decides, on its
-  // own, whether this message is a situation worth recommending an
-  // activity for. suggestEventFromMessage runs alongside it (independent
-  // question, same raw message); suggestReply only runs afterward, and
-  // only when the recommendation engine says this turn isn't one of its
-  // situations — see docs/ARCHITECTURE_TARGET.md, "Recommendation Engine
-  // (Fase 5)" for why these aren't both run unconditionally.
-  const [suggestion, recommendation] = await Promise.all([
-    suggestEventFromMessage({
-      messageBody: input.messageBody,
-      childContext,
-    }).catch(() => null),
-    recommendActivity({
-      childContext,
-      situation: input.messageBody,
-      recentConversation: recentMessages,
-      sourceMessageId: inboundMessage.id,
-    }).catch((): RecommendationResult => ({ kind: "none" })),
-  ]);
-
   let reply: string;
   let activity: ActivitySummary | null = null;
   let recommendationId: string | null = null;
-
-  if (recommendation.kind === "activity") {
-    reply = recommendation.reason;
-    activity = recommendation.activity;
-    recommendationId = recommendation.recommendationId;
-  } else if (recommendation.kind === "clarify") {
-    reply = recommendation.question;
-  } else {
-    const replySuggestion = await suggestReply({
-      messageBody: input.messageBody,
-      childContext,
-      recentMessages,
-    });
-    reply = replySuggestion.text;
-  }
-
-  // Auto-recorded only when the classifier is confident this message
-  // describes something concrete (see suggestEventFromMessage's
-  // isConcreteEvent) — this path has no human reviewing the suggestion
-  // before it's saved, unlike the inbox triage flow, so a vague/generic
-  // message (a greeting, a question) is deliberately left unlogged rather
-  // than polluting the child's event history.
   let recordedEventTypeLabel: string | null = null;
-  if (suggestion?.isConcreteEvent && input.childId) {
-    const { error: eventError } = await supabase.from("events").insert({
-      child_id: input.childId,
-      type: suggestion.type,
-      notes: suggestion.notes,
-      source_message_id: inboundMessage.id,
-      // Gerado a partir do texto da própria mensagem — "chat" (Fase 8).
-      // duration_minutes fica null aqui de propósito: suggestEventFromMessage
-      // ainda não extrai duração/horário estruturado da mensagem (ver
-      // docs/ARCHITECTURE_TARGET.md, "Camada de contexto estruturado
-      // (Fase 8)" — a extração automática é trabalho futuro, não desta fase).
-      origin: "chat",
-    });
+  // Quando esta ação fica pendente (precisa de confirmação — ver
+  // chatActions.ts), ela é gravada em raw_payload da mensagem de saída
+  // logo abaixo, para o próximo turno conseguir lê-la de volta.
+  let outgoingPendingAction: ChatAction | null = null;
 
-    if (eventError) {
-      console.error("Failed to auto-record event from conversation", eventError);
+  const dispatchCtx = {
+    childId: input.childId,
+    familyId: caregiver.family_id,
+    childContext,
+    origin: "chat" as const,
+    sourceMessageId: inboundMessage.id,
+  };
+
+  if (pendingAction && matchesAffirmativeConfirmation(input.messageBody)) {
+    // Turno de confirmação (Fase 15) — nunca roda a Recommendation Engine
+    // nem uma nova extração: reexecuta exatamente a ação que ficou
+    // pendente do turno anterior (ver applyConfirmedAction).
+    const outcome = await applyConfirmedAction(pendingAction, dispatchCtx);
+    reply = replyFromOutcome(
+      outcome,
+      "Combinado! Mas não consegui confirmar esse registro agora — pode me contar de novo com mais detalhes?",
+    );
+    if (outcome.status === "recorded" && outcome.eventType) {
+      recordedEventTypeLabel = eventTypeLabels[outcome.eventType];
+    }
+  } else {
+    // The Recommendation Engine (src/lib/recommendation.ts) decides, on
+    // its own, whether this message is a situation worth recommending an
+    // activity for. extractChatAction (Fase 15) runs alongside it —
+    // independent question, same raw message: "isto pede pra eu
+    // registrar/consultar/atualizar algo estruturado?". Se a
+    // Recommendation Engine decidir "activity"/"clarify", essa resposta
+    // sempre vence — a ação estruturada extraída em paralelo é
+    // descartada, nunca as duas coisas de uma vez.
+    const [recommendation, action] = await Promise.all([
+      recommendActivity({
+        childContext,
+        situation: input.messageBody,
+        recentConversation: recentMessages,
+        sourceMessageId: inboundMessage.id,
+      }).catch((): RecommendationResult => ({ kind: "none" })),
+      extractChatAction({
+        messageBody: input.messageBody,
+        childContext,
+        recentMessages,
+      }).catch((): ChatAction => ({ type: "NONE" })),
+    ]);
+
+    if (recommendation.kind === "activity") {
+      reply = recommendation.reason;
+      activity = recommendation.activity;
+      recommendationId = recommendation.recommendationId;
+    } else if (recommendation.kind === "clarify") {
+      reply = recommendation.question;
     } else {
-      recordedEventTypeLabel = eventTypeLabels[suggestion.type as EventType];
+      const outcome = action.type === "NONE" ? ({ status: "not_applicable" } as const) : await dispatchChatAction(action, dispatchCtx);
+
+      if (outcome.status !== "not_applicable") {
+        reply = outcome.reply;
+        if (outcome.status === "recorded" && outcome.eventType) {
+          recordedEventTypeLabel = eventTypeLabels[outcome.eventType];
+        } else if (outcome.status === "needs_confirmation") {
+          outgoingPendingAction = outcome.pendingAction;
+        }
+      } else {
+        // Nem a Recommendation Engine nem a extração de ação reconheceram
+        // nada nesta mensagem — comportamento idêntico ao que existia
+        // antes da Fase 15: classificação grosseira (tipo + notas) com
+        // auto-registro só quando isConcreteEvent, e a resposta
+        // conversacional genérica.
+        const [suggestion, replySuggestion] = await Promise.all([
+          suggestEventFromMessage({ messageBody: input.messageBody, childContext }).catch(() => null),
+          suggestReply({ messageBody: input.messageBody, childContext, recentMessages }),
+        ]);
+        reply = replySuggestion.text;
+
+        if (suggestion?.isConcreteEvent && input.childId) {
+          const { error: eventError } = await supabase.from("events").insert({
+            child_id: input.childId,
+            type: suggestion.type,
+            notes: suggestion.notes,
+            source_message_id: inboundMessage.id,
+            origin: "chat",
+          });
+
+          if (eventError) {
+            console.error("Failed to auto-record event from conversation", eventError);
+          } else {
+            recordedEventTypeLabel = eventTypeLabels[suggestion.type as EventType];
+          }
+        }
+      }
     }
   }
 
@@ -173,7 +240,13 @@ export async function recordConversationTurn(
     message_type: "text",
     body: reply,
     activity_id: activity?.id ?? null,
-    raw_payload: { simulated: true, source: input.source } as Json,
+    raw_payload: {
+      simulated: true,
+      source: input.source,
+      // Lido de volta no próximo turno por extractPendingAction, acima —
+      // ver "Confirmação entre turnos" em src/lib/chatActions.ts.
+      ...(outgoingPendingAction ? { pendingAction: outgoingPendingAction } : {}),
+    } as Json,
     wa_timestamp: new Date().toISOString(),
     family_id: caregiver.family_id,
     caregiver_id: caregiver.id,

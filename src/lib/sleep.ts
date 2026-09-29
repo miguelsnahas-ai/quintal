@@ -23,6 +23,15 @@ function computeDurationMinutes(startedAt: string, endedAt: string): number {
   return Math.max(0, Math.round(ms / 60000));
 }
 
+// Mesmo espírito de guessMealSlot (feeding.ts): um palpite razoável para
+// o formulário manual pré-selecionar, nunca uma verdade — a família
+// sempre pode trocar. Usado também pelo chat (Fase 15) quando a mensagem
+// não diz explicitamente "soneca"/"sono da noite": um período que começa
+// à noite/madrugada é sono noturno com mais frequência do que soneca.
+export function guessSleepType(startHour: number): SleepType {
+  return startHour >= 19 || startHour < 6 ? "night" : "nap";
+}
+
 export type SleepHistoryEntry = {
   id: string;
   // null só para eventos 'sleep' antigos (Fase 3-8, sem payload

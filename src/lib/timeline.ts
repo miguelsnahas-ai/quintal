@@ -221,7 +221,16 @@ export function getTimelineDetailLines(entry: Pick<TimelineEntry, "type" | "payl
     case "free_play": {
       const parsed = playEventPayloadSchema.safeParse(entry.payload);
       if (!parsed.success) return entry.notes ? [entry.notes] : [];
-      return [parsed.data.activityTitle, activityFeedbackLabels[parsed.data.feedback]];
+      // feedback é null para um registro livre vindo do chat sem reação
+      // explícita (Fase 15) — nesse caso mostra a duração (quando houver)
+      // no lugar, nunca um rótulo de feedback inventado.
+      const secondLine =
+        parsed.data.feedback !== null
+          ? activityFeedbackLabels[parsed.data.feedback]
+          : entry.durationMinutes !== null
+            ? formatDurationMinutes(entry.durationMinutes)
+            : null;
+      return secondLine ? [parsed.data.activityTitle, secondLine] : [parsed.data.activityTitle];
     }
     default:
       return entry.notes ? [entry.notes] : [];

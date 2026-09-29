@@ -21,10 +21,19 @@ export const activityFeedbackLabels: Record<ActivityFeedback, string> = {
 // meal guardar `foods` em vez de só uma referência: evita que formatar
 // o histórico/prompt precise de uma segunda consulta assíncrona para
 // resolver um título.
+//
+// activityId e feedback são nullable desde a Fase 15: um registro de
+// brincadeira vindo do chat ("brincamos de empilhar blocos, 20 min") não
+// necessariamente corresponde a uma atividade catalogada
+// (activityId null — é uma descrição livre da família) nem
+// necessariamente vem com uma reação explícita (feedback null — "Como
+// foi?" continua obrigatório no fluxo da Biblioteca, mas o chat nunca
+// inventa uma reação que a família não mencionou). Todo registro
+// existente continua tendo os dois campos preenchidos normalmente.
 export const playEventPayloadSchema = z.object({
-  activityId: z.string(),
+  activityId: z.string().nullable(),
   activityTitle: z.string(),
-  feedback: z.enum(activityFeedbackOptions),
+  feedback: z.enum(activityFeedbackOptions).nullable(),
 });
 
 export type PlayEventPayload = z.infer<typeof playEventPayloadSchema>;
