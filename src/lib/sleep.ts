@@ -74,6 +74,10 @@ export async function startSleep(input: {
   notes: string | null;
   origin: EventOrigin;
   sourceMessageId?: string | null;
+  // Quem registrou (Fase 16) — o cuidador da sessão que chamou isto,
+  // quando conhecido (nem todo chamador tem uma sessão de cuidador, ex.:
+  // o webhook do WhatsApp antes de qualquer extração de chat).
+  caregiverId?: string | null;
 }): Promise<{ id: string }> {
   const supabase = createServiceClient();
 
@@ -91,6 +95,7 @@ export async function startSleep(input: {
       duration_minutes: null,
       origin: input.origin,
       source_message_id: input.sourceMessageId ?? null,
+      caregiver_id: input.caregiverId ?? null,
     })
     .select("id")
     .single();
@@ -159,6 +164,7 @@ export async function recordSleepPeriod(input: {
   notes: string | null;
   origin: EventOrigin;
   sourceMessageId?: string | null;
+  caregiverId?: string | null;
 }): Promise<{ id: string }> {
   const supabase = createServiceClient();
 
@@ -177,6 +183,7 @@ export async function recordSleepPeriod(input: {
       duration_minutes: durationMinutes,
       origin: input.origin,
       source_message_id: input.sourceMessageId ?? null,
+      caregiver_id: input.caregiverId ?? null,
     })
     .select("id")
     .single();

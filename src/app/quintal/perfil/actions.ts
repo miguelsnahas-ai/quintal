@@ -2,36 +2,21 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
-import { createServiceClient } from "@/lib/supabase/service";
+import { getSessionCaregiver, canAccessChild, type SessionCaregiver } from "@/lib/authorization";
 import { updateChildEssentials, updateFamilyPreferences } from "@/lib/familyContext";
 import { childEssentialsInputSchema, familyPreferencesInputSchema } from "@/lib/validation/profile";
 
-// Same session-resolution pattern as every other /quintal action: never
-// trust a client-supplied family_id, always resolve it server-side from
-// the httpOnly session cookie.
-async function requireFamilyId(): Promise<string> {
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+// Camada de autorização centralizada (Fase 16) — ver src/lib/authorization.ts.
+async function requireSession(): Promise<SessionCaregiver> {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
-
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
-
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  return caregiver.family_id;
+  return session;
 }
 
 export async function saveChildEssentials(formData: FormData) {
-  const familyId = await requireFamilyId();
+  const session = await requireSession();
 
   const parsed = childEssentialsInputSchema.safeParse({
     child_id: formData.get("child_id"),
@@ -45,17 +30,11 @@ export async function saveChildEssentials(formData: FormData) {
   }
 
   // Defense in depth: the childId in the form only ever comes from this
-  // family's own profile page, but verify it actually belongs to the
-  // session's family before writing — same check the chat's send actions
-  // already make for childId.
-  const supabase = createServiceClient();
-  const { data: child } = await supabase
-    .from("children")
-    .select("family_id")
-    .eq("id", parsed.data.child_id)
-    .maybeSingle();
-
-  if (!child || child.family_id !== familyId) {
+  // family's own profile page, but verify the caregiver actually has
+  // access to it before writing — same check every other /quintal action
+  // makes (Fase 16: via caregiver_child, not just family_id).
+  const allowed = await canAccessChild(session.caregiverId, parsed.data.child_id);
+  if (!allowed) {
     redirect(`/quintal/perfil?error=${encodeURIComponent("Criança inválida.")}`);
   }
 
@@ -76,10 +55,10 @@ export async function saveChildEssentials(formData: FormData) {
 }
 
 export async function saveFamilyPreferences(formData: FormData) {
-  const familyId = await requireFamilyId();
+  const session = await requireSession();
 
   const parsed = familyPreferencesInputSchema.safeParse({
-    family_id: familyId,
+    family_id: session.familyId,
     feeding_notes: formData.get("feeding_notes"),
     routine_notes: formData.get("routine_notes"),
     play_notes: formData.get("play_notes"),
@@ -92,7 +71,7 @@ export async function saveFamilyPreferences(formData: FormData) {
   }
 
   try {
-    await updateFamilyPreferences(familyId, {
+    await updateFamilyPreferences(session.familyId, {
       feedingNotes: parsed.data.feeding_notes,
       routineNotes: parsed.data.routine_notes,
       playNotes: parsed.data.play_notes,

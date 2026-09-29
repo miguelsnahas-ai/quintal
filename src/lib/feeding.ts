@@ -67,6 +67,7 @@ export async function recordMealEvent(input: {
   suggestionId: string | null;
   origin: EventOrigin;
   sourceMessageId?: string | null;
+  caregiverId?: string | null;
 }): Promise<{ id: string }> {
   const supabase = createServiceClient();
 
@@ -96,6 +97,7 @@ export async function recordMealEvent(input: {
       payload: payload as unknown as Json,
       origin: input.origin,
       source_message_id: input.sourceMessageId ?? null,
+      caregiver_id: input.caregiverId ?? null,
     })
     .select("id")
     .single();

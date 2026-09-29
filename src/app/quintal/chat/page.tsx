@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
+import { getSessionCaregiver } from "@/lib/authorization";
+import { getActiveChildContext } from "@/lib/activeChild";
 import { ageLabel } from "@/lib/format";
 import ConversationChat, {
   type ConversationTurn,
@@ -21,47 +22,29 @@ export const metadata: Metadata = {
 // here (its header's chat button), and this page always keeps a way back
 // to the dashboard (the link below) — the chat never stops being reachable.
 export default async function QuintalChatPage() {
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
 
   const supabase = createServiceClient();
 
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("id, family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
-
-  // Session points at a caregiver that no longer exists (e.g. removed by
-  // an operator) — treat it the same as "no session".
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  const [{ data: childrenList }, { data: recentMessagesRaw }] = await Promise.all([
-    supabase
-      .from("children")
-      .select("id, name, birth_date")
-      .eq("family_id", caregiver.family_id)
-      .order("created_at", { ascending: true }),
+  const [{ active: activeChild, children: childrenList }, { data: recentMessagesRaw }] = await Promise.all([
+    getActiveChildContext(session.caregiverId),
     supabase
       .from("messages")
       .select("direction, body")
-      .eq("caregiver_id", caregiverId)
+      .eq("caregiver_id", session.caregiverId)
       .not("body", "is", null)
       .order("created_at", { ascending: false })
       .limit(20),
   ]);
 
-  const primaryChild = childrenList?.[0] ?? null;
-
-  const { count: eventCount } = primaryChild
+  const { count: eventCount } = activeChild
     ? await supabase
         .from("events")
         .select("id", { count: "exact", head: true })
-        .eq("child_id", primaryChild.id)
+        .eq("child_id", activeChild.id)
     : { count: 0 };
 
   const initialMessages: ConversationTurn[] = (recentMessagesRaw ?? [])
@@ -78,13 +61,14 @@ export default async function QuintalChatPage() {
         ← Quintal
       </Link>
       <ChildHeader
-        childName={primaryChild?.name ?? null}
-        ageLabel={primaryChild ? ageLabel(primaryChild.birth_date) : null}
+        childName={activeChild?.name ?? null}
+        ageLabel={activeChild ? ageLabel(activeChild.birthDate) : null}
         eventCount={eventCount ?? 0}
       />
       <ConversationChat
-        caregiverId={caregiverId}
-        childrenList={childrenList ?? []}
+        caregiverId={session.caregiverId}
+        childrenList={childrenList}
+        initialChildId={activeChild?.id ?? null}
         initialMessages={initialMessages}
         onSend={sendQuintalMessage}
         onFeedback={sendQuintalRecommendationFeedback}

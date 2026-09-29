@@ -2,42 +2,24 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
-import { createServiceClient } from "@/lib/supabase/service";
+import { getSessionCaregiver, canAccessChild, type SessionCaregiver } from "@/lib/authorization";
 import { startSleep, endSleep, recordSleepPeriod, getOpenSleepSession } from "@/lib/sleep";
 import { sleepStartInputSchema, sleepEndInputSchema, sleepPeriodInputSchema } from "@/lib/validation/sleep";
 
-// Mesmo padrão de resolução de sessão e posse já usado em
-// /quintal/alimentacao/actions.ts (Fase 9).
-async function requireFamilyId(): Promise<string> {
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+// Camada de autorização centralizada (Fase 16) — ver src/lib/authorization.ts.
+// Substitui o par requireFamilyId()/assertChildInFamily() que cada
+// actions.ts de /quintal/* reimplementava à mão.
+async function requireSession(): Promise<SessionCaregiver> {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
-
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
-
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  return caregiver.family_id;
+  return session;
 }
 
-async function assertChildInFamily(childId: string, familyId: string): Promise<void> {
-  const supabase = createServiceClient();
-  const { data: child } = await supabase
-    .from("children")
-    .select("family_id")
-    .eq("id", childId)
-    .maybeSingle();
-
-  if (!child || child.family_id !== familyId) {
+async function assertChildAccess(childId: string, caregiverId: string): Promise<void> {
+  const allowed = await canAccessChild(caregiverId, childId);
+  if (!allowed) {
     redirect(`/quintal/sono?error=${encodeURIComponent("Criança inválida.")}`);
   }
 }
@@ -48,7 +30,7 @@ function revalidateSono() {
 }
 
 export async function startSleepAction(formData: FormData) {
-  const familyId = await requireFamilyId();
+  const session = await requireSession();
 
   const parsed = sleepStartInputSchema.safeParse({
     child_id: formData.get("child_id"),
@@ -61,7 +43,7 @@ export async function startSleepAction(formData: FormData) {
     redirect(`/quintal/sono?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
-  await assertChildInFamily(parsed.data.child_id, familyId);
+  await assertChildAccess(parsed.data.child_id, session.caregiverId);
 
   // Nunca dois períodos em aberto ao mesmo tempo — se já existe um, a
   // família precisa registrar que a criança acordou primeiro.
@@ -79,6 +61,7 @@ export async function startSleepAction(formData: FormData) {
       startedAt: new Date(parsed.data.started_at).toISOString(),
       notes: parsed.data.notes?.trim() || null,
       origin: "manual",
+      caregiverId: session.caregiverId,
     });
   } catch {
     redirect(`/quintal/sono?error=${encodeURIComponent("Não foi possível registrar. Tente de novo.")}`);
@@ -89,7 +72,7 @@ export async function startSleepAction(formData: FormData) {
 }
 
 export async function endSleepAction(formData: FormData) {
-  const familyId = await requireFamilyId();
+  const session = await requireSession();
 
   const parsed = sleepEndInputSchema.safeParse({
     child_id: formData.get("child_id"),
@@ -102,7 +85,7 @@ export async function endSleepAction(formData: FormData) {
     redirect(`/quintal/sono?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
-  await assertChildInFamily(parsed.data.child_id, familyId);
+  await assertChildAccess(parsed.data.child_id, session.caregiverId);
 
   try {
     await endSleep({
@@ -121,7 +104,7 @@ export async function endSleepAction(formData: FormData) {
 }
 
 export async function recordSleepPeriodAction(formData: FormData) {
-  const familyId = await requireFamilyId();
+  const session = await requireSession();
 
   const parsed = sleepPeriodInputSchema.safeParse({
     child_id: formData.get("child_id"),
@@ -135,7 +118,7 @@ export async function recordSleepPeriodAction(formData: FormData) {
     redirect(`/quintal/sono?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
-  await assertChildInFamily(parsed.data.child_id, familyId);
+  await assertChildAccess(parsed.data.child_id, session.caregiverId);
 
   try {
     await recordSleepPeriod({
@@ -145,6 +128,7 @@ export async function recordSleepPeriodAction(formData: FormData) {
       endedAt: new Date(parsed.data.ended_at).toISOString(),
       notes: parsed.data.notes?.trim() || null,
       origin: "manual",
+      caregiverId: session.caregiverId,
     });
   } catch {
     redirect(`/quintal/sono?error=${encodeURIComponent("Não foi possível registrar. Tente de novo.")}`);

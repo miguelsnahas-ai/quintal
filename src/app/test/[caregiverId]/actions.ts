@@ -1,6 +1,7 @@
 "use server";
 
 import { createServiceClient } from "@/lib/supabase/service";
+import { canAccessChild } from "@/lib/authorization";
 import { recordConversationTurn } from "@/lib/conversation";
 import { submitRecommendationFeedback, type RecommendationFeedback } from "@/lib/recommendation";
 import type { ConversationTurn } from "@/components/conversation/ConversationChat";
@@ -38,22 +39,12 @@ export async function sendTestMessage(
 
   // Guard against a childId that belongs to a different family being
   // passed in — recordConversationTurn trusts childId as-is, so verify it
-  // here since this endpoint has no session to rely on otherwise.
+  // here since this endpoint has no session to rely on otherwise. Fase
+  // 16: via canAccessChild (caregiver_child), same check the real
+  // product uses, not a hand-rolled family_id comparison.
   let childId = input.childId;
-  if (childId) {
-    const { data: child } = await supabase
-      .from("children")
-      .select("id, family_id")
-      .eq("id", childId)
-      .maybeSingle();
-    const { data: caregiverFamily } = await supabase
-      .from("caregivers")
-      .select("family_id")
-      .eq("id", caregiverId)
-      .single();
-    if (!child || child.family_id !== caregiverFamily?.family_id) {
-      childId = null;
-    }
+  if (childId && !(await canAccessChild(caregiverId, childId))) {
+    childId = null;
   }
 
   const { reply, activity, recommendationId } = await recordConversationTurn(supabase, {

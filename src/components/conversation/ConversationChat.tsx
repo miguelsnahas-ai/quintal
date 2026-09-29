@@ -33,6 +33,7 @@ type Child = {
 export default function ConversationChat({
   caregiverId,
   childrenList,
+  initialChildId = null,
   initialMessages = [],
   onSend,
   onFeedback,
@@ -40,6 +41,13 @@ export default function ConversationChat({
 }: {
   caregiverId: string;
   childrenList: Child[];
+  // A criança ativa (Fase 16, ver src/lib/activeChild.ts) quando o
+  // chamador tem uma — hoje só /quintal/chat passa isto, semeando o
+  // seletor com o mesmo contexto que já vale pro resto do produto (não
+  // mistura irmãos por padrão). A família ainda pode trocar dentro da
+  // própria conversa quando quiser perguntar sobre outra criança sem sair
+  // da tela — isso continua possível, só o ponto de partida mudou.
+  initialChildId?: string | null;
   initialMessages?: ConversationTurn[];
   onSend: (input: {
     childId: string | null;
@@ -54,12 +62,10 @@ export default function ConversationChat({
   }) => Promise<void>;
   rememberDevice?: boolean;
 }) {
-  // Auto-select when there's exactly one child — previously this stayed
-  // unset even with a single child (the selector only ever appeared for
-  // 2+), so the conversation silently ran with no child context at all
-  // for the single-child case, the most common one.
+  // Prioridade: initialChildId (criança ativa, quando o chamador manda) >
+  // auto-seleção quando só existe uma criança > nenhuma selecionada.
   const [childId, setChildId] = useState(
-    childrenList.length === 1 ? childrenList[0].id : "",
+    initialChildId ?? (childrenList.length === 1 ? childrenList[0].id : ""),
   );
   const [messages, setMessages] = useState<ConversationTurn[]>(initialMessages);
   const [draft, setDraft] = useState("");

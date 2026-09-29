@@ -2,48 +2,29 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
+import { getSessionCaregiver, canAccessChild, type SessionCaregiver } from "@/lib/authorization";
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordMealEvent, updateChildFeedingMethod } from "@/lib/feeding";
 import { mealLogInputSchema, feedingMethodInputSchema } from "@/lib/validation/feeding";
 
-// Same session-resolution pattern as every other /quintal action (see
-// /quintal/perfil/actions.ts).
-async function requireFamilyId(): Promise<string> {
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+// Camada de autorização centralizada (Fase 16) — ver src/lib/authorization.ts.
+async function requireSession(): Promise<SessionCaregiver> {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
-
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
-
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  return caregiver.family_id;
+  return session;
 }
 
-async function assertChildInFamily(childId: string, familyId: string): Promise<void> {
-  const supabase = createServiceClient();
-  const { data: child } = await supabase
-    .from("children")
-    .select("family_id")
-    .eq("id", childId)
-    .maybeSingle();
-
-  if (!child || child.family_id !== familyId) {
+async function assertChildAccess(childId: string, caregiverId: string): Promise<void> {
+  const allowed = await canAccessChild(caregiverId, childId);
+  if (!allowed) {
     redirect(`/quintal/alimentacao?error=${encodeURIComponent("Criança inválida.")}`);
   }
 }
 
 export async function logMeal(formData: FormData) {
-  const familyId = await requireFamilyId();
+  const session = await requireSession();
 
   const parsed = mealLogInputSchema.safeParse({
     child_id: formData.get("child_id"),
@@ -59,7 +40,7 @@ export async function logMeal(formData: FormData) {
     redirect(`/quintal/alimentacao?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
-  await assertChildInFamily(parsed.data.child_id, familyId);
+  await assertChildAccess(parsed.data.child_id, session.caregiverId);
 
   // The meal's offeringMethodId is a snapshot of the child's *current*
   // configured method, not asked again on every quick log — see
@@ -82,6 +63,7 @@ export async function logMeal(formData: FormData) {
       offeringMethodId: child?.feeding_method_id ?? null,
       suggestionId: parsed.data.suggestion_id?.trim() || null,
       origin: "manual",
+      caregiverId: session.caregiverId,
     });
   } catch {
     redirect(`/quintal/alimentacao?error=${encodeURIComponent("Não foi possível registrar. Tente de novo.")}`);
@@ -93,7 +75,7 @@ export async function logMeal(formData: FormData) {
 }
 
 export async function saveFeedingMethod(formData: FormData) {
-  const familyId = await requireFamilyId();
+  const session = await requireSession();
 
   const parsed = feedingMethodInputSchema.safeParse({
     child_id: formData.get("child_id"),
@@ -105,7 +87,7 @@ export async function saveFeedingMethod(formData: FormData) {
     redirect(`/quintal/alimentacao?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
-  await assertChildInFamily(parsed.data.child_id, familyId);
+  await assertChildAccess(parsed.data.child_id, session.caregiverId);
 
   try {
     await updateChildFeedingMethod(parsed.data.child_id, {

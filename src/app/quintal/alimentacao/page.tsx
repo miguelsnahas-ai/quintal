@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
-import { createServiceClient } from "@/lib/supabase/service";
+import { getSessionCaregiver } from "@/lib/authorization";
+import { getActiveChildContext } from "@/lib/activeChild";
 import { ageInMonths, toDatetimeLocalValue, groupByDay } from "@/lib/format";
 import {
   getChildFeedingMethod,
@@ -32,41 +32,22 @@ export const metadata: Metadata = {
 // refeição em poucos segundos (o formulário fica logo no topo), ver
 // sugestões adaptadas ao método escolhido, consultar o histórico, e
 // configurar o método alimentar — sem apresentar nenhuma abordagem como
-// a certa. Mesmo padrão de acesso das outras páginas de /quintal
-// (sessão → family_id → primeira criança).
+// a certa. Sempre sobre a criança ATIVA (Fase 16), trocada pelo seletor
+// global no topo.
 export default async function AlimentacaoPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; success?: string; slot?: string; foods?: string; suggestion?: string }>;
 }) {
   const { error, success, slot: slotParam, foods: foodsParam, suggestion: suggestionParam } = await searchParams;
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
 
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("id, family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
+  const { active: activeChild } = await getActiveChildContext(session.caregiverId);
 
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  const { data: childrenList } = await supabase
-    .from("children")
-    .select("id, name, birth_date")
-    .eq("family_id", caregiver.family_id)
-    .order("created_at", { ascending: true });
-
-  // Mesma simplificação de "primeira criança da família" já usada em
-  // /quintal e /quintal/perfil.
-  const primaryChild = childrenList?.[0] ?? null;
-
-  if (!primaryChild) {
+  if (!activeChild) {
     return (
       <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
         <BackLink />
@@ -82,15 +63,15 @@ export default async function AlimentacaoPage({
     : guessMealSlot(new Date().getHours());
 
   const [feedingMethod, feedingMethodOptions, history] = await Promise.all([
-    getChildFeedingMethod(primaryChild.id),
+    getChildFeedingMethod(activeChild.id),
     getFeedingMethodOptions(),
-    getMealHistory(primaryChild.id),
+    getMealHistory(activeChild.id),
   ]);
 
   const currentMethodLabel = feedingMethod.option?.title ?? feedingMethod.custom ?? null;
 
   const suggestions = await getMealSuggestions({
-    ageMonths: ageInMonths(primaryChild.birth_date),
+    ageMonths: ageInMonths(activeChild.birthDate),
     slot: defaultSlot,
     feedingMethodTitle: currentMethodLabel,
   });
@@ -103,7 +84,7 @@ export default async function AlimentacaoPage({
 
       <div>
         <h1 className="text-lg font-bold text-ink">Alimentação</h1>
-        <p className="text-sm text-ink-muted">{primaryChild.name}</p>
+        <p className="text-sm text-ink-muted">{activeChild.name}</p>
       </div>
 
       <FieldError>{error}</FieldError>
@@ -115,7 +96,7 @@ export default async function AlimentacaoPage({
           action={logMeal}
           className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]"
         >
-          <input type="hidden" name="child_id" value={primaryChild.id} />
+          <input type="hidden" name="child_id" value={activeChild.id} />
           {suggestionParam && <input type="hidden" name="suggestion_id" value={suggestionParam} />}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1">
@@ -252,7 +233,7 @@ export default async function AlimentacaoPage({
             específicas, vale conversar com o pediatra.
           </p>
           <form action={saveFeedingMethod} className="space-y-2">
-            <input type="hidden" name="child_id" value={primaryChild.id} />
+            <input type="hidden" name="child_id" value={activeChild.id} />
             {feedingMethodOptions.map((option) => (
               <label
                 key={option.id}

@@ -3,8 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight, Moon, Sun, Utensils, Blocks, MapPin, ListChecks, Sparkles, Eye } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
-import { createServiceClient } from "@/lib/supabase/service";
+import { getSessionCaregiver } from "@/lib/authorization";
+import { getActiveChildContext } from "@/lib/activeChild";
 import { dayLabel } from "@/lib/format";
 import {
   getDayTimeline,
@@ -67,33 +67,15 @@ export default async function TimelinePage({
   searchParams: Promise<{ dia?: string; filtro?: string }>;
 }) {
   const { dia, filtro } = await searchParams;
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
 
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("id, family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
+  // Criança ATIVA (Fase 16) — trocada pelo seletor global no topo.
+  const { active: activeChild } = await getActiveChildContext(session.caregiverId);
 
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  const { data: childrenList } = await supabase
-    .from("children")
-    .select("id, name")
-    .eq("family_id", caregiver.family_id)
-    .order("created_at", { ascending: true });
-
-  // Mesma simplificação de "primeira criança da família" já usada em
-  // todo o resto de /quintal.
-  const primaryChild = childrenList?.[0] ?? null;
-
-  if (!primaryChild) {
+  if (!activeChild) {
     return (
       <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
         <BackLink />
@@ -109,7 +91,7 @@ export default async function TimelinePage({
   const dayEnd = addDays(dayStart, 1);
   const filter = isTimelineFilter(filtro) ? filtro : undefined;
 
-  const allEntries = await getDayTimeline(primaryChild.id, {
+  const allEntries = await getDayTimeline(activeChild.id, {
     since: dayStart.toISOString(),
     until: dayEnd.toISOString(),
   });
@@ -128,7 +110,7 @@ export default async function TimelinePage({
 
       <div>
         <h1 className="text-lg font-bold text-ink">Timeline</h1>
-        <p className="text-sm text-ink-muted">{primaryChild.name}</p>
+        <p className="text-sm text-ink-muted">{activeChild.name}</p>
       </div>
 
       <div className="flex items-center justify-between rounded-lg bg-primary p-3 shadow-[var(--shadow-card)]">

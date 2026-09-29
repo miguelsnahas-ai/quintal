@@ -2,50 +2,30 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
-import { createServiceClient } from "@/lib/supabase/service";
+import { getSessionCaregiver, canAccessChild, type SessionCaregiver } from "@/lib/authorization";
 import { getTimelineEntry, updateTimelineEntry, deleteTimelineEntry } from "@/lib/timeline";
 import { eventEditInputSchema } from "@/lib/validation/events";
 
-// Mesmo padrão de resolução de sessão já usado em todo o resto de
-// /quintal/*/actions.ts.
-async function requireFamilyId(): Promise<string> {
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+// Camada de autorização centralizada (Fase 16) — ver src/lib/authorization.ts.
+async function requireSession(): Promise<SessionCaregiver> {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
-
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
-
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  return caregiver.family_id;
+  return session;
 }
 
-// Defesa em profundidade: confere que o evento existe e que a criança
-// dona dele pertence à família da sessão, antes de deixar editar ou
+// Defesa em profundidade: confere que o evento existe e que o cuidador da
+// sessão tem acesso à criança dona dele, antes de deixar editar ou
 // excluir — nunca confia só no eventId vindo do formulário.
-async function assertEventInFamily(eventId: string, familyId: string): Promise<string> {
+async function assertEventAccess(eventId: string, caregiverId: string): Promise<string> {
   const entry = await getTimelineEntry(eventId);
   if (!entry) {
     redirect("/quintal/timeline");
   }
 
-  const supabase = createServiceClient();
-  const { data: child } = await supabase
-    .from("children")
-    .select("family_id")
-    .eq("id", entry.childId)
-    .maybeSingle();
-
-  if (!child || child.family_id !== familyId) {
+  const allowed = await canAccessChild(caregiverId, entry.childId);
+  if (!allowed) {
     redirect("/quintal/timeline");
   }
 
@@ -53,8 +33,8 @@ async function assertEventInFamily(eventId: string, familyId: string): Promise<s
 }
 
 export async function updateTimelineEntryAction(eventId: string, formData: FormData) {
-  const familyId = await requireFamilyId();
-  const childId = await assertEventInFamily(eventId, familyId);
+  const session = await requireSession();
+  const childId = await assertEventAccess(eventId, session.caregiverId);
 
   const parsed = eventEditInputSchema.safeParse({
     occurred_at: formData.get("occurred_at"),
@@ -82,8 +62,8 @@ export async function updateTimelineEntryAction(eventId: string, formData: FormD
 }
 
 export async function deleteTimelineEntryAction(eventId: string) {
-  const familyId = await requireFamilyId();
-  const childId = await assertEventInFamily(eventId, familyId);
+  const session = await requireSession();
+  const childId = await assertEventAccess(eventId, session.caregiverId);
 
   try {
     await deleteTimelineEntry(eventId, childId);

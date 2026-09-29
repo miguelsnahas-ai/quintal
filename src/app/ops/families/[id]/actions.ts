@@ -74,12 +74,25 @@ export async function addCaregiver(formData: FormData) {
     );
   }
 
-  const { error } = await supabase
+  const { data: newCaregiver, error } = await supabase
     .from("caregivers")
-    .insert({ ...parsed.data, family_id: familyId });
+    .insert({ ...parsed.data, family_id: familyId })
+    .select("id")
+    .single();
 
-  if (error) {
-    redirect(`/ops/families/${familyId}?error=${encodeURIComponent(error.message)}`);
+  if (error || !newCaregiver) {
+    redirect(`/ops/families/${familyId}?error=${encodeURIComponent(error?.message ?? "Falha ao adicionar.")}`);
+  }
+
+  // Fase 16: um cuidador só enxerga a criança a que está explicitamente
+  // vinculado (caregiver_child) — sem isto, um cuidador adicionado por
+  // aqui (o operador, fora do fluxo de convite de /quintal/familia)
+  // ficaria sem nenhuma criança acessível.
+  const { data: existingChildren } = await supabase.from("children").select("id").eq("family_id", familyId);
+  if (existingChildren && existingChildren.length > 0) {
+    await supabase
+      .from("caregiver_child")
+      .insert(existingChildren.map((child) => ({ caregiver_id: newCaregiver.id, child_id: child.id })));
   }
 
   revalidatePath(`/ops/families/${familyId}`);
@@ -122,12 +135,24 @@ export async function addChild(formData: FormData) {
     );
   }
 
-  const { error } = await supabase
+  const { data: newChild, error } = await supabase
     .from("children")
-    .insert({ ...parsed.data, family_id: familyId });
+    .insert({ ...parsed.data, family_id: familyId })
+    .select("id")
+    .single();
 
-  if (error) {
-    redirect(`/ops/families/${familyId}?error=${encodeURIComponent(error.message)}`);
+  if (error || !newChild) {
+    redirect(`/ops/families/${familyId}?error=${encodeURIComponent(error?.message ?? "Falha ao adicionar.")}`);
+  }
+
+  // Fase 16: mesmo raciocínio de addCaregiver acima, na outra direção —
+  // toda criança nova fica vinculada (caregiver_child) a todo cuidador já
+  // existente da família, senão nenhum deles a enxergaria.
+  const { data: existingCaregivers } = await supabase.from("caregivers").select("id").eq("family_id", familyId);
+  if (existingCaregivers && existingCaregivers.length > 0) {
+    await supabase
+      .from("caregiver_child")
+      .insert(existingCaregivers.map((caregiver) => ({ caregiver_id: caregiver.id, child_id: newChild.id })));
   }
 
   revalidatePath(`/ops/families/${familyId}`);

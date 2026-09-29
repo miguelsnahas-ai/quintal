@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { normalizeBrazilianPhone } from "@/lib/phone";
 import { createFamilySession } from "@/lib/familySession";
+import { createChild } from "@/lib/familyContext";
 
 // No auth gate by design — this is the onboarding a parent completes on
 // their own phone/browser. It creates a brand-new family scoped to the
@@ -90,6 +91,11 @@ export async function startFamily(formData: FormData) {
       name: parentName,
       phone_number: phone,
       is_primary_contact: true,
+      // Quem cria a família pelo /comecar é sempre o owner (Fase 16) —
+      // sem isto, toda família nova sairia sem nenhum owner (o
+      // backfill da migração só cobriu famílias que já existiam),
+      // quebrando canManageFamily/canInviteCaregiver pra sempre.
+      access_role: "owner",
     })
     .select("id")
     .single();
@@ -100,13 +106,14 @@ export async function startFamily(formData: FormData) {
     );
   }
 
-  const { error: childError } = await supabase.from("children").insert({
-    family_id: family.id,
-    name: childName,
-    birth_date: childBirthDate,
-  });
-
-  if (childError) {
+  // createChild também vincula (caregiver_child) toda criança nova a todo
+  // cuidador já existente da família (Fase 16) — aqui, o próprio owner
+  // que acabou de ser criado. Sem isso, uma família recém-criada ficaria
+  // sem nenhuma criança acessível (getAccessibleChildren só enxerga via
+  // caregiver_child), quebrando o onboarding inteiro.
+  try {
+    await createChild(family.id, { name: childName, birthDate: childBirthDate });
+  } catch {
     redirect(
       `/comecar?error=${encodeURIComponent("Não foi possível salvar os dados da criança. Tente de novo.")}`,
     );

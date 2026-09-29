@@ -25,6 +25,19 @@ export const childEssentialsInputSchema = z.object({
 
 export type ChildEssentialsInput = z.infer<typeof childEssentialsInputSchema>;
 
+// "Adicionar criança" (Fase 16, /quintal/familia) — fluxo simples pedido:
+// nome + data de nascimento, sem foto/avatar (ver o comentário em
+// createChild, familyContext.ts).
+export const addChildInputSchema = z.object({
+  name: z.string().trim().min(1, "Informe o nome da criança."),
+  birth_date: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value : null)),
+});
+
+export type AddChildInput = z.infer<typeof addChildInputSchema>;
+
 // Every field optional/free text on purpose — this is the "configurações
 // avançadas" progressive-disclosure section of /quintal/perfil, not a
 // form with required fields. Empty string means "cleared", not "unset"

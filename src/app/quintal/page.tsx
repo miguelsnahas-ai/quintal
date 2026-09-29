@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Moon, Utensils, Blocks, ListChecks, MessageCircle, Sparkles } from "lucide-react";
-import { createServiceClient } from "@/lib/supabase/service";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
+import { getSessionCaregiver } from "@/lib/authorization";
+import { getActiveChildContext } from "@/lib/activeChild";
 import { ageLabel, formatDurationMinutes } from "@/lib/format";
 import { getDashboardSummary } from "@/lib/dashboard";
 import { buttonClassName } from "@/components/ui/Button";
@@ -25,39 +25,18 @@ export const metadata: Metadata = {
 // bottom of this page. This page is intentionally read-only: it answers
 // "how's the day going", it doesn't collect anything.
 export default async function QuintalDashboardPage() {
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
 
-  const supabase = createServiceClient();
+  // Criança ativa (Fase 16) — não mais "a primeira criança da família":
+  // o seletor global (ChildSwitcher, no layout) deixa a família trocar,
+  // e o Dashboard sempre reflete a escolha atual, persistida em cookie.
+  const { active: activeChild } = await getActiveChildContext(session.caregiverId);
 
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("id, family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
-
-  // Session points at a caregiver that no longer exists (e.g. removed by
-  // an operator) — treat it the same as "no session".
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  const { data: childrenList } = await supabase
-    .from("children")
-    .select("id, name, birth_date")
-    .eq("family_id", caregiver.family_id)
-    .order("created_at", { ascending: true });
-
-  // Same "primeira criança da família" simplification already made by the
-  // chat page and its header — real multi-child support is a Fase 7
-  // candidate (docs/PRODUCT_ROADMAP.md), not something this dashboard
-  // invents on its own.
-  const primaryChild = childrenList?.[0] ?? null;
-
-  const summary = primaryChild
-    ? await getDashboardSummary(primaryChild.id)
+  const summary = activeChild
+    ? await getDashboardSummary(activeChild.id)
     : {
         sleepCount: 0,
         mealCount: 0,
@@ -107,12 +86,12 @@ export default async function QuintalDashboardPage() {
   return (
     <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
       <DashboardHeader
-        childName={primaryChild?.name ?? null}
-        ageLabel={primaryChild ? ageLabel(primaryChild.birth_date) : null}
+        childName={activeChild?.name ?? null}
+        ageLabel={activeChild ? ageLabel(activeChild.birthDate) : null}
         dateLabel={dateLabel}
       />
 
-      {!primaryChild ? (
+      {!activeChild ? (
         <p className="rounded-lg bg-primary p-4 text-sm text-ink-muted shadow-[var(--shadow-card)]">
           Nenhuma criança cadastrada ainda para esta família.
         </p>

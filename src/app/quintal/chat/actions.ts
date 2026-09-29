@@ -1,6 +1,6 @@
 "use server";
 
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
+import { getSessionCaregiver, canAccessChild } from "@/lib/authorization";
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordConversationTurn } from "@/lib/conversation";
 import { submitRecommendationFeedback, type RecommendationFeedback } from "@/lib/recommendation";
@@ -16,8 +16,8 @@ export async function sendQuintalMessage(input: {
   childId: string | null;
   history: ConversationTurn[];
 }): Promise<{ reply: string; activity: ActivitySummary | null; recommendationId: string | null }> {
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     throw new Error("Sessão expirada. Atualize a página.");
   }
 
@@ -29,21 +29,16 @@ export async function sendQuintalMessage(input: {
   }
 
   // Defense in depth: childId only ever comes from this family's own
-  // child list in the UI, but verify it actually belongs to the session's
-  // family before trusting it — same check /test's action makes.
+  // child list in the UI, but verify the caregiver actually has access to
+  // it before trusting it — Fase 16: via canAccessChild (caregiver_child),
+  // not just "same family" anymore.
   let childId = input.childId;
-  if (childId) {
-    const [{ data: caregiver }, { data: child }] = await Promise.all([
-      supabase.from("caregivers").select("family_id").eq("id", caregiverId).single(),
-      supabase.from("children").select("id, family_id").eq("id", childId).maybeSingle(),
-    ]);
-    if (!child || child.family_id !== caregiver?.family_id) {
-      childId = null;
-    }
+  if (childId && !(await canAccessChild(session.caregiverId, childId))) {
+    childId = null;
   }
 
   const { reply, activity, recommendationId } = await recordConversationTurn(supabase, {
-    caregiverId,
+    caregiverId: session.caregiverId,
     childId,
     messageBody: lastUserMessage.content,
     source: "quintal",

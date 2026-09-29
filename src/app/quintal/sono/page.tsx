@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
-import { createServiceClient } from "@/lib/supabase/service";
+import { getSessionCaregiver } from "@/lib/authorization";
+import { getActiveChildContext } from "@/lib/activeChild";
 import { toDatetimeLocalValue, groupByDay, formatDurationMinutes } from "@/lib/format";
 import { getSleepHistory, getOpenSleepSession, getTodaySleepSummary, type SleepHistoryEntry } from "@/lib/sleep";
 import { sleepTypes, sleepTypeLabels } from "@/lib/validation/sleep";
@@ -32,41 +32,23 @@ function sleepEntryLine(entry: SleepHistoryEntry): string {
 // segundos": "Começou a dormir" (um toque, sem formulário) e depois
 // "Acordou" (um toque, duração calculada sozinha); registro retroativo
 // fica num formulário completo, recolhido, para quando a família esquece
-// de registrar em tempo real. Mesmo padrão de acesso das outras páginas
-// de /quintal (sessão → family_id → primeira criança).
+// de registrar em tempo real. Sempre sobre a criança ATIVA (Fase 16) —
+// trocada pelo seletor global no topo, nunca mais fixa na primeira
+// criança da família.
 export default async function SonoPage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; success?: string }>;
 }) {
   const { error, success } = await searchParams;
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
 
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("id, family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
+  const { active: activeChild } = await getActiveChildContext(session.caregiverId);
 
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  const { data: childrenList } = await supabase
-    .from("children")
-    .select("id, name")
-    .eq("family_id", caregiver.family_id)
-    .order("created_at", { ascending: true });
-
-  // Mesma simplificação de "primeira criança da família" já usada em
-  // /quintal, /quintal/perfil e /quintal/alimentacao.
-  const primaryChild = childrenList?.[0] ?? null;
-
-  if (!primaryChild) {
+  if (!activeChild) {
     return (
       <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
         <BackLink />
@@ -78,9 +60,9 @@ export default async function SonoPage({
   }
 
   const [openSession, summary, history] = await Promise.all([
-    getOpenSleepSession(primaryChild.id),
-    getTodaySleepSummary(primaryChild.id),
-    getSleepHistory(primaryChild.id),
+    getOpenSleepSession(activeChild.id),
+    getTodaySleepSummary(activeChild.id),
+    getSleepHistory(activeChild.id),
   ]);
 
   const historyGroups = groupByDay(history, (entry) => entry.startedAt);
@@ -92,7 +74,7 @@ export default async function SonoPage({
 
       <div>
         <h1 className="text-lg font-bold text-ink">Sono</h1>
-        <p className="text-sm text-ink-muted">{primaryChild.name}</p>
+        <p className="text-sm text-ink-muted">{activeChild.name}</p>
       </div>
 
       <FieldError>{error}</FieldError>
@@ -111,7 +93,7 @@ export default async function SonoPage({
               <span className="text-ink-muted"> — {sleepTypeLabels[openSession.sleepType]}</span>
             </p>
             <form action={endSleepAction} className="space-y-3">
-              <input type="hidden" name="child_id" value={primaryChild.id} />
+              <input type="hidden" name="child_id" value={activeChild.id} />
               <input type="hidden" name="event_id" value={openSession.id} />
               <div className="space-y-1">
                 <Label htmlFor="ended_at">Acordou às</Label>
@@ -127,7 +109,7 @@ export default async function SonoPage({
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <form action={startSleepAction}>
-              <input type="hidden" name="child_id" value={primaryChild.id} />
+              <input type="hidden" name="child_id" value={activeChild.id} />
               <input type="hidden" name="sleep_type" value="nap" />
               <input type="hidden" name="started_at" value={now} />
               <Button type="submit" variant="secondary" className="w-full justify-center">
@@ -135,7 +117,7 @@ export default async function SonoPage({
               </Button>
             </form>
             <form action={startSleepAction}>
-              <input type="hidden" name="child_id" value={primaryChild.id} />
+              <input type="hidden" name="child_id" value={activeChild.id} />
               <input type="hidden" name="sleep_type" value="night" />
               <input type="hidden" name="started_at" value={now} />
               <Button type="submit" className="w-full justify-center">
@@ -158,7 +140,7 @@ export default async function SonoPage({
         </summary>
         <div className="border-t border-neutral p-4">
           <form action={recordSleepPeriodAction} className="space-y-3">
-            <input type="hidden" name="child_id" value={primaryChild.id} />
+            <input type="hidden" name="child_id" value={activeChild.id} />
             <div className="space-y-1">
               <Label htmlFor="sleep_type">Tipo</Label>
               <Select id="sleep_type" name="sleep_type" defaultValue="nap" required>

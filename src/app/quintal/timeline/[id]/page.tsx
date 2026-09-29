@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
+import { getSessionCaregiver, canAccessChild } from "@/lib/authorization";
 import { createServiceClient } from "@/lib/supabase/service";
 import { toDatetimeLocalValue } from "@/lib/format";
 import { getTimelineEntry, describeEntry, getTimelineDetailLines } from "@/lib/timeline";
@@ -32,19 +32,8 @@ export default async function TimelineEntryPage({
   const { id } = await params;
   const { error, success } = await searchParams;
 
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
-    redirect("/comecar");
-  }
-
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
-
-  if (!caregiver) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
 
@@ -53,13 +42,14 @@ export default async function TimelineEntryPage({
     notFound();
   }
 
-  const { data: child } = await supabase
-    .from("children")
-    .select("family_id, name")
-    .eq("id", entry.childId)
-    .maybeSingle();
+  const allowed = await canAccessChild(session.caregiverId, entry.childId);
+  if (!allowed) {
+    notFound();
+  }
 
-  if (!child || child.family_id !== caregiver.family_id) {
+  const supabase = createServiceClient();
+  const { data: child } = await supabase.from("children").select("name").eq("id", entry.childId).maybeSingle();
+  if (!child) {
     notFound();
   }
 

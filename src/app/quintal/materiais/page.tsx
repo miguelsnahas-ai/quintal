@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Search, Sparkles } from "lucide-react";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
+import { getSessionCaregiver } from "@/lib/authorization";
+import { getActiveChildContext } from "@/lib/activeChild";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ageInMonths } from "@/lib/format";
 import {
@@ -50,33 +51,14 @@ export default async function MateriaisPage({
   searchParams: Promise<{ q?: string; categoria?: string; tipo?: string }>;
 }) {
   const { q, categoria, tipo } = await searchParams;
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     redirect("/comecar");
   }
 
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("id, family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
+  const { active: activeChild } = await getActiveChildContext(session.caregiverId);
 
-  if (!caregiver) {
-    redirect("/comecar");
-  }
-
-  const { data: childrenList } = await supabase
-    .from("children")
-    .select("id, name, birth_date, interests")
-    .eq("family_id", caregiver.family_id)
-    .order("created_at", { ascending: true });
-
-  // Mesma simplificação de "primeira criança da família" já usada em
-  // todo o resto de /quintal.
-  const primaryChild = childrenList?.[0] ?? null;
-
-  if (!primaryChild) {
+  if (!activeChild) {
     return (
       <div className="mx-auto w-full max-w-lg space-y-6 px-4 py-6">
         <BackLink />
@@ -87,7 +69,16 @@ export default async function MateriaisPage({
     );
   }
 
-  const ageMonths = ageInMonths(primaryChild.birth_date);
+  // interests não faz parte de AccessibleChild — mesma busca pequena e à
+  // parte já usada em /quintal/brincadeiras.
+  const supabase = createServiceClient();
+  const { data: childRow } = await supabase
+    .from("children")
+    .select("interests")
+    .eq("id", activeChild.id)
+    .maybeSingle();
+
+  const ageMonths = ageInMonths(activeChild.birthDate);
   const category = isMaterialCategory(categoria) ? categoria : undefined;
   const type = isMaterialType(tipo) ? tipo : undefined;
   const query = q?.trim();
@@ -100,15 +91,15 @@ export default async function MateriaisPage({
         ? searchMaterials({ query, ageMonths })
         : getMaterialsByFilter({ ageMonths, category, type })
       : Promise.resolve([]),
-    getChildFeedingMethod(primaryChild.id),
-    getRecentCategoryBoosts(primaryChild.id),
+    getChildFeedingMethod(activeChild.id),
+    getRecentCategoryBoosts(activeChild.id),
   ]);
 
   const recommended = isBrowsing
     ? []
     : await getRecommendedMaterials({
         ageMonths,
-        interests: primaryChild.interests ?? [],
+        interests: childRow?.interests ?? [],
         feedingMethodTitle: feedingMethod.option?.title ?? feedingMethod.custom,
         categoryBoosts,
       });
@@ -119,7 +110,7 @@ export default async function MateriaisPage({
 
       <div>
         <h1 className="text-lg font-bold text-ink">Materiais</h1>
-        <p className="text-sm text-ink-muted">{primaryChild.name}</p>
+        <p className="text-sm text-ink-muted">{activeChild.name}</p>
       </div>
 
       <form method="get" className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]">

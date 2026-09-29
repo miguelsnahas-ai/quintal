@@ -1,7 +1,8 @@
 "use server";
 
 import { createServiceClient } from "@/lib/supabase/service";
-import { getFamilySessionCaregiverId } from "@/lib/familySession";
+import { getSessionCaregiver } from "@/lib/authorization";
+import { getActiveChildContext } from "@/lib/activeChild";
 import { logActivityOutcome } from "@/lib/play";
 import type { ActivityFeedback } from "@/lib/validation/play";
 
@@ -26,42 +27,27 @@ export async function submitActivityFeedback(activityId: string, helpful: boolea
 
 // "Fizeram essa atividade? Como foi?" (Fase 11) — diferente do thumbs
 // acima: é pessoal (por criança), não anônimo, e por isso exige sessão
-// de família. Nunca recebe um childId do cliente — resolve
-// caregiver → family → primeira criança do zero aqui dentro, mesmo
-// padrão de segurança de requireFamilyId em /quintal/*/actions.ts.
+// de família. Nunca recebe um childId do cliente — resolve a criança
+// ATIVA (Fase 16, ver src/lib/activeChild.ts) a partir da sessão, não
+// mais "a primeira criança da família": abrir uma atividade recomendada
+// enquanto o Pedro está selecionado registra o resultado no Pedro, não
+// sempre no primeiro filho cadastrado.
 export async function logActivityOutcomeAction(activityId: string, feedback: ActivityFeedback): Promise<void> {
-  const caregiverId = await getFamilySessionCaregiverId();
-  if (!caregiverId) {
+  const session = await getSessionCaregiver();
+  if (!session) {
     throw new Error("Sessão não encontrada.");
   }
 
-  const supabase = createServiceClient();
-  const { data: caregiver } = await supabase
-    .from("caregivers")
-    .select("family_id")
-    .eq("id", caregiverId)
-    .maybeSingle();
-
-  if (!caregiver) {
-    throw new Error("Sessão não encontrada.");
-  }
-
-  const { data: childrenList } = await supabase
-    .from("children")
-    .select("id")
-    .eq("family_id", caregiver.family_id)
-    .order("created_at", { ascending: true })
-    .limit(1);
-
-  const primaryChild = childrenList?.[0];
-  if (!primaryChild) {
+  const { active: activeChild } = await getActiveChildContext(session.caregiverId);
+  if (!activeChild) {
     throw new Error("Nenhuma criança cadastrada.");
   }
 
   await logActivityOutcome({
-    childId: primaryChild.id,
+    childId: activeChild.id,
     activityId,
     feedback,
     origin: "manual",
+    caregiverId: session.caregiverId,
   });
 }

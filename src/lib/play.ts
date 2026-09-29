@@ -43,6 +43,7 @@ export async function logActivityOutcome(input: {
   occurredAt?: string;
   origin: EventOrigin;
   sourceMessageId?: string | null;
+  caregiverId?: string | null;
 }): Promise<{ id: string }> {
   const supabase = createServiceClient();
 
@@ -68,6 +69,7 @@ export async function logActivityOutcome(input: {
       payload: payload as unknown as Json,
       origin: input.origin,
       source_message_id: input.sourceMessageId ?? null,
+      caregiver_id: input.caregiverId ?? null,
     })
     .select("id")
     .single();
@@ -100,6 +102,7 @@ export async function recordPlayEvent(input: {
   occurredAt?: string;
   origin: EventOrigin;
   sourceMessageId?: string | null;
+  caregiverId?: string | null;
 }): Promise<{ id: string }> {
   const supabase = createServiceClient();
 
@@ -124,6 +127,7 @@ export async function recordPlayEvent(input: {
       duration_minutes: input.durationMinutes ?? null,
       origin: input.origin,
       source_message_id: input.sourceMessageId ?? null,
+      caregiver_id: input.caregiverId ?? null,
     })
     .select("id")
     .single();

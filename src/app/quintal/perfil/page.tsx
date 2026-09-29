@@ -62,6 +62,12 @@ export default async function PerfilPage({
             {primaryCaregiver.role ? ` · ${primaryCaregiver.role}` : ""} · {primaryCaregiver.phoneNumber}
           </p>
         )}
+        <Link
+          href="/quintal/familia"
+          className="mt-1 inline-block text-xs font-medium text-ink underline underline-offset-2"
+        >
+          Crianças, cuidadores e convites →
+        </Link>
       </div>
 
       <FieldError>{error}</FieldError>

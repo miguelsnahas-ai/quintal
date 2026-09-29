@@ -200,6 +200,10 @@ export type DispatchOutcome =
 type DispatchContext = {
   childId: string | null;
   familyId: string;
+  // Quem está conversando (Fase 16) — sempre gravado em events.caregiver_id
+  // pelos dispatchers abaixo, para "quem registrou isso" nunca depender só
+  // de origin/source_message_id numa família com mais de um cuidador.
+  caregiverId: string;
   childContext: ChildContext | null;
   origin: EventOrigin;
   sourceMessageId: string | null;
@@ -265,6 +269,7 @@ async function dispatchSleep(
         notes: null,
         origin: ctx.origin,
         sourceMessageId: ctx.sourceMessageId,
+        caregiverId: ctx.caregiverId,
       });
       return {
         status: "recorded",
@@ -305,6 +310,7 @@ async function applyConfirmedSleep(
     notes: null,
     origin: ctx.origin,
     sourceMessageId: ctx.sourceMessageId,
+    caregiverId: ctx.caregiverId,
   });
 
   return {
@@ -334,6 +340,7 @@ async function dispatchMeal(
     suggestionId: null,
     origin: ctx.origin,
     sourceMessageId: ctx.sourceMessageId,
+    caregiverId: ctx.caregiverId,
   });
 
   const foodsPart = plan.foods.length > 0 ? ` (${plan.foods.join(", ")})` : "";
@@ -361,6 +368,7 @@ async function dispatchPlay(
     occurredAt: plan.occurredAt,
     origin: ctx.origin,
     sourceMessageId: ctx.sourceMessageId,
+    caregiverId: ctx.caregiverId,
   });
 
   const durationPart = plan.durationMinutes ? ` por ${formatDurationMinutes(plan.durationMinutes)}` : "";
@@ -431,6 +439,7 @@ async function dispatchNote(
     text: plan.text,
     origin: ctx.origin,
     sourceMessageId: ctx.sourceMessageId,
+    caregiverId: ctx.caregiverId,
   });
 
   return { status: "recorded", eventType: plan.noteKind, reply: `Registrei: ${plan.text}` };
@@ -447,6 +456,7 @@ async function createNoteEvent(input: {
   text: string;
   origin: EventOrigin;
   sourceMessageId: string | null;
+  caregiverId: string;
 }): Promise<void> {
   const supabase = createServiceClient();
   const { error } = await supabase.from("events").insert({
@@ -455,6 +465,7 @@ async function createNoteEvent(input: {
     notes: input.text,
     origin: input.origin,
     source_message_id: input.sourceMessageId,
+    caregiver_id: input.caregiverId,
   });
 
   if (error) {

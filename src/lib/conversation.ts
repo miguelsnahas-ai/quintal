@@ -143,6 +143,7 @@ export async function recordConversationTurn(
   const dispatchCtx = {
     childId: input.childId,
     familyId: caregiver.family_id,
+    caregiverId: caregiver.id,
     childContext,
     origin: "chat" as const,
     sourceMessageId: inboundMessage.id,
@@ -218,6 +219,7 @@ export async function recordConversationTurn(
             notes: suggestion.notes,
             source_message_id: inboundMessage.id,
             origin: "chat",
+            caregiver_id: caregiver.id,
           });
 
           if (eventError) {

@@ -2,6 +2,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { ageLabel } from "@/lib/format";
 import type { FamilyPreferences } from "@/lib/childContext";
 import type { PreferenceCategory } from "@/lib/validation/chatAction";
+import type { AccessRole } from "@/lib/authorization";
 
 // The read+write counterpart to childContext.ts's getChildContext: that
 // one is READ-ONLY and shaped for the AI prompt (per child, with recent
@@ -25,6 +26,9 @@ export type FamilyProfileCaregiver = {
   phoneNumber: string;
   role: string | null;
   isPrimaryContact: boolean;
+  // Papel de ACESSO (Fase 16) — não confundir com `role` acima
+  // (parentesco livre, ex. "mãe"/"avó"): ver src/lib/authorization.ts.
+  accessRole: AccessRole;
 };
 
 export type FamilyProfile = {
@@ -44,7 +48,7 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
       supabase.from("families").select("id, name, notes").eq("id", familyId).maybeSingle(),
       supabase
         .from("caregivers")
-        .select("id, name, phone_number, role, is_primary_contact")
+        .select("id, name, phone_number, role, is_primary_contact, access_role")
         .eq("family_id", familyId)
         .order("created_at", { ascending: true }),
       supabase
@@ -69,6 +73,7 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
       phoneNumber: caregiver.phone_number,
       role: caregiver.role,
       isPrimaryContact: caregiver.is_primary_contact,
+      accessRole: caregiver.access_role as AccessRole,
     })),
     children: (children ?? []).map((child) => ({
       id: child.id,
@@ -108,6 +113,58 @@ export async function updateChildEssentials(
       interests: input.interests,
     })
     .eq("id", childId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// "Adicionar criança" (Fase 16) — fluxo simples pedido: nome, data de
+// nascimento, sem foto/avatar (a arquitetura de imagem que existe hoje
+// no produto é só pra conteúdo da biblioteca, não pra fotos de família;
+// adicionar upload de foto de criança é um passo maior, deixado para
+// quando houver evidência de necessidade). Vincula (caregiver_child) a
+// TODO cuidador já existente da família automaticamente — o owner
+// sempre tem acesso à criança que acabou de cadastrar, e qualquer outro
+// cuidador da família também, mesmo comportamento implícito que já
+// existia antes desta fase para toda criança/cuidador de uma família.
+export async function createChild(
+  familyId: string,
+  input: { name: string; birthDate: string | null },
+): Promise<{ id: string }> {
+  const supabase = createServiceClient();
+
+  const { data: child, error } = await supabase
+    .from("children")
+    .insert({ family_id: familyId, name: input.name, birth_date: input.birthDate })
+    .select("id")
+    .single();
+
+  if (error || !child) {
+    throw new Error(error?.message ?? "Não foi possível cadastrar a criança.");
+  }
+
+  const { data: caregivers } = await supabase.from("caregivers").select("id").eq("family_id", familyId);
+  if (caregivers && caregivers.length > 0) {
+    const { error: linkError } = await supabase
+      .from("caregiver_child")
+      .insert(caregivers.map((caregiver) => ({ caregiver_id: caregiver.id, child_id: child.id })));
+    if (linkError) {
+      console.error("Failed to link existing caregivers to new child", linkError);
+    }
+  }
+
+  return { id: child.id };
+}
+
+// "Remover criança" (Fase 16) — irreversível: apaga também todo o
+// histórico da criança (events tem on delete cascade em child_id, mesmo
+// comportamento que /ops/families/[id] já usa para isto). Escopado por
+// familyId (não só childId) pela mesma razão de toda outra função deste
+// arquivo: nunca confiar só no id vindo do formulário.
+export async function deleteChild(childId: string, familyId: string): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase.from("children").delete().eq("id", childId).eq("family_id", familyId);
 
   if (error) {
     throw new Error(error.message);

@@ -10,6 +10,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
@@ -186,6 +188,42 @@ export type Database = {
         }
         Relationships: []
       }
+      caregiver_child: {
+        Row: {
+          caregiver_id: string
+          child_id: string
+          created_at: string
+          relationship: string | null
+        }
+        Insert: {
+          caregiver_id: string
+          child_id: string
+          created_at?: string
+          relationship?: string | null
+        }
+        Update: {
+          caregiver_id?: string
+          child_id?: string
+          created_at?: string
+          relationship?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caregiver_child_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caregiver_child_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       caregiver_sessions: {
         Row: {
           caregiver_id: string
@@ -214,6 +252,7 @@ export type Database = {
       }
       caregivers: {
         Row: {
+          access_role: string
           created_at: string
           family_id: string
           id: string
@@ -223,6 +262,7 @@ export type Database = {
           role: string | null
         }
         Insert: {
+          access_role?: string
           created_at?: string
           family_id: string
           id?: string
@@ -232,6 +272,7 @@ export type Database = {
           role?: string | null
         }
         Update: {
+          access_role?: string
           created_at?: string
           family_id?: string
           id?: string
@@ -306,6 +347,7 @@ export type Database = {
       }
       events: {
         Row: {
+          caregiver_id: string | null
           child_id: string
           created_at: string
           created_by: string | null
@@ -319,6 +361,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          caregiver_id?: string | null
           child_id: string
           created_at?: string
           created_by?: string | null
@@ -332,6 +375,7 @@ export type Database = {
           type: string
         }
         Update: {
+          caregiver_id?: string | null
           child_id?: string
           created_at?: string
           created_by?: string | null
@@ -345,6 +389,13 @@ export type Database = {
           type?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "events_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "events_child_id_fkey"
             columns: ["child_id"]
@@ -381,6 +432,63 @@ export type Database = {
           notes?: string | null
         }
         Relationships: []
+      }
+      family_invitations: {
+        Row: {
+          accepted_at: string | null
+          access_role: string
+          created_at: string
+          email: string | null
+          expires_at: string
+          family_id: string
+          id: string
+          invited_by: string | null
+          name: string | null
+          status: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          access_role?: string
+          created_at?: string
+          email?: string | null
+          expires_at: string
+          family_id: string
+          id?: string
+          invited_by?: string | null
+          name?: string | null
+          status?: string
+          token: string
+        }
+        Update: {
+          accepted_at?: string | null
+          access_role?: string
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          family_id?: string
+          id?: string
+          invited_by?: string | null
+          name?: string | null
+          status?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_invitations_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       family_preferences: {
         Row: {
