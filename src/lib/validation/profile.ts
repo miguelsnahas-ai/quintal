@@ -39,13 +39,22 @@ export const addChildInputSchema = z.object({
 
 export type AddChildInput = z.infer<typeof addChildInputSchema>;
 
-// "Perfil da família" (Fase 17, /quintal/configuracoes/familia) — só o
-// nome, campo único hoje (ver updateFamilyName em familyContext.ts).
-export const updateFamilyNameInputSchema = z.object({
+// "Perfil da família" (Fase 17/19, /quintal/configuracoes/familia) — nome
+// e avatar da família (ver updateFamilyProfile em familyContext.ts).
+// Mesmo padrão de updateCaregiverProfileInputSchema (Fase 18): avatar_url
+// vazio vira null ("limpar o avatar"), sem upload, só URL.
+export const updateFamilyProfileInputSchema = z.object({
   name: z.string().trim().min(1, "Informe o nome da família."),
+  avatar_url: z
+    .string()
+    .optional()
+    .transform(emptyToNull)
+    .refine((value) => value === null || z.url().safeParse(value).success, {
+      message: "Informe uma URL válida para a foto.",
+    }),
 });
 
-export type UpdateFamilyNameInput = z.infer<typeof updateFamilyNameInputSchema>;
+export type UpdateFamilyProfileInput = z.infer<typeof updateFamilyProfileInputSchema>;
 
 // "Minha conta > Perfil" (Fase 17/18, /quintal/configuracoes/conta) — nome
 // e avatar do próprio cuidador. Telefone fica fora de propósito (é a
@@ -93,13 +102,66 @@ export type CaregiverNotificationPreferencesInput = z.infer<
   typeof caregiverNotificationPreferencesInputSchema
 >;
 
+// "Preferências da família" (Fase 19) — os 3 campos ESTRUTURADOS pedidos
+// (estilo de recomendação, flexibilidade de rotina, foco de atividades),
+// consultáveis por valor exato em vez de enterrados em texto livre — é
+// isso que a fase chama de "family.preferences" como estrutura, não só
+// prosa. Um <select> HTML sempre manda algum valor mesmo sem escolha
+// explícita (a primeira <option>), por isso cada enum ganha uma opção
+// "" ("Sem preferência") que este schema converte para null — nunca um
+// enum "obrigatório" que forçaria a família a escolher algo.
+export const recommendationStyles = ["practical", "detailed", "balanced"] as const;
+export type RecommendationStyle = (typeof recommendationStyles)[number];
+export const recommendationStyleLabels: Record<RecommendationStyle, string> = {
+  practical: "Mais práticas",
+  detailed: "Mais detalhadas",
+  balanced: "Equilíbrio",
+};
+
+export const routineFlexibilities = ["flexible", "structured", "balanced"] as const;
+export type RoutineFlexibility = (typeof routineFlexibilities)[number];
+export const routineFlexibilityLabels: Record<RoutineFlexibility, string> = {
+  flexible: "Mais flexível",
+  structured: "Mais estruturada",
+  balanced: "Equilíbrio",
+};
+
+export const routineActivityFocuses = ["home", "outdoor", "balanced"] as const;
+export type RoutineActivityFocus = (typeof routineActivityFocuses)[number];
+export const routineActivityFocusLabels: Record<RoutineActivityFocus, string> = {
+  home: "Mais em casa",
+  outdoor: "Mais atividades externas",
+  balanced: "Equilíbrio",
+};
+
+function optionalEnum<T extends readonly [string, ...string[]]>(values: T) {
+  return z
+    .string()
+    .optional()
+    .transform(emptyToNull)
+    .refine((value) => value === null || (values as readonly string[]).includes(value), {
+      message: "Opção inválida.",
+    })
+    .transform((value) => value as T[number] | null);
+}
+
 // Every field optional/free text on purpose — this is the "configurações
 // avançadas" progressive-disclosure section of /quintal/perfil, not a
 // form with required fields. Empty string means "cleared", not "unset"
 // (transformed to null so it doesn't show up in formatChildContextForPrompt
-// as an empty preference).
+// as an empty preference). content_focus é estruturado (checkboxes,
+// vocabulário de materialCategories — mesma escolha de
+// caregiverPersonalPreferencesInputSchema, Fase 18, agora no nível da
+// família); os 5 campos *_notes/interaction_style continuam sendo o
+// "campo de observação" para informação subjetiva ou adicional, como
+// desde a Fase 8 — o chat (chatActions.ts) edita esses mesmos campos por
+// categoria, então eles não mudam de forma nesta fase.
 export const familyPreferencesInputSchema = z.object({
   family_id: z.uuid("Família inválida."),
+  recommendation_style: optionalEnum(recommendationStyles),
+  routine_flexibility: optionalEnum(routineFlexibilities),
+  routine_activity_focus: optionalEnum(routineActivityFocuses),
+  content_focus: z.array(z.enum(materialCategories)).optional().default([]),
   feeding_notes: z.string().optional().transform(emptyToNull),
   routine_notes: z.string().optional().transform(emptyToNull),
   play_notes: z.string().optional().transform(emptyToNull),

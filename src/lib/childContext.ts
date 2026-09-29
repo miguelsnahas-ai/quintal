@@ -6,6 +6,16 @@ import { mealEventPayloadSchema } from "@/lib/validation/feeding";
 import { sleepEventPayloadSchema, sleepTypeLabels } from "@/lib/validation/sleep";
 import { playEventPayloadSchema, activityFeedbackLabels } from "@/lib/validation/play";
 import { formatDurationMinutes } from "@/lib/format";
+import type { MaterialCategory } from "@/lib/validation/library";
+import { materialCategoryLabels } from "@/lib/validation/library";
+import {
+  recommendationStyleLabels,
+  routineFlexibilityLabels,
+  routineActivityFocusLabels,
+  type RecommendationStyle,
+  type RoutineFlexibility,
+  type RoutineActivityFocus,
+} from "@/lib/validation/profile";
 
 // Deterministic, documented limits — no vector search, no ranking, just
 // "last N by time". Tune here if evidence says otherwise; nothing else in
@@ -59,6 +69,14 @@ export type FamilyPreferences = {
   playNotes: string | null;
   materialsNotes: string | null;
   interactionStyle: string | null;
+  // Campos estruturados (Fase 19, /quintal/configuracoes/familia) — ao
+  // lado dos campos de texto livre acima, para o mecanismo de
+  // recomendação/IA poder consultar um valor exato em vez de precisar
+  // interpretar prosa. Ver src/lib/validation/profile.ts para os enums.
+  recommendationStyle: RecommendationStyle | null;
+  routineFlexibility: RoutineFlexibility | null;
+  routineActivityFocus: RoutineActivityFocus | null;
+  contentFocus: MaterialCategory[];
 };
 
 export type ChildContext = {
@@ -145,7 +163,9 @@ export async function getChildContext(
       .limit(RECENT_DECISIONS_LIMIT),
     supabase
       .from("family_preferences")
-      .select("feeding_notes, routine_notes, play_notes, materials_notes, interaction_style")
+      .select(
+        "feeding_notes, routine_notes, play_notes, materials_notes, interaction_style, recommendation_style, routine_flexibility, routine_activity_focus, content_focus",
+      )
       .eq("family_id", child.family_id)
       .maybeSingle(),
     // Sem feeding_method_id, esta query simplesmente não bate com
@@ -196,6 +216,10 @@ export async function getChildContext(
           playNotes: preferencesRaw.play_notes,
           materialsNotes: preferencesRaw.materials_notes,
           interactionStyle: preferencesRaw.interaction_style,
+          recommendationStyle: preferencesRaw.recommendation_style as RecommendationStyle | null,
+          routineFlexibility: preferencesRaw.routine_flexibility as RoutineFlexibility | null,
+          routineActivityFocus: preferencesRaw.routine_activity_focus as RoutineActivityFocus | null,
+          contentFocus: preferencesRaw.content_focus as MaterialCategory[],
         }
       : null,
   };
@@ -260,10 +284,22 @@ function formatEventGroup(title: string, events: ChildContextEvent[]): string {
 function formatFamilyPreferences(preferences: FamilyPreferences | null): string {
   if (!preferences) return "";
   const lines = [
-    preferences.feedingNotes ? `- Alimentação: ${preferences.feedingNotes}` : null,
-    preferences.routineNotes ? `- Rotina: ${preferences.routineNotes}` : null,
-    preferences.playNotes ? `- Brincadeiras: ${preferences.playNotes}` : null,
-    preferences.materialsNotes ? `- Materiais: ${preferences.materialsNotes}` : null,
+    preferences.recommendationStyle
+      ? `- Estilo de recomendações preferido: ${recommendationStyleLabels[preferences.recommendationStyle]}`
+      : null,
+    preferences.routineFlexibility
+      ? `- Rotina: ${routineFlexibilityLabels[preferences.routineFlexibility]}`
+      : null,
+    preferences.routineActivityFocus
+      ? `- Atividades: ${routineActivityFocusLabels[preferences.routineActivityFocus]}`
+      : null,
+    preferences.contentFocus.length > 0
+      ? `- Conteúdo prioritário: ${preferences.contentFocus.map((category) => materialCategoryLabels[category]).join(", ")}`
+      : null,
+    preferences.feedingNotes ? `- Alimentação (observações): ${preferences.feedingNotes}` : null,
+    preferences.routineNotes ? `- Rotina (observações): ${preferences.routineNotes}` : null,
+    preferences.playNotes ? `- Brincadeiras (observações): ${preferences.playNotes}` : null,
+    preferences.materialsNotes ? `- Materiais (observações): ${preferences.materialsNotes}` : null,
     preferences.interactionStyle ? `- Estilo de interação preferido: ${preferences.interactionStyle}` : null,
   ].filter((line): line is string => line !== null);
 

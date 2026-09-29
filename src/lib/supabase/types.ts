@@ -458,18 +458,21 @@ export type Database = {
       }
       families: {
         Row: {
+          avatar_url: string | null
           created_at: string
           id: string
           name: string
           notes: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           id?: string
           name: string
           notes?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -536,29 +539,41 @@ export type Database = {
       }
       family_preferences: {
         Row: {
+          content_focus: string[]
           family_id: string
           feeding_notes: string | null
           interaction_style: string | null
           materials_notes: string | null
           play_notes: string | null
+          recommendation_style: string | null
+          routine_activity_focus: string | null
+          routine_flexibility: string | null
           routine_notes: string | null
           updated_at: string
         }
         Insert: {
+          content_focus?: string[]
           family_id: string
           feeding_notes?: string | null
           interaction_style?: string | null
           materials_notes?: string | null
           play_notes?: string | null
+          recommendation_style?: string | null
+          routine_activity_focus?: string | null
+          routine_flexibility?: string | null
           routine_notes?: string | null
           updated_at?: string
         }
         Update: {
+          content_focus?: string[]
           family_id?: string
           feeding_notes?: string | null
           interaction_style?: string | null
           materials_notes?: string | null
           play_notes?: string | null
+          recommendation_style?: string | null
+          routine_activity_focus?: string | null
+          routine_flexibility?: string | null
           routine_notes?: string | null
           updated_at?: string
         }

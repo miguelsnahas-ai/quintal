@@ -3,6 +3,8 @@ import { ageLabel } from "@/lib/format";
 import type { FamilyPreferences } from "@/lib/childContext";
 import type { PreferenceCategory } from "@/lib/validation/chatAction";
 import type { AccessRole } from "@/lib/authorization";
+import type { MaterialCategory } from "@/lib/validation/library";
+import type { RecommendationStyle, RoutineFlexibility, RoutineActivityFocus } from "@/lib/validation/profile";
 
 // The read+write counterpart to childContext.ts's getChildContext: that
 // one is READ-ONLY and shaped for the AI prompt (per child, with recent
@@ -32,7 +34,7 @@ export type FamilyProfileCaregiver = {
 };
 
 export type FamilyProfile = {
-  family: { id: string; name: string; notes: string | null };
+  family: { id: string; name: string; notes: string | null; avatarUrl: string | null };
   caregivers: FamilyProfileCaregiver[];
   children: FamilyProfileChild[];
   // null when the family hasn't saved any preference yet — family_preferences
@@ -45,7 +47,7 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
 
   const [{ data: family }, { data: caregivers }, { data: children }, { data: preferencesRaw }] =
     await Promise.all([
-      supabase.from("families").select("id, name, notes").eq("id", familyId).maybeSingle(),
+      supabase.from("families").select("id, name, notes, avatar_url").eq("id", familyId).maybeSingle(),
       supabase
         .from("caregivers")
         .select("id, name, phone_number, role, is_primary_contact, access_role")
@@ -58,7 +60,9 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
         .order("created_at", { ascending: true }),
       supabase
         .from("family_preferences")
-        .select("feeding_notes, routine_notes, play_notes, materials_notes, interaction_style")
+        .select(
+          "feeding_notes, routine_notes, play_notes, materials_notes, interaction_style, recommendation_style, routine_flexibility, routine_activity_focus, content_focus",
+        )
         .eq("family_id", familyId)
         .maybeSingle(),
     ]);
@@ -66,7 +70,7 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
   if (!family) return null;
 
   return {
-    family,
+    family: { id: family.id, name: family.name, notes: family.notes, avatarUrl: family.avatar_url },
     caregivers: (caregivers ?? []).map((caregiver) => ({
       id: caregiver.id,
       name: caregiver.name,
@@ -91,6 +95,10 @@ export async function getFamilyProfile(familyId: string): Promise<FamilyProfile 
           playNotes: preferencesRaw.play_notes,
           materialsNotes: preferencesRaw.materials_notes,
           interactionStyle: preferencesRaw.interaction_style,
+          recommendationStyle: preferencesRaw.recommendation_style as RecommendationStyle | null,
+          routineFlexibility: preferencesRaw.routine_flexibility as RoutineFlexibility | null,
+          routineActivityFocus: preferencesRaw.routine_activity_focus as RoutineActivityFocus | null,
+          contentFocus: preferencesRaw.content_focus as MaterialCategory[],
         }
       : null,
   };
@@ -126,14 +134,21 @@ export async function updateChildEssentials(
 // quando houver evidência de necessidade). Vincula (caregiver_child) a
 // TODO cuidador já existente da família automaticamente — o owner
 // sempre tem acesso à criança que acabou de cadastrar, e qualquer outro
-// "Perfil da família" (Fase 17, /quintal/configuracoes/familia) — antes
-// desta fase, o nome da família só era editável via /ops (updateFamily,
-// operador). Agora a própria família consegue, na área de
-// Configurações — mesma coluna, mesmo dado, só um segundo caminho de
-// escrita family-facing.
-export async function updateFamilyName(familyId: string, name: string): Promise<void> {
+// "Perfil da família" (Fase 17/19, /quintal/configuracoes/familia) — nome
+// e avatar. Antes da Fase 17, o nome da família só era editável via /ops
+// (updateFamily, operador); agora a própria família consegue, na área de
+// Configurações — mesmas colunas, só um segundo caminho de escrita
+// family-facing. Restrito ao owner (ver canManageFamily) — diferente de
+// updateFamilyPreferences abaixo, que qualquer cuidador pode ajustar.
+export async function updateFamilyProfile(
+  familyId: string,
+  input: { name: string; avatarUrl: string | null },
+): Promise<void> {
   const supabase = createServiceClient();
-  const { error } = await supabase.from("families").update({ name }).eq("id", familyId);
+  const { error } = await supabase
+    .from("families")
+    .update({ name: input.name, avatar_url: input.avatarUrl })
+    .eq("id", familyId);
 
   if (error) {
     throw new Error(error.message);
@@ -310,6 +325,10 @@ export async function appendFamilyPreferenceNote(
 export async function updateFamilyPreferences(
   familyId: string,
   input: {
+    recommendationStyle: RecommendationStyle | null;
+    routineFlexibility: RoutineFlexibility | null;
+    routineActivityFocus: RoutineActivityFocus | null;
+    contentFocus: MaterialCategory[];
     feedingNotes: string | null;
     routineNotes: string | null;
     playNotes: string | null;
@@ -320,6 +339,10 @@ export async function updateFamilyPreferences(
   const supabase = createServiceClient();
   const { error } = await supabase.from("family_preferences").upsert({
     family_id: familyId,
+    recommendation_style: input.recommendationStyle,
+    routine_flexibility: input.routineFlexibility,
+    routine_activity_focus: input.routineActivityFocus,
+    content_focus: input.contentFocus,
     feeding_notes: input.feedingNotes,
     routine_notes: input.routineNotes,
     play_notes: input.playNotes,
