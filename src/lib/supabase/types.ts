@@ -224,6 +224,47 @@ export type Database = {
           },
         ]
       }
+      caregiver_preferences: {
+        Row: {
+          caregiver_id: string
+          communication_style: string | null
+          content_interests: string[]
+          notify_general: boolean
+          notify_recommendations: boolean
+          notify_reminders: boolean
+          notify_routine_updates: boolean
+          updated_at: string
+        }
+        Insert: {
+          caregiver_id: string
+          communication_style?: string | null
+          content_interests?: string[]
+          notify_general?: boolean
+          notify_recommendations?: boolean
+          notify_reminders?: boolean
+          notify_routine_updates?: boolean
+          updated_at?: string
+        }
+        Update: {
+          caregiver_id?: string
+          communication_style?: string | null
+          content_interests?: string[]
+          notify_general?: boolean
+          notify_recommendations?: boolean
+          notify_reminders?: boolean
+          notify_routine_updates?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caregiver_preferences_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: true
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       caregiver_sessions: {
         Row: {
           caregiver_id: string
@@ -253,6 +294,7 @@ export type Database = {
       caregivers: {
         Row: {
           access_role: string
+          avatar_url: string | null
           created_at: string
           family_id: string
           id: string
@@ -263,6 +305,7 @@ export type Database = {
         }
         Insert: {
           access_role?: string
+          avatar_url?: string | null
           created_at?: string
           family_id: string
           id?: string
@@ -273,6 +316,7 @@ export type Database = {
         }
         Update: {
           access_role?: string
+          avatar_url?: string | null
           created_at?: string
           family_id?: string
           id?: string

@@ -140,13 +140,21 @@ export async function updateFamilyName(familyId: string, name: string): Promise<
   }
 }
 
-// "Minha conta > Perfil" (Fase 17, /quintal/configuracoes/conta) — um
-// cuidador editando o próprio nome. Escopado por caregiverId apenas (não
-// por família): quem chama isto já resolveu a sessão e só tem o próprio
-// caregiverId em mãos, nunca o de outra pessoa.
-export async function updateCaregiverName(caregiverId: string, name: string): Promise<void> {
+// "Minha conta > Perfil" (Fase 17/18, /quintal/configuracoes/conta) — um
+// cuidador editando o próprio nome e avatar. Escopado por caregiverId
+// apenas (não por família): quem chama isto já resolveu a sessão e só tem
+// o próprio caregiverId em mãos, nunca o de outra pessoa. avatarUrl é
+// nullable (sem infraestrutura de upload — ver a migration da Fase 18):
+// null limpa o avatar e volta pro fallback de iniciais na UI.
+export async function updateCaregiverProfile(
+  caregiverId: string,
+  input: { name: string; avatarUrl: string | null },
+): Promise<void> {
   const supabase = createServiceClient();
-  const { error } = await supabase.from("caregivers").update({ name }).eq("id", caregiverId);
+  const { error } = await supabase
+    .from("caregivers")
+    .update({ name: input.name, avatar_url: input.avatarUrl })
+    .eq("id", caregiverId);
 
   if (error) {
     throw new Error(error.message);
