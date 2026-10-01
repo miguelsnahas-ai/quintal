@@ -250,13 +250,18 @@ export async function updateCaregiverProfile(
 // existia antes desta fase para toda criança/cuidador de uma família.
 export async function createChild(
   familyId: string,
-  input: { name: string; birthDate: string | null },
+  input: { name: string; birthDate: string | null; avatarUrl?: string | null },
 ): Promise<{ id: string }> {
   const supabase = createServiceClient();
 
   const { data: child, error } = await supabase
     .from("children")
-    .insert({ family_id: familyId, name: input.name, birth_date: input.birthDate })
+    .insert({
+      family_id: familyId,
+      name: input.name,
+      birth_date: input.birthDate,
+      avatar_url: input.avatarUrl ?? null,
+    })
     .select("id")
     .single();
 

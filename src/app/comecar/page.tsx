@@ -1,66 +1,47 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getFamilySessionCaregiverId } from "@/lib/familySession";
-import { Button } from "@/components/ui/Button";
-import { Input, Label, FieldError } from "@/components/ui/Field";
-import { startFamily } from "./actions";
+import { Wordmark } from "@/components/marks/Wordmark";
+import { CrayonDefs, CrayonMark } from "@/components/marks/CrayonMark";
+import { buttonClassName } from "@/components/ui/Button";
 
 export const metadata: Metadata = {
-  title: "Comece a usar o Quintal",
+  title: "Bem-vindo(a) ao Quintal",
   robots: { index: false, follow: false },
 };
 
-export default async function StartPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-
+// Primeira tela do onboarding (refatoração desta fase) — só a
+// apresentação e o convite para começar, sem nenhum campo. "Já tenho uma
+// conta" pula direto pro passo que reconhece o WhatsApp já cadastrado
+// (/comecar/voce) — não existe um segundo mecanismo de login no
+// produto, então "entrar" e "começar" convergem no mesmo lugar.
+export default async function StartPage() {
   const existingCaregiverId = await getFamilySessionCaregiverId();
   if (existingCaregiverId) {
     redirect("/quintal");
   }
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col justify-center px-4 py-10">
-      <div className="mb-6 space-y-1 text-center">
-        <h1 className="text-lg font-bold text-ink">Bem-vindo(a) ao Quintal</h1>
+    <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col items-center justify-center px-4 py-10 text-center">
+      <CrayonDefs />
+      <Wordmark size={48} />
+      <div className="mt-8 space-y-2">
+        <h1 className="text-2xl font-bold text-ink">Um lugar de apoio para cada fase da primeira infância.</h1>
         <p className="text-sm text-ink-muted">
-          Conte um pouco sobre você e sobre a criança para começar — leva
-          menos de um minuto, e você volta direto para cá da próxima vez
-          que abrir este link neste aparelho.
+          Rotina, orientação e conteúdo, tudo em um só lugar — sem cobrar nada de você além do que
+          já faz.
         </p>
       </div>
-
-      <FieldError>{error}</FieldError>
-
-      <form action={startFamily} className="space-y-4">
-        <div className="space-y-1">
-          <Label htmlFor="parent_name">Seu nome</Label>
-          <Input id="parent_name" name="parent_name" required autoFocus />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="phone_number">Seu WhatsApp</Label>
-          <Input
-            id="phone_number"
-            name="phone_number"
-            placeholder="(11) 91234-5678"
-            required
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="child_name">Nome da criança</Label>
-          <Input id="child_name" name="child_name" required />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="child_birth_date">Data de nascimento</Label>
-          <Input id="child_birth_date" name="child_birth_date" type="date" required />
-        </div>
-        <Button type="submit" className="w-full">
-          Entrar no Quintal
-        </Button>
-      </form>
+      <CrayonMark mark="sprig" scale={0.6} style={{ margin: "24px 0" }} />
+      <div className="w-full space-y-3">
+        <Link href="/comecar/voce" className={buttonClassName("primary", "w-full justify-center")}>
+          Começar
+        </Link>
+        <Link href="/comecar/voce" className="block text-sm text-ink-muted hover:text-ink">
+          Já tenho uma conta
+        </Link>
+      </div>
     </div>
   );
 }
