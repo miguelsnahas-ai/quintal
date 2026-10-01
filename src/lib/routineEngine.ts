@@ -2,6 +2,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { ageInMonths } from "@/lib/format";
 import { getActivity, toActivitySummary, type ActivitySummary } from "@/lib/activity";
 import { getOpenSleepSession, getSleepHistory, type SleepHistoryEntry } from "@/lib/sleep";
+import type { SleepType } from "@/lib/validation/sleep";
+import { formatDurationMinutes } from "@/lib/format";
 import { getMealHistory, type MealHistoryEntry } from "@/lib/feeding";
 import {
   getActivityHistory,
@@ -48,6 +50,10 @@ export type RoutineState = {
   // "Se uma atividade foi registrada como favorita" — a mais recente
   // com feedback 'loved' no histórico de Brincadeiras (Fase 11).
   favoriteActivity: { id: string; title: string } | null;
+  // Tipo do último sono concluído (null sem histórico) — usado pela Home
+  // (Fase "Momento atual") pra dizer "Soneca terminou" vs. "Acordou",
+  // em vez de genericamente "o sono terminou".
+  lastSleepType: SleepType | null;
 };
 
 export type RoutineInputs = {
@@ -87,7 +93,56 @@ export function detectState(input: RoutineInputs): RoutineState {
     ? { id: lovedEntry.activityId as string, title: lovedEntry.activityTitle ?? "Atividade favorita" }
     : null;
 
-  return { isNapping, minutesAwake, minutesSinceLastMeal, lastNapWasShort, favoriteActivity };
+  return {
+    isNapping,
+    minutesAwake,
+    minutesSinceLastMeal,
+    lastNapWasShort,
+    favoriteActivity,
+    lastSleepType: lastCompletedSleep?.sleepType ?? null,
+  };
+}
+
+// "Momento atual" (Home, refatoração desta fase) — uma única frase sobre
+// o agora, não um resumo do dia (isso é o card de Sono/Alimentação/
+// Brincadeiras logo abaixo). Prioridade: dormindo agora > acordou/
+// terminou a soneca há pouco > a próxima sugestão de rotina, se estiver
+// perto o bastante pra valer a pena mencionar. Sem dado suficiente para
+// nenhum dos três, não mostra nada — nunca inventa "hora provável de X"
+// sem uma rotina histórica real por trás (ver computeTypicalMealTimes).
+export type CurrentMoment = { text: string; detail?: string };
+
+const RECENT_WAKE_WINDOW_MINUTES = 90;
+const UPCOMING_SOON_WINDOW_MINUTES = 90;
+
+function timeOfDayLabel(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+export function describeCurrentMoment(
+  state: RoutineState,
+  openSleepSession: { startedAt: string } | null,
+  upcomingMoments: RoutineSuggestion[],
+  now: Date,
+): CurrentMoment | null {
+  if (state.isNapping && openSleepSession) {
+    return { text: `Dormindo desde ${timeOfDayLabel(openSleepSession.startedAt)}` };
+  }
+
+  if (state.minutesAwake !== null && state.minutesAwake >= 0 && state.minutesAwake <= RECENT_WAKE_WINDOW_MINUTES) {
+    const label = state.lastSleepType === "nap" ? "Soneca terminou" : "Acordou";
+    return { text: `${label} há ${formatDurationMinutes(state.minutesAwake)}` };
+  }
+
+  const next = upcomingMoments[0];
+  if (next) {
+    const minutesUntil = Math.round((new Date(next.suggestedAt).getTime() - now.getTime()) / 60000);
+    if (minutesUntil >= 0 && minutesUntil <= UPCOMING_SOON_WINDOW_MINUTES) {
+      return { text: `Hora provável: ${next.label.toLowerCase()}`, detail: next.reason };
+    }
+  }
+
+  return null;
 }
 
 export type RoutineSuggestionKind = "play" | "outing" | "meal" | "wind_down";

@@ -204,6 +204,7 @@ describe("buildRoutineSuggestions", () => {
     minutesSinceLastMeal: 180,
     lastNapWasShort: false,
     favoriteActivity: null,
+    lastSleepType: "nap",
   };
 
   it("não sugere nada enquanto a criança está dormindo (nunca inventa hora de despertar)", () => {

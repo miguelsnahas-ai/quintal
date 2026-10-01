@@ -1,4 +1,5 @@
-import { ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { Bell, ChevronDown } from "lucide-react";
 import { ageLabel } from "@/lib/format";
 import { setActiveChildAction } from "@/app/quintal/actions";
 import { ChildAvatar } from "@/components/ui/ChildAvatar";
@@ -13,6 +14,11 @@ import type { AccessibleChild } from "@/lib/activeChild";
 // já usado em outros menus do produto: <details>/<summary> para o
 // dropdown, um <form> por opção que só troca o cookie e recarrega a
 // página atual.
+//
+// O sino não abre uma caixa de notificações — isso não existe no
+// produto (nenhuma notificação é enviada de verdade ainda, ver
+// conta/preferências de notificação). Leva direto pra onde a família já
+// consegue ajustar essa preferência, em vez de simular uma lista vazia.
 export default function ChildSwitcher({
   activeChild,
   childrenList,
@@ -32,12 +38,27 @@ export default function ChildSwitcher({
     </span>
   );
 
+  const notificationsLink = (
+    <Link
+      href="/quintal/configuracoes/conta?aba=notificacoes"
+      aria-label="Notificações"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-neutral/40 hover:text-ink"
+    >
+      <Bell className="h-5 w-5" aria-hidden />
+    </Link>
+  );
+
   if (childrenList.length <= 1) {
-    return <div className="mx-auto flex w-full max-w-lg items-center px-4 pt-3">{identity}</div>;
+    return (
+      <div className="mx-auto flex w-full max-w-lg items-center justify-between px-4 pt-3">
+        {identity}
+        {notificationsLink}
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4 pt-3">
+    <div className="mx-auto flex w-full max-w-lg items-center justify-between px-4 pt-3">
       <details className="group relative w-fit">
         <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full py-1 pr-1 marker:content-none">
           {identity}
@@ -70,6 +91,7 @@ export default function ChildSwitcher({
           })}
         </div>
       </details>
+      {notificationsLink}
     </div>
   );
 }

@@ -5,8 +5,9 @@ import { getActivity, toActivitySummary, type Activity, type ActivitySummary } f
 import { getOpenSleepSession, type OpenSleepSession } from "@/lib/sleep";
 import { getActivitySuggestions, getRecentNegativeLibraryFeedbackActivityIds } from "@/lib/play";
 import { getRecommendedMaterials, getRecentCategoryBoosts, type RecommendedMaterial } from "@/lib/library";
-import { getChildFeedingMethod } from "@/lib/feeding";
-import { getRoutineSuggestions, type RoutineSuggestion } from "@/lib/routineEngine";
+import { getChildFeedingMethod, getMealSuggestions, guessMealSlot, type MealSuggestion } from "@/lib/feeding";
+import type { MealSlot } from "@/lib/validation/feeding";
+import { getRoutineSuggestions, describeCurrentMoment, type RoutineSuggestion, type CurrentMoment } from "@/lib/routineEngine";
 import { sleepEventPayloadSchema } from "@/lib/validation/sleep";
 import type { EventType } from "@/lib/validation/events";
 import type { Json } from "@/lib/supabase/types";
@@ -75,6 +76,12 @@ export type DashboardSummary = {
   // brincadeira" ao Dashboard não devia depender de a família ter
   // conversado; a página decide se mostra isto ou recommendationsToday.
   playSuggestion: ActivitySummary | null;
+  // "Sugestões para hoje" (refatoração da Home) também passa a incluir
+  // uma sugestão de refeição — mesma fonte que /quintal/alimentacao já
+  // usa (getMealSuggestions), para o slot mais provável da hora atual
+  // (guessMealSlot). null quando não há receita adequada pra idade.
+  mealSuggestion: MealSuggestion | null;
+  mealSuggestionSlot: MealSlot;
   // Fase 12: "adicionar materiais recomendados quando houver contexto
   // suficiente" — vazio sempre que a idade da criança não é conhecida
   // (getRecommendedMaterials recusa recomendar sem isso), nunca um
@@ -85,6 +92,10 @@ export type DashboardSummary = {
   // está dormindo agora (getRoutineSuggestions nunca inventa uma hora
   // de despertar) ou quando não há dado suficiente ainda.
   upcomingMoments: RoutineSuggestion[];
+  // "Momento atual" (refatoração da Home): uma frase sobre o agora,
+  // derivada do mesmo estado de rotina que já alimenta upcomingMoments —
+  // null quando não há nada relevante o bastante pra dizer.
+  currentMoment: CurrentMoment | null;
 };
 
 // The Dashboard's single data source — every number and card on
@@ -171,7 +182,15 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     limit: DASHBOARD_MATERIALS_LIMIT,
   });
 
-  const { suggestions: upcomingMoments } = await getRoutineSuggestions(childId);
+  const mealSuggestionSlot = guessMealSlot(new Date().getHours());
+  const mealSuggestions = await getMealSuggestions({
+    ageMonths,
+    slot: mealSuggestionSlot,
+    feedingMethodTitle: feedingMethod.option?.title ?? feedingMethod.custom,
+  });
+
+  const { state: routineState, suggestions: upcomingMoments } = await getRoutineSuggestions(childId);
+  const currentMoment = describeCurrentMoment(routineState, openSleepSession, upcomingMoments, new Date());
 
   return {
     sleepCount: timeline.filter((event) => event.type === "sleep").length,
@@ -189,5 +208,8 @@ export async function getDashboardSummary(childId: string): Promise<DashboardSum
     playSuggestion: playSuggestions[0] ?? null,
     recommendedMaterials,
     upcomingMoments,
+    currentMoment,
+    mealSuggestion: mealSuggestions[0] ?? null,
+    mealSuggestionSlot,
   };
 }

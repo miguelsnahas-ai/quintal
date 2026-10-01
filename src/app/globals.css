@@ -150,6 +150,23 @@ svg.lucide {
   animation: q-sheet-in 200ms ease-out;
 }
 
+/* Skeleton de carregamento (ver loading.tsx de /quintal) — "animação de
+   shimmer, nunca um spinner circular" (guideline do design system).
+   Um gradiente varrendo a largura do bloco, não um pulso de opacidade. */
+@keyframes q-shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.q-skeleton {
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-neutral) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: q-shimmer 1.6s ease-in-out infinite;
+}
+
 /* The app leans on transition-* utilities for hover/press feedback
    throughout (cards, buttons, chips) — this is the one global rule that
    keeps all of them from moving for people who've asked the OS not to. */

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Sparkles, Blocks, MapPin, Utensils, Moon } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { cardClassName, cardHoverLift } from "@/components/ui/Card";
+import { inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 import type { RoutineSuggestion, RoutineSuggestionKind } from "@/lib/routineEngine";
 
 const ICONS: Record<RoutineSuggestionKind, LucideIcon> = {
@@ -22,10 +22,15 @@ export default function UpcomingMoments({ suggestions }: { suggestions: RoutineS
 
   return (
     <section className="space-y-3">
-      <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
-        <Sparkles className="h-4 w-4" aria-hidden />
-        Próximos momentos
-      </h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+          <Sparkles className="h-4 w-4" aria-hidden />
+          Próximos momentos
+        </h2>
+        <Link href="/quintal/timeline" className="text-xs font-medium text-ink underline underline-offset-2">
+          Ver agenda completa
+        </Link>
+      </div>
       <p className="text-xs text-ink-muted">
         Uma possibilidade para o restante do dia — não um compromisso. Vocês sabem melhor o que
         faz sentido agora.
@@ -35,7 +40,7 @@ export default function UpcomingMoments({ suggestions }: { suggestions: RoutineS
           const Icon = ICONS[suggestion.kind];
           return (
             <li key={suggestion.id}>
-              <Link href={suggestion.href} className={cardClassName(`flex items-start gap-3 p-3 ${cardHoverLift}`)}>
+              <Link href={suggestion.href} className={inviteCardClassName(`flex items-start gap-3 p-3 ${cardHoverLift}`)}>
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
                   <Icon className="h-4 w-4 text-ink" aria-hidden />
                 </span>

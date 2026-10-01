@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight, Moon, Sun, Utensils, Blocks, MapPin, ListChecks, Sparkles, Eye } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
 import { dayLabel } from "@/lib/format";
@@ -12,28 +11,17 @@ import {
   TIMELINE_FILTER_LABELS,
   TIMELINE_FILTER_TYPES,
   isTimelineFilter,
-  type TimelineIcon,
 } from "@/lib/timeline";
 import { eventOriginLabels } from "@/lib/validation/events";
 import { cardClassName } from "@/components/ui/Card";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { TimelineEventIcon } from "@/components/dashboard/TimelineEventIcon";
 
 export const metadata: Metadata = {
   title: "Timeline — Quintal",
   robots: { index: false, follow: false },
-};
-
-const ICONS: Record<TimelineIcon, LucideIcon> = {
-  sleep: Moon,
-  wake: Sun,
-  meal: Utensils,
-  play: Blocks,
-  outing: MapPin,
-  routine: ListChecks,
-  development: Sparkles,
-  observation: Eye,
 };
 
 function parseDayParam(dia: string | undefined): Date {
@@ -151,7 +139,6 @@ export default async function TimelinePage({
       ) : (
         <ol className="space-y-2">
           {entries.map((entry) => {
-            const Icon = ICONS[entry.icon];
             return (
               <li key={entry.displayKey}>
                 <Link
@@ -159,7 +146,7 @@ export default async function TimelinePage({
                   className={cardClassName("flex items-start gap-3 p-3 transition-all duration-200 hover:shadow-[var(--shadow-lift)]")}
                 >
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
-                    <Icon className="h-4 w-4 text-ink" aria-hidden />
+                    <TimelineEventIcon type={entry.icon} className="h-4 w-4 text-ink" />
                   </span>
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-baseline justify-between gap-2">

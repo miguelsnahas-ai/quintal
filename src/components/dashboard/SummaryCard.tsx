@@ -1,15 +1,16 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { cardClassName, cardHoverLift } from "@/components/ui/Card";
+import { inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 
 // One compact tile in the dashboard's "resumo do dia" grid. Deliberately
 // dumb/presentational — it never decides what counts as data vs. empty,
 // the page passes `value: null` when there's nothing real to show yet
-// (see src/lib/dashboard.ts). Same warm family-tier surface as
-// ActivityCard (rounded-lg, no border) rather than the operator tool's
-// denser `cardClassName` (rounded-sm, bordered). `href` is optional —
-// Alimentação (Fase 9) and Sono (Fase 10) have their own modules to link
-// to; Brincadeiras/Rotina stay plain divs until they get one too.
+// (see src/lib/dashboard.ts). Sem borda, de propósito (refatoração da
+// Home): "cards leves, evitar excesso de bordas e sombras" — mesmo tom
+// "convite" que ActivityCard/MaterialCard já usam, em vez do
+// `cardClassName` bordado mais denso do resto do produto. `href` é
+// opcional — Alimentação (Fase 9) e Sono (Fase 10) têm módulo próprio
+// pra linkar; Brincadeiras/Rotina ficam div simples até ganharem um.
 export default function SummaryCard({
   icon: Icon,
   label,
@@ -39,11 +40,11 @@ export default function SummaryCard({
 
   if (href) {
     return (
-      <Link href={href} className={cardClassName(`block space-y-2 p-4 ${cardHoverLift}`)}>
+      <Link href={href} className={inviteCardClassName(`block space-y-2 p-4 ${cardHoverLift}`)}>
         {content}
       </Link>
     );
   }
 
-  return <div className={cardClassName("space-y-2 p-4")}>{content}</div>;
+  return <div className={inviteCardClassName("space-y-2 p-4")}>{content}</div>;
 }

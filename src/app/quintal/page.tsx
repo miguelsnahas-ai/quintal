@@ -1,18 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Moon, Utensils, Blocks, ListChecks, MessageCircle, Sparkles } from "lucide-react";
+import { Moon, Utensils, Blocks, ListChecks, MessageCircle, Sparkles, Sprout } from "lucide-react";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
+import { createServiceClient } from "@/lib/supabase/service";
 import { formatDurationMinutes } from "@/lib/format";
 import { getDashboardSummary } from "@/lib/dashboard";
 import { buttonClassName } from "@/components/ui/Button";
-import { cardClassName, inviteCardClassName } from "@/components/ui/Card";
+import { inviteCardClassName } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import CurrentMomentCard from "@/components/dashboard/CurrentMomentCard";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 import Timeline from "@/components/dashboard/Timeline";
 import UpcomingMoments from "@/components/dashboard/UpcomingMoments";
 import ActivityCard from "@/components/conversation/ActivityCard";
+import MealSuggestionCard from "@/components/feeding/MealSuggestionCard";
 import MaterialCard from "@/components/library/MaterialCard";
 
 export const metadata: Metadata = {
@@ -20,11 +24,13 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// The family's entry point as of this phase: a Home/Dashboard, not the
-// chat. The chat hasn't gone anywhere — it moved to /quintal/chat, still
-// one tap away from the header's message button and the CTA at the
-// bottom of this page. This page is intentionally read-only: it answers
-// "how's the day going", it doesn't collect anything.
+// A Home responde "o que está acontecendo hoje e o que pode fazer
+// sentido agora" — contexto + próxima ação, nunca um dashboard de
+// métricas (critério explícito desta refatoração). Cada seção já existia
+// de alguma forma (Fases 7/9/10/11/12/14); o que muda aqui é a
+// composição: um "momento atual" em destaque logo após a saudação, e
+// "Sugestões para hoje" consolidando brincadeira + refeição + material
+// num só lugar, em vez de duas seções separadas.
 export default async function QuintalDashboardPage() {
   const session = await getSessionCaregiver();
   if (!session) {
@@ -36,33 +42,31 @@ export default async function QuintalDashboardPage() {
   // e o Dashboard sempre reflete a escolha atual, persistida em cookie.
   const { active: activeChild } = await getActiveChildContext(session.caregiverId);
 
-  const summary = activeChild
-    ? await getDashboardSummary(activeChild.id)
-    : {
-        sleepCount: 0,
-        mealCount: 0,
-        freePlayCount: 0,
-        routineCount: 0,
-        lastRoutine: null,
-        lastMeal: null,
-        napCountToday: 0,
-        napTotalMinutesToday: 0,
-        openSleepSession: null,
-        lastActivity: null,
-        timeline: [],
-        recommendationsToday: [],
-        playSuggestion: null,
-        recommendedMaterials: [],
-        upcomingMoments: [],
-      };
+  // "Primeiro acesso" — sessão existe, mas nenhuma criança ainda
+  // (onboarding interrompido antes de /comecar/crianca, ou a família
+  // removeu a única que tinha). Sem resumo/sugestões possível sem uma
+  // criança — a ação certa é voltar a adicionar uma, não mostrar uma
+  // Home vazia de verdade.
+  if (!activeChild) {
+    return (
+      <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
+        <EmptyState
+          icon={Sprout}
+          title="Vamos adicionar a primeira criança?"
+          description="O Quintal gira em torno da rotina de uma criança — adicione a primeira para ver a Home ganhar vida."
+        />
+        <Link href="/comecar/crianca" className={buttonClassName("primary", "w-full justify-center")}>
+          Adicionar criança
+        </Link>
+      </div>
+    );
+  }
 
-  const dateLabel = capitalize(
-    new Date().toLocaleDateString("pt-BR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }),
-  );
+  const supabase = createServiceClient();
+  const [summary, { data: caregiverRow }] = await Promise.all([
+    getDashboardSummary(activeChild.id),
+    supabase.from("caregivers").select("name").eq("id", session.caregiverId).maybeSingle(),
+  ]);
 
   const lastRoutineTime = summary.lastRoutine
     ? new Date(summary.lastRoutine.occurredAt).toLocaleTimeString("pt-BR", {
@@ -84,135 +88,101 @@ export default async function QuintalDashboardPage() {
       ? `${summary.napCountToday} soneca${summary.napCountToday === 1 ? "" : "s"} · ${formatDurationMinutes(summary.napTotalMinutesToday)}`
       : null;
 
+  // "Sugestões para hoje" (brincadeira + refeição + material/conteúdo,
+  // sempre respeitando a criança ativa — toda fonte abaixo já é
+  // calculada por getDashboardSummary a partir de activeChild.id). Uma
+  // atividade só — a lista completa de recomendações do chat continua
+  // alcançável por lá; a Home teasa, não acumula.
+  const activitySuggestion = summary.recommendationsToday[0] ?? summary.playSuggestion;
+  const hasSuggestions = activitySuggestion || summary.mealSuggestion || summary.recommendedMaterials.length > 0;
+
   return (
     <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
-      <DashboardHeader dateLabel={dateLabel} />
+      <DashboardHeader caregiverName={caregiverRow?.name ?? null} childName={activeChild.name} hour={new Date().getHours()} />
 
-      {!activeChild ? (
-        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
-          Nenhuma criança cadastrada ainda para esta família.
-        </p>
-      ) : (
-        <>
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-ink-muted">Hoje</h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <SummaryCard
-                icon={Moon}
-                label="Sono"
-                href="/quintal/sono"
-                value={sleepCardValue}
-                empty="Nenhum registro ainda hoje."
-              />
-              <SummaryCard
-                icon={Utensils}
-                label="Alimentação"
-                href="/quintal/alimentacao"
-                value={
-                  summary.lastMeal
-                    ? `${summary.mealCount} ${summary.mealCount === 1 ? "refeição" : "refeições"} · última: ${summary.lastMeal.notes}`
-                    : null
-                }
-                empty="Nenhum registro ainda hoje."
-              />
-              <SummaryCard
-                icon={Blocks}
-                label="Brincadeiras"
-                href="/quintal/brincadeiras"
-                value={
-                  summary.lastActivity
-                    ? `${summary.freePlayCount} ${summary.freePlayCount === 1 ? "atividade" : "atividades"} · última: ${summary.lastActivity.notes}`
-                    : null
-                }
-                empty="Nenhuma atividade ainda hoje."
-              />
-              <SummaryCard
-                icon={ListChecks}
-                label="Rotina"
-                href="/quintal/registrar?tipo=routine"
-                value={
-                  summary.lastRoutine
-                    ? `Último: ${summary.lastRoutine.notes} · ${lastRoutineTime}`
-                    : null
-                }
-                empty="Nenhum evento ainda hoje."
-              />
-            </div>
-          </section>
+      <CurrentMomentCard moment={summary.currentMoment} />
 
-          <UpcomingMoments suggestions={summary.upcomingMoments} />
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-ink-muted">Resumo do dia</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <SummaryCard
+            icon={Moon}
+            label="Sono"
+            href="/quintal/sono"
+            value={sleepCardValue}
+            empty="Nenhum registro ainda hoje."
+          />
+          <SummaryCard
+            icon={Utensils}
+            label="Alimentação"
+            href="/quintal/alimentacao"
+            value={
+              summary.lastMeal
+                ? `${summary.mealCount} ${summary.mealCount === 1 ? "refeição" : "refeições"} · última: ${summary.lastMeal.notes}`
+                : null
+            }
+            empty="Nenhum registro ainda hoje."
+          />
+          <SummaryCard
+            icon={Blocks}
+            label="Brincadeiras"
+            href="/quintal/brincadeiras"
+            value={
+              summary.lastActivity
+                ? `${summary.freePlayCount} ${summary.freePlayCount === 1 ? "atividade" : "atividades"} · última: ${summary.lastActivity.notes}`
+                : null
+            }
+            empty="Nenhuma atividade ainda hoje."
+          />
+          <SummaryCard
+            icon={ListChecks}
+            label="Rotina"
+            href="/quintal/registrar?tipo=routine"
+            value={summary.lastRoutine ? `Último: ${summary.lastRoutine.notes} · ${lastRoutineTime}` : null}
+            empty="Nenhum evento ainda hoje."
+          />
+        </div>
+      </section>
 
-          <section className="space-y-3">
-            <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
-              <Sparkles className="h-4 w-4" aria-hidden />
-              Para hoje
-            </h2>
-            {summary.recommendationsToday.length > 0 ? (
-              <div className="space-y-3">
-                {summary.recommendationsToday.map((activity) => (
-                  <ActivityCard key={activity.id} activity={activity} />
-                ))}
-              </div>
-            ) : summary.playSuggestion ? (
-              // Sem recomendação do chat hoje — cai para a sugestão
-              // determinística de brincadeira (idade + interesses, Fase
-              // 11) em vez de um estado vazio, quando há conteúdo real
-              // para a idade da criança.
-              <ActivityCard activity={summary.playSuggestion} />
-            ) : (
-              <div className={inviteCardClassName("space-y-2 p-4 text-sm text-ink-muted")}>
-                <p>Nenhuma sugestão ainda hoje.</p>
-                <Link href="/quintal/chat" className="font-medium text-ink underline underline-offset-2">
-                  Conte pro Quintal como está o dia
-                </Link>
-              </div>
+      <UpcomingMoments suggestions={summary.upcomingMoments} />
+
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+          <Sparkles className="h-4 w-4" aria-hidden />
+          Sugestões para hoje
+        </h2>
+        {hasSuggestions ? (
+          <div className="space-y-3">
+            {activitySuggestion && <ActivityCard activity={activitySuggestion} />}
+            {summary.mealSuggestion && (
+              <MealSuggestionCard suggestion={summary.mealSuggestion} slot={summary.mealSuggestionSlot} />
             )}
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-ink-muted">Timeline de hoje</h2>
-            <Timeline events={summary.timeline} />
-            <Link
-              href="/quintal/timeline"
-              className="text-xs font-medium text-ink underline underline-offset-2"
-            >
-              Ver timeline completa
+            {summary.recommendedMaterials.map(({ material, reason }) => (
+              <MaterialCard key={material.id} material={material} reason={reason} />
+            ))}
+          </div>
+        ) : (
+          <div className={inviteCardClassName("space-y-2 p-4 text-sm text-ink-muted")}>
+            <p>Nenhuma sugestão ainda hoje.</p>
+            <Link href="/quintal/chat" className="font-medium text-ink underline underline-offset-2">
+              Conte pro Quintal como está o dia
             </Link>
-          </section>
+          </div>
+        )}
+      </section>
 
-          {summary.recommendedMaterials.length > 0 && (
-            // Só aparece com contexto suficiente (idade conhecida) —
-            // getRecommendedMaterials devolve vazio sem isso, nunca um
-            // preenchimento forçado (Fase 12).
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-ink-muted">Materiais para vocês</h2>
-              <div className="space-y-3">
-                {summary.recommendedMaterials.map(({ material, reason }) => (
-                  <MaterialCard key={material.id} material={material} reason={reason} />
-                ))}
-              </div>
-              <Link
-                href="/quintal/materiais"
-                className="text-xs font-medium text-ink underline underline-offset-2"
-              >
-                Ver biblioteca de materiais
-              </Link>
-            </section>
-          )}
-        </>
-      )}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-ink-muted">Últimos registros</h2>
+        <Timeline events={summary.timeline} />
+        <Link href="/quintal/timeline" className="text-xs font-medium text-ink underline underline-offset-2">
+          Ver timeline completa
+        </Link>
+      </section>
 
-      <Link
-        href="/quintal/chat"
-        className={buttonClassName("primary", "w-full justify-center")}
-      >
+      <Link href="/quintal/chat" className={buttonClassName("primary", "w-full justify-center")}>
         <MessageCircle className="h-4 w-4" aria-hidden />
         Conversar com o Quintal
       </Link>
     </div>
   );
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }
