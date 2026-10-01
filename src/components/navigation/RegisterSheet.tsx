@@ -6,7 +6,7 @@ import { Plus, Moon, Utensils, Blocks, ListChecks, MoreHorizontal, X } from "luc
 import type { LucideIcon } from "lucide-react";
 
 const OPTIONS: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: "/quintal/sono#registrar", label: "Sono", icon: Moon },
+  { href: "/quintal/sono/registrar", label: "Sono", icon: Moon },
   { href: "/quintal/alimentacao#registrar", label: "Alimentação", icon: Utensils },
   { href: "/quintal/brincadeiras", label: "Brincadeira", icon: Blocks },
   { href: "/quintal/registrar?tipo=routine", label: "Rotina", icon: ListChecks },

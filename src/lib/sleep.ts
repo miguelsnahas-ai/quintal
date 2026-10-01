@@ -248,6 +248,14 @@ export async function getSleepHistory(childId: string, limit = SLEEP_HISTORY_LIM
 export type SleepSummary = {
   napCount: number;
   napTotalMinutes: number;
+  // Sono noturno concluído com início hoje (refatoração do módulo Sono)
+  // — mesma convenção de "atribuído ao dia em que começou" já usada no
+  // Histórico. Um sono noturno típico começa à noite de hoje e termina
+  // amanhã, então nightCount costuma ser 0 até a família registrar o
+  // início da noite — nunca inventa a duração de um período ainda em
+  // aberto (ver openSession, abaixo, para esse caso).
+  nightCount: number;
+  nightTotalMinutes: number;
   lastPeriod: SleepHistoryEntry | null;
   openSession: OpenSleepSession | null;
 };
@@ -274,10 +282,14 @@ export async function getTodaySleepSummary(childId: string): Promise<SleepSummar
   const entries = (todayRaw ?? []).map(toSleepHistoryEntry);
   const naps = entries.filter((entry) => entry.sleepType === "nap" && entry.durationMinutes !== null);
   const napTotalMinutes = naps.reduce((sum, entry) => sum + (entry.durationMinutes ?? 0), 0);
+  const nights = entries.filter((entry) => entry.sleepType === "night" && entry.durationMinutes !== null);
+  const nightTotalMinutes = nights.reduce((sum, entry) => sum + (entry.durationMinutes ?? 0), 0);
 
   return {
     napCount: naps.length,
     napTotalMinutes,
+    nightCount: nights.length,
+    nightTotalMinutes,
     lastPeriod: entries[entries.length - 1] ?? null,
     openSession,
   };

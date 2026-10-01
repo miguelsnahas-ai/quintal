@@ -20,12 +20,16 @@ async function requireSession(): Promise<SessionCaregiver> {
 async function assertChildAccess(childId: string, caregiverId: string): Promise<void> {
   const allowed = await canAccessChild(caregiverId, childId);
   if (!allowed) {
-    redirect(`/quintal/sono?error=${encodeURIComponent("Criança inválida.")}`);
+    redirect(`/quintal/sono/registrar?error=${encodeURIComponent("Criança inválida.")}`);
   }
 }
 
+// Sono/Histórico/Análises e a Home todos leem desses mesmos eventos —
+// revalida os quatro, não só a tela de onde o registro partiu.
 function revalidateSono() {
   revalidatePath("/quintal/sono");
+  revalidatePath("/quintal/sono/historico");
+  revalidatePath("/quintal/sono/analises");
   revalidatePath("/quintal");
 }
 
@@ -40,7 +44,7 @@ export async function startSleepAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/quintal/sono?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+    redirect(`/quintal/sono/registrar?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
   await assertChildAccess(parsed.data.child_id, session.caregiverId);
@@ -50,7 +54,7 @@ export async function startSleepAction(formData: FormData) {
   const existingOpen = await getOpenSleepSession(parsed.data.child_id);
   if (existingOpen) {
     redirect(
-      `/quintal/sono?error=${encodeURIComponent("Já existe um sono em andamento. Registre que a criança acordou antes de começar outro.")}`,
+      `/quintal/sono/registrar?error=${encodeURIComponent("Já existe um sono em andamento. Registre que a criança acordou antes de começar outro.")}`,
     );
   }
 
@@ -64,7 +68,7 @@ export async function startSleepAction(formData: FormData) {
       caregiverId: session.caregiverId,
     });
   } catch {
-    redirect(`/quintal/sono?error=${encodeURIComponent("Não foi possível registrar. Tente de novo.")}`);
+    redirect(`/quintal/sono/registrar?error=${encodeURIComponent("Não foi possível registrar. Tente de novo.")}`);
   }
 
   revalidateSono();
@@ -82,7 +86,7 @@ export async function endSleepAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/quintal/sono?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+    redirect(`/quintal/sono/registrar?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
   await assertChildAccess(parsed.data.child_id, session.caregiverId);
@@ -96,7 +100,7 @@ export async function endSleepAction(formData: FormData) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Não foi possível registrar. Tente de novo.";
-    redirect(`/quintal/sono?error=${encodeURIComponent(message)}`);
+    redirect(`/quintal/sono/registrar?error=${encodeURIComponent(message)}`);
   }
 
   revalidateSono();
@@ -115,7 +119,7 @@ export async function recordSleepPeriodAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/quintal/sono?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+    redirect(`/quintal/sono/registrar?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
   }
 
   await assertChildAccess(parsed.data.child_id, session.caregiverId);
@@ -131,7 +135,7 @@ export async function recordSleepPeriodAction(formData: FormData) {
       caregiverId: session.caregiverId,
     });
   } catch {
-    redirect(`/quintal/sono?error=${encodeURIComponent("Não foi possível registrar. Tente de novo.")}`);
+    redirect(`/quintal/sono/registrar?error=${encodeURIComponent("Não foi possível registrar. Tente de novo.")}`);
   }
 
   revalidateSono();
