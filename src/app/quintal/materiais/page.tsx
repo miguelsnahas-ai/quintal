@@ -64,7 +64,7 @@ export default async function MateriaisPage({
   if (!activeChild) {
     return (
       <PageContainer space={6}>
-        <PageHeader title="Materiais" backHref="/quintal" backLabel="Quintal" />
+        <PageHeader title="Materiais" backHref="/quintal/mais" backLabel="Mais" />
         <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
@@ -109,7 +109,7 @@ export default async function MateriaisPage({
 
   return (
     <PageContainer>
-      <PageHeader title="Materiais" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
+      <PageHeader title="Materiais" backHref="/quintal/mais" backLabel="Mais" />
 
       <form method="get" className={cardClassName("space-y-3 p-4")}>
         <div className="flex gap-2">

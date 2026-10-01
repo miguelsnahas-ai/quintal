@@ -1,14 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
-import { ageLabel } from "@/lib/format";
 import ConversationChat, {
   type ConversationTurn,
 } from "@/components/conversation/ConversationChat";
-import ChildHeader from "@/components/conversation/ChildHeader";
 import { sendQuintalMessage, sendQuintalRecommendationFeedback } from "./actions";
 
 export const metadata: Metadata = {
@@ -16,11 +13,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// Moved here from /quintal itself when the dashboard became the family's
-// entry point — same page, same ConversationChat, same actions, just a
-// nested route now. /quintal (the dashboard) always keeps a way back in
-// here (its header's chat button), and this page always keeps a way back
-// to the dashboard (the link below) — the chat never stops being reachable.
+// Aba primária da navegação (Hoje/Chat/Registrar/Timeline/Mais) — sem
+// link de volta nem cabeçalho próprio: o cabeçalho global (ChildSwitcher,
+// no AppShell) já identifica a criança ativa acima desta página, e a
+// barra inferior é como se chega e sai daqui, não um link "← Quintal".
 export default async function QuintalChatPage() {
   const session = await getSessionCaregiver();
   if (!session) {
@@ -40,13 +36,6 @@ export default async function QuintalChatPage() {
       .limit(20),
   ]);
 
-  const { count: eventCount } = activeChild
-    ? await supabase
-        .from("events")
-        .select("id", { count: "exact", head: true })
-        .eq("child_id", activeChild.id)
-    : { count: 0 };
-
   const initialMessages: ConversationTurn[] = (recentMessagesRaw ?? [])
     .slice()
     .reverse()
@@ -56,15 +45,7 @@ export default async function QuintalChatPage() {
     }));
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col px-4 py-6">
-      <Link href="/quintal" className="mb-2 text-sm text-ink-muted hover:text-ink">
-        ← Quintal
-      </Link>
-      <ChildHeader
-        childName={activeChild?.name ?? null}
-        ageLabel={activeChild ? ageLabel(activeChild.birthDate) : null}
-        eventCount={eventCount ?? 0}
-      />
+    <div className="mx-auto flex min-h-[calc(100dvh-9rem)] w-full max-w-lg flex-col px-4 pt-3 pb-6">
       <ConversationChat
         caregiverId={session.caregiverId}
         childrenList={childrenList}

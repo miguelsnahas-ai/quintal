@@ -135,6 +135,21 @@ svg.lucide {
   stroke-width: 1.8;
 }
 
+/* O bottom sheet do botão "Registrar" (RegisterSheet) — desliza de baixo
+   pra cima ao abrir. Uma animação simples via keyframes em vez de
+   @starting-style (suporte de navegador ainda desigual). */
+@keyframes q-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.q-sheet[open] {
+  animation: q-sheet-in 200ms ease-out;
+}
+
 /* The app leans on transition-* utilities for hover/press feedback
    throughout (cards, buttons, chips) — this is the one global rule that
    keeps all of them from moving for people who've asked the OS not to. */

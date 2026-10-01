@@ -82,7 +82,7 @@ export default async function TimelinePage({
   if (!activeChild) {
     return (
       <PageContainer space={6}>
-        <PageHeader title="Timeline" backHref="/quintal" backLabel="Quintal" />
+        <PageHeader title="Timeline" />
         <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
@@ -110,7 +110,7 @@ export default async function TimelinePage({
 
   return (
     <PageContainer space={6}>
-      <PageHeader title="Timeline" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
+      <PageHeader title="Timeline" />
 
       <div className={cardClassName("flex items-center justify-between p-3")}>
         <Link

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Moon, Utensils, Blocks, ListChecks, MessageCircle, Sparkles } from "lucide-react";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
-import { ageLabel, formatDurationMinutes } from "@/lib/format";
+import { formatDurationMinutes } from "@/lib/format";
 import { getDashboardSummary } from "@/lib/dashboard";
 import { buttonClassName } from "@/components/ui/Button";
 import { cardClassName, inviteCardClassName } from "@/components/ui/Card";
@@ -86,11 +86,7 @@ export default async function QuintalDashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
-      <DashboardHeader
-        childName={activeChild?.name ?? null}
-        ageLabel={activeChild ? ageLabel(activeChild.birthDate) : null}
-        dateLabel={dateLabel}
-      />
+      <DashboardHeader dateLabel={dateLabel} />
 
       {!activeChild ? (
         <p className={cardClassName("p-4 text-sm text-ink-muted")}>
@@ -133,6 +129,7 @@ export default async function QuintalDashboardPage() {
               <SummaryCard
                 icon={ListChecks}
                 label="Rotina"
+                href="/quintal/registrar?tipo=routine"
                 value={
                   summary.lastRoutine
                     ? `Último: ${summary.lastRoutine.notes} · ${lastRoutineTime}`

@@ -1,17 +1,18 @@
-import { Baby, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { ageLabel } from "@/lib/format";
 import { setActiveChildAction } from "@/app/quintal/actions";
+import { ChildAvatar } from "@/components/ui/ChildAvatar";
 import type { AccessibleChild } from "@/lib/activeChild";
 
-// Seletor global de criança ativa (Fase 16) — renderizado uma vez pelo
-// layout (src/app/quintal/layout.tsx), acima de todo módulo de
-// /quintal/*, para nunca precisar ser duplicado por página. Zero JS de
-// cliente de propósito, mesmo padrão já usado em outros menus desta
-// fase do produto (método alimentar, registro retroativo de sono):
-// <details>/<summary> para o dropdown, um <form> por opção que só troca
-// o cookie e recarrega a página atual — consistente com a filosofia do
-// projeto de reservar client components para widgets genuinamente
-// interativos.
+// Cabeçalho global de identidade — renderizado uma vez pelo AppShell,
+// acima de todo módulo de /quintal/*, para nunca precisar ser repetido
+// por página (cada tela chegou a duplicar nome/idade da criança no
+// próprio título antes desta troca). Avatar + nome + idade sempre
+// visíveis; o seletor (chevron + dropdown) só aparece quando há mais de
+// uma criança para trocar. Zero JS de cliente de propósito, mesmo padrão
+// já usado em outros menus do produto: <details>/<summary> para o
+// dropdown, um <form> por opção que só troca o cookie e recarrega a
+// página atual.
 export default function ChildSwitcher({
   activeChild,
   childrenList,
@@ -19,29 +20,36 @@ export default function ChildSwitcher({
   activeChild: AccessibleChild;
   childrenList: AccessibleChild[];
 }) {
-  // Uma única criança: mostra o nome, sem affordance de troca — não há
-  // nada para trocar.
+  const label = ageLabel(activeChild.birthDate);
+
+  const identity = (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <ChildAvatar name={activeChild.name} avatarUrl={activeChild.avatarUrl} size={40} />
+      <span className="min-w-0 text-left leading-tight">
+        <span className="block truncate text-sm font-semibold text-ink">{activeChild.name}</span>
+        {label && <span className="block text-xs text-ink-muted">{label}</span>}
+      </span>
+    </span>
+  );
+
   if (childrenList.length <= 1) {
-    return (
-      <div className="mx-auto flex w-full max-w-lg items-center gap-1.5 px-4 pt-3 text-sm font-semibold text-ink">
-        <Baby className="h-4 w-4 text-ink-muted" aria-hidden />
-        {activeChild.name}
-      </div>
-    );
+    return <div className="mx-auto flex w-full max-w-lg items-center px-4 pt-3">{identity}</div>;
   }
 
   return (
     <div className="mx-auto w-full max-w-lg px-4 pt-3">
       <details className="group relative w-fit">
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-ink marker:content-none">
-          <Baby className="h-4 w-4" aria-hidden />
-          {activeChild.name}
-          <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-open:rotate-180" aria-hidden />
+        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full py-1 pr-1 marker:content-none">
+          {identity}
+          <ChevronDown
+            className="h-4 w-4 shrink-0 text-ink-muted transition-transform duration-200 group-open:rotate-180"
+            aria-hidden
+          />
         </summary>
-        <div className="absolute left-0 z-[90] mt-1 w-60 space-y-1 rounded-lg bg-primary p-2 shadow-[var(--shadow-lift)]">
+        <div className="absolute left-0 z-[90] mt-1.5 w-64 space-y-1 rounded-lg bg-primary p-2 shadow-[var(--shadow-lift)]">
           <p className="px-2 pb-1 pt-0.5 text-xs font-medium text-ink-muted">Trocar criança</p>
           {childrenList.map((child) => {
-            const label = ageLabel(child.birthDate);
+            const childLabel = ageLabel(child.birthDate);
             const isActive = child.id === activeChild.id;
             return (
               <form key={child.id} action={setActiveChildAction}>
@@ -49,12 +57,13 @@ export default function ChildSwitcher({
                 <button
                   type="submit"
                   disabled={isActive}
-                  className={`flex w-full items-center justify-between gap-2 rounded-sm px-3 py-2 text-left text-sm transition-colors ${
+                  className={`flex w-full items-center gap-2.5 rounded-sm px-2 py-2 text-left text-sm transition-colors ${
                     isActive ? "bg-accent/40 font-semibold text-ink" : "text-ink hover:bg-neutral/40"
                   }`}
                 >
-                  <span>{child.name}</span>
-                  {label && <span className="text-xs text-ink-muted">{label}</span>}
+                  <ChildAvatar name={child.name} avatarUrl={child.avatarUrl} size={28} />
+                  <span className="min-w-0 flex-1 truncate">{child.name}</span>
+                  {childLabel && <span className="shrink-0 text-xs text-ink-muted">{childLabel}</span>}
                 </button>
               </form>
             );

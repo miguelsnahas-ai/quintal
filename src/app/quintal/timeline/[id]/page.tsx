@@ -66,12 +66,7 @@ export default async function TimelineEntryPage({
 
   return (
     <PageContainer space={6}>
-      <PageHeader
-        title={verb}
-        description={`${child.name} · ${occurredAtLabel}`}
-        backHref="/quintal/timeline"
-        backLabel="Timeline"
-      />
+      <PageHeader title={verb} description={occurredAtLabel} backHref="/quintal/timeline" backLabel="Timeline" />
       <p className="text-xs text-ink-muted">{eventOriginLabels[entry.origin]}</p>
 
       {detailLines.length > 0 && (

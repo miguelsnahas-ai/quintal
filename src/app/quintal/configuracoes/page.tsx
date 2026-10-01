@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronRight, User, Users, Baby, UserCog } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { User, Users, Baby, UserCog } from "lucide-react";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getFamilyProfile } from "@/lib/familyContext";
 import { getFamilyInvitations } from "@/lib/invitations";
+import { LinkCard } from "@/components/ui/LinkCard";
 
 export const metadata: Metadata = {
   title: "Configurações — Quintal",
@@ -47,25 +46,25 @@ export default async function ConfiguracoesPage() {
       </div>
 
       <div className="space-y-3">
-        <SettingsCard
+        <LinkCard
           icon={User}
           title="Minha conta"
           description="Perfil, preferências pessoais e notificações"
           href="/quintal/configuracoes/conta"
         />
-        <SettingsCard
+        <LinkCard
           icon={Users}
           title="Minha família"
           description="Perfil e preferências da família"
           href="/quintal/configuracoes/familia"
         />
-        <SettingsCard
+        <LinkCard
           icon={Baby}
           title="Crianças"
           description={childCount > 0 ? `${childCount} ${childCount === 1 ? "criança" : "crianças"}` : "Adicionar a primeira criança"}
           href="/quintal/configuracoes/criancas"
         />
-        <SettingsCard
+        <LinkCard
           icon={UserCog}
           title="Cuidadores"
           description={
@@ -77,33 +76,5 @@ export default async function ConfiguracoesPage() {
         />
       </div>
     </div>
-  );
-}
-
-function SettingsCard({
-  icon: Icon,
-  title,
-  description,
-  href,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)]"
-    >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent">
-        <Icon className="h-4 w-4 text-ink" aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="font-semibold text-ink">{title}</p>
-        <p className="truncate text-sm text-ink-muted">{description}</p>
-      </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-ink-muted" aria-hidden />
-    </Link>
   );
 }

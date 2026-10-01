@@ -52,7 +52,7 @@ export default async function AlimentacaoPage({
   if (!activeChild) {
     return (
       <PageContainer space={6}>
-        <PageHeader title="Alimentação" backHref="/quintal" backLabel="Quintal" />
+        <PageHeader title="Alimentação" backHref="/quintal/mais" backLabel="Mais" />
         <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
@@ -82,7 +82,7 @@ export default async function AlimentacaoPage({
 
   return (
     <PageContainer>
-      <PageHeader title="Alimentação" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
+      <PageHeader title="Alimentação" backHref="/quintal/mais" backLabel="Mais" />
 
       <FieldError>{error}</FieldError>
       {success && <p className="text-sm text-ink-muted">Salvo com sucesso.</p>}

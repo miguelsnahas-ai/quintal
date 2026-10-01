@@ -69,7 +69,7 @@ export default async function BrincadeirasPage({
   if (!activeChild) {
     return (
       <PageContainer space={6}>
-        <PageHeader title="Brincadeiras" backHref="/quintal" backLabel="Quintal" />
+        <PageHeader title="Brincadeiras" backHref="/quintal/mais" backLabel="Mais" />
         <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           Nenhuma criança cadastrada ainda para esta família.
         </p>
@@ -111,7 +111,7 @@ export default async function BrincadeirasPage({
 
   return (
     <PageContainer>
-      <PageHeader title="Brincadeiras" description={activeChild.name} backHref="/quintal" backLabel="Quintal" />
+      <PageHeader title="Brincadeiras" backHref="/quintal/mais" backLabel="Mais" />
 
       <form method="get" className={cardClassName("space-y-3 p-4")}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

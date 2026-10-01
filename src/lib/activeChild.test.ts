@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { resolveActiveChild, type AccessibleChild } from "./activeChild";
 
-const laura: AccessibleChild = { id: "laura", name: "Laura", birthDate: "2025-01-01" };
-const pedro: AccessibleChild = { id: "pedro", name: "Pedro", birthDate: "2022-01-01" };
+const laura: AccessibleChild = { id: "laura", name: "Laura", birthDate: "2025-01-01", avatarUrl: null };
+const pedro: AccessibleChild = { id: "pedro", name: "Pedro", birthDate: "2022-01-01", avatarUrl: null };
 
 describe("resolveActiveChild", () => {
   it("returns null when the caregiver has no accessible children", () => {

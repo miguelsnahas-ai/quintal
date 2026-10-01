@@ -21,6 +21,7 @@ export type AccessibleChild = {
   id: string;
   name: string;
   birthDate: string | null;
+  avatarUrl: string | null;
 };
 
 // Toda criança que este cuidador pode ver — via caregiver_child (Fase
@@ -42,11 +43,16 @@ export async function getAccessibleChildren(caregiverId: string): Promise<Access
 
   const { data: children } = await supabase
     .from("children")
-    .select("id, name, birth_date, created_at")
+    .select("id, name, birth_date, avatar_url, created_at")
     .in("id", childIds)
     .order("created_at", { ascending: true });
 
-  return (children ?? []).map((child) => ({ id: child.id, name: child.name, birthDate: child.birth_date }));
+  return (children ?? []).map((child) => ({
+    id: child.id,
+    name: child.name,
+    birthDate: child.birth_date,
+    avatarUrl: child.avatar_url,
+  }));
 }
 
 // Chamado só a partir de uma Server Action (o switcher, ver
