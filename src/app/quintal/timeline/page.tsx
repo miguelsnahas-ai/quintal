@@ -145,9 +145,7 @@ export default async function TimelinePage({
                   href={`/quintal/timeline/${entry.id}`}
                   className={cardClassName("flex items-start gap-3 p-3 transition-all duration-200 hover:shadow-[var(--shadow-lift)]")}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
-                    <TimelineEventIcon type={entry.icon} className="h-4 w-4 text-ink" />
-                  </span>
+                  <TimelineEventIcon type={entry.icon} />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="font-semibold text-ink">{entry.verb}</p>

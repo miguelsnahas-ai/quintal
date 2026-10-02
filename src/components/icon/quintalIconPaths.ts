@@ -8,6 +8,7 @@ export type QuintalIconName =
   | "moon"
   | "bed"
   | "nap"
+  | "sun"
   | "blocks"
   | "ball"
   | "box"
@@ -35,6 +36,17 @@ export const QUINTAL_ICON_PATHS: Record<QuintalIconName, string[]> = {
     "M16.7 17.8v1.2",
   ],
   nap: ["M14.2 6.4h4.3l-4.3 4.4h4.3", "M17.9 4.4h2.7l-2.7 2.7h2.7"],
+  // Acrescentado na integração ao produto real (evento "acordou" da
+  // Timeline, lib/timeline.ts TimelineIcon "wake") — não estava nos 2-3
+  // ícones representativos da fase de validação, mas é o mesmo tema
+  // (sono) e o produto já precisava distinguir "dormiu" de "acordou".
+  sun: [
+    "M12 8.6c1.9 0 3.4 1.5 3.4 3.4s-1.5 3.4-3.4 3.4-3.4-1.5-3.4-3.4 1.5-3.4 3.4-3.4z",
+    "M12 4.7v1.7",
+    "M17.5 12.1h1.7",
+    "M12 17.7v1.7",
+    "M4.9 12.1h1.7",
+  ],
 
   // Brincar
   blocks: ["M4.8 10.1c2-.1 4-.1 6 0v5.9c-2 .1-4 .1-6 0z", "M12.6 11.3c2-.2 4.1-.1 6 .3v5.6c-1.9.2-4 .2-6 0z"],
@@ -110,7 +122,7 @@ export const QUINTAL_ICON_PATHS: Record<QuintalIconName, string[]> = {
 // qual tema cada ícone representa é de uso (quem chama QuintalIcon passa
 // os dois props), não uma regra imposta pelos dados em si.
 export const QUINTAL_ICON_GROUPS: Record<string, QuintalIconName[]> = {
-  sleep: ["moon", "bed", "nap"],
+  sleep: ["moon", "bed", "nap", "sun"],
   play: ["blocks", "ball", "box"],
   meal: ["plate", "spoon", "cup"],
   growth: ["sprout", "growth", "book"],

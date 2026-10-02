@@ -1,5 +1,5 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
-import type { LucideIcon } from "lucide-react";
 import { inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 
 // One compact tile in the dashboard's "resumo do dia" grid. Deliberately
@@ -12,13 +12,16 @@ import { inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 // opcional — Alimentação (Fase 9) e Sono (Fase 10) têm módulo próprio
 // pra linkar; Brincadeiras/Rotina ficam div simples até ganharem um.
 export default function SummaryCard({
-  icon: Icon,
+  icon,
   label,
   value,
   empty,
   href,
 }: {
-  icon: LucideIcon;
+  // Elemento já pronto (ex.: <QuintalIcon name="moon" theme="sleep"
+  // size="sm" />), não um componente de ícone — cada pilar escolhe seu
+  // próprio ícone/tema no call site, este componente só posiciona.
+  icon: ReactNode;
   label: string;
   value: string | null;
   empty: string;
@@ -27,7 +30,7 @@ export default function SummaryCard({
   const content = (
     <>
       <div className="flex items-center gap-1.5 text-ink-muted">
-        <Icon className="h-4 w-4" aria-hidden />
+        {icon}
         <span className="text-xs font-medium">{label}</span>
       </div>
       {value ? (

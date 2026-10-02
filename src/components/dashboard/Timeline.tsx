@@ -30,9 +30,7 @@ export default function Timeline({ events }: { events: DashboardEvent[] }) {
         const detailLines = getTimelineDetailLines(event);
         return (
           <li key={event.id} className={inviteCardClassName("flex items-center gap-3 p-3 text-sm")}>
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
-              <TimelineEventIcon type={icon} className="h-4 w-4 text-ink" />
-            </span>
+            <TimelineEventIcon type={icon} />
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="font-medium text-ink">{verb}</p>

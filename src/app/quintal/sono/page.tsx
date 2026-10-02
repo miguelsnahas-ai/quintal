@@ -11,7 +11,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { buttonClassName } from "@/components/ui/Button";
-import { PillarIcon } from "@/components/icon/PillarIcon";
+import { Moon } from "lucide-react";
 import { SleepModuleNav } from "@/components/sleep/SleepModuleNav";
 import { SleepRing } from "@/components/sleep/SleepRing";
 import { SleepEntryCard } from "@/components/sleep/SleepEntryCard";
@@ -127,8 +127,11 @@ export default async function SonoPage({
         </section>
       )}
 
+      {/* Ícone de botão: continua Lucide/text-ink de propósito — cor por
+          tema é linguagem de classificação para conteúdo (cards, selos),
+          não para o chrome de um botão sobre fundo âmbar sólido. */}
       <Link href="/quintal/sono/registrar" className={buttonClassName("primary", "w-full justify-center")}>
-        <PillarIcon name="sono" size={18} />
+        <Moon className="h-[18px] w-[18px]" aria-hidden />
         {openSession ? "Criança dormindo — registrar que acordou" : "Registrar sono"}
       </Link>
 

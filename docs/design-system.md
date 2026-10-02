@@ -266,13 +266,37 @@ expandir:
 - **Desenvolvimento:** `sprout`, `growth`, `book`
 - **Higiene:** `drop`, `bath`, `toothbrush`
 - **Rotina:** `house`, `calendar`, `cycle`
+- **Sono (extra, ver Integração abaixo):** `sun` — "acordou", distinto de `moon`
 
 ### Integração com o produto
 
-Esta fase criou a biblioteca e a página de validação — **não** substituiu
-os ícones existentes nos componentes de tema (`PillarIcon`, ícones Lucide
-temáticos) em produção. A substituição é gradual e vem depois, uma vez
-validada a linguagem visual; não é um redesign completo do app.
+A biblioteca nasceu só na página de validação (`/ops/design-system/icons`)
+e, numa segunda etapa — depois de validada a linguagem —, substituiu os
+pontos onde um ícone identifica um dos seis domínios para quem usa o
+produto de verdade:
+
+- **Home** (`/quintal`, `SummaryCard`): Sono/Alimentação/Brincadeiras/Rotina
+  no "Resumo do dia".
+- **Timeline** (`TimelineEventIcon`, usado pela Timeline completa e pelo
+  resumo compacto da Home): 6 dos 8 tipos de evento (`sleep`, `wake`,
+  `meal`, `play`, `routine`, `development`). `outing` e `observation` não
+  pertencem a nenhum dos seis domínios e continuam com ícone Lucide
+  genérico — forçar um tema aqui seria inventar uma classificação que não
+  existe.
+- **Sono** (`SleepEntryCard`, histórico e "último sono"): `moon`
+  (sono noturno) / `nap` (soneca).
+
+`PillarIcon` (o componente anterior, só com o pilar "sono" em uso real)
+foi removido — sem chamadores restantes depois desta integração.
+
+Ícone de **chrome de botão** (ex.: o ícone dentro do CTA "Registrar
+sono") continua Lucide colorido com `text-ink`, de propósito: cor por
+tema é linguagem de classificação para conteúdo, não para o chrome de um
+botão sobre fundo âmbar sólido — ver "Cores por tema" acima.
+
+Esta integração ainda não é total: qualquer outro Lucide/cor fixa fora
+dos pontos acima (ex.: `CurrentMomentCard`, ícones de ação genéricos)
+continua como estava — não é um redesign completo do app.
 
 ### Ícones vs. ilustrações
 

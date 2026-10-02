@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Moon, Utensils, Blocks, ListChecks, MessageCircle, Sparkles, Sprout } from "lucide-react";
+import { MessageCircle, Sparkles, Sprout } from "lucide-react";
+import { QuintalIcon } from "@/components/icon/QuintalIcon";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -106,14 +107,14 @@ export default async function QuintalDashboardPage() {
         <h2 className="text-sm font-medium text-ink-muted">Resumo do dia</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryCard
-            icon={Moon}
+            icon={<QuintalIcon name="moon" theme="sleep" size="sm" />}
             label="Sono"
             href="/quintal/sono"
             value={sleepCardValue}
             empty="Nenhum registro ainda hoje."
           />
           <SummaryCard
-            icon={Utensils}
+            icon={<QuintalIcon name="plate" theme="meal" size="sm" />}
             label="Alimentação"
             href="/quintal/alimentacao"
             value={
@@ -124,7 +125,7 @@ export default async function QuintalDashboardPage() {
             empty="Nenhum registro ainda hoje."
           />
           <SummaryCard
-            icon={Blocks}
+            icon={<QuintalIcon name="blocks" theme="play" size="sm" />}
             label="Brincadeiras"
             href="/quintal/brincadeiras"
             value={
@@ -135,7 +136,7 @@ export default async function QuintalDashboardPage() {
             empty="Nenhuma atividade ainda hoje."
           />
           <SummaryCard
-            icon={ListChecks}
+            icon={<QuintalIcon name="cycle" theme="routine" size="sm" />}
             label="Rotina"
             href="/quintal/registrar?tipo=routine"
             value={summary.lastRoutine ? `Último: ${summary.lastRoutine.notes} · ${lastRoutineTime}` : null}
