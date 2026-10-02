@@ -6,6 +6,7 @@ import { OnboardingScreen } from "@/components/onboarding/OnboardingScreen";
 import { Input, Label, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { cardClassName } from "@/components/ui/Card";
+import { CopyInviteLink } from "@/components/invitations/CopyInviteLink";
 import { inviteCaregiverStepAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -35,8 +36,8 @@ export default async function CaregiversStepPage({
       {link ? (
         <div className={cardClassName("space-y-2 p-4")}>
           <p className="text-sm font-medium text-ink">Convite criado!</p>
-          <p className="text-xs text-ink-muted">Copie o link abaixo e mande por WhatsApp.</p>
-          <p className="truncate rounded-sm bg-surface px-3 py-2 text-xs text-ink">{link}</p>
+          <p className="text-xs text-ink-muted">Copie o link abaixo ou envie direto pelo WhatsApp.</p>
+          <CopyInviteLink link={link} />
           <Link href="/comecar/preferencias" className="text-sm font-medium text-ink underline underline-offset-2">
             Continuar →
           </Link>

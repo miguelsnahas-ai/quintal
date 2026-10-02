@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { RotateCw, Ban, Copy, ShieldCheck } from "lucide-react";
+import { RotateCw, Ban, ShieldCheck } from "lucide-react";
 import { getSessionCaregiver, canManageFamily } from "@/lib/authorization";
 import { getFamilyProfile } from "@/lib/familyContext";
 import { getFamilyInvitations, type FamilyInvitation } from "@/lib/invitations";
@@ -12,6 +12,7 @@ import { Input, Label, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { CopyInviteLink } from "@/components/invitations/CopyInviteLink";
 import { createInvitationAction, revokeInvitationAction, resendInvitationAction, removeCaregiverAction } from "./actions";
 
 export const metadata: Metadata = {
@@ -155,12 +156,7 @@ export default async function CuidadoresPage({
                       </div>
                     )}
                   </div>
-                  {isOwner && (
-                    <div className="flex items-center gap-1.5 rounded-sm bg-secondary px-2 py-1.5 text-[11px] text-ink-muted">
-                      <Copy className="h-3 w-3 shrink-0" aria-hidden />
-                      <span className="truncate">{`${origin}/convite/${invitation.token}`}</span>
-                    </div>
-                  )}
+                  {isOwner && <CopyInviteLink link={`${origin}/convite/${invitation.token}`} />}
                 </div>
               ))}
             </Card>
