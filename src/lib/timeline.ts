@@ -3,6 +3,7 @@ import { ACTIVITY_EVENT_TYPES } from "@/lib/childContext";
 import { mealEventPayloadSchema, mealSlotLabels, mealAcceptanceLabels } from "@/lib/validation/feeding";
 import { sleepEventPayloadSchema, sleepTypeLabels } from "@/lib/validation/sleep";
 import { playEventPayloadSchema, activityFeedbackLabels } from "@/lib/validation/play";
+import { hygieneEventPayloadSchema, diaperResultLabels, diaperConditionLabels } from "@/lib/validation/hygiene";
 import { eventTypeLabels, type EventType, type EventOrigin } from "@/lib/validation/events";
 import { formatDurationMinutes } from "@/lib/format";
 import type { Json } from "@/lib/supabase/types";
@@ -165,7 +166,8 @@ export type TimelineIcon =
   | "outing"
   | "routine"
   | "development"
-  | "observation";
+  | "observation"
+  | "hygiene";
 
 // O verbo/ícone principal de um evento — "Café da manhã"/"Almoço" em vez
 // do genérico "Refeição" quando o payload tem o slot (Fase 9); "Soneca"
@@ -192,6 +194,10 @@ export function describeEntry(entry: Pick<TimelineEntry, "type" | "payload">): {
       return { verb: eventTypeLabels.development, icon: "development" };
     case "observation":
       return { verb: eventTypeLabels.observation, icon: "observation" };
+    case "hygiene": {
+      const parsed = hygieneEventPayloadSchema.safeParse(entry.payload);
+      return { verb: parsed.success ? diaperResultLabels[parsed.data.diaperResult] : eventTypeLabels.hygiene, icon: "hygiene" };
+    }
     default:
       return { verb: eventTypeLabels[entry.type] ?? entry.type, icon: "routine" };
   }
@@ -231,6 +237,17 @@ export function getTimelineDetailLines(entry: Pick<TimelineEntry, "type" | "payl
             ? formatDurationMinutes(entry.durationMinutes)
             : null;
       return secondLine ? [parsed.data.activityTitle, secondLine] : [parsed.data.activityTitle];
+    }
+    case "hygiene": {
+      const parsed = hygieneEventPayloadSchema.safeParse(entry.payload);
+      if (!parsed.success) return entry.notes ? [entry.notes] : [];
+      // "Fralda normal" é o caso comum (sem nada a destacar); condição
+      // fora do normal (vazou/muito cheia) é o que vale mostrar em
+      // destaque — mesmo formato ilustrativo do pedido desta fase
+      // ("💧💧 Vazamento").
+      return parsed.data.condition === "normal"
+        ? ["Fralda normal"]
+        : [diaperConditionLabels[parsed.data.condition]];
     }
     default:
       return entry.notes ? [entry.notes] : [];
@@ -355,7 +372,7 @@ export const TIMELINE_FILTER_TYPES: Record<TimelineFilter, EventType[]> = {
   sono: ["sleep"],
   alimentacao: ["meal"],
   brincadeiras: ["free_play", "outing"],
-  rotina: ["routine", "development", "observation"],
+  rotina: ["routine", "development", "observation", "hygiene"],
 };
 
 export function isTimelineFilter(value: string | undefined): value is TimelineFilter {

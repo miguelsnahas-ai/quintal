@@ -10,22 +10,29 @@ import "./globals.css";
 // next/font — mesmo resultado visual do
 // `@import url(fonts.googleapis.com/...)` do design system, sem depender
 // de rede em runtime.
+// weight: "variable" (não um array de pesos fixos) — Gabarito/Hanken
+// Grotesk/Caveat são fontes variáveis no Google Fonts, e um array de
+// pesos nelas dispara uma regressão do Turbopack no Next 16.3.8+
+// ("next/font/google queries have exactly one entry", build quebra
+// sempre que o cache de fonte é limpo). "variable" resolve numa única
+// consulta e ainda responde a qualquer font-weight em CSS — mesmos
+// pesos (500/600/700, 400–700) continuam funcionando normalmente.
 const gabarito = Gabarito({
   variable: "--font-gabarito",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: "variable",
 });
 
 const hankenGrotesk = Hanken_Grotesk({
   variable: "--font-hanken-grotesk",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "variable",
 });
 
 const caveat = Caveat({
   variable: "--font-caveat",
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: "variable",
 });
 
 const caveatBrush = Caveat_Brush({

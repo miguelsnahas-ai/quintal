@@ -433,6 +433,94 @@ export type Database = {
           },
         ]
       }
+      diaper_profiles: {
+        Row: {
+          brand: string | null
+          child_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          model: string | null
+          notes: string | null
+          size: string | null
+          started_at: string
+        }
+        Insert: {
+          brand?: string | null
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          model?: string | null
+          notes?: string | null
+          size?: string | null
+          started_at?: string
+        }
+        Update: {
+          brand?: string | null
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          model?: string | null
+          notes?: string | null
+          size?: string | null
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diaper_profiles_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diaper_stock: {
+        Row: {
+          brand: string | null
+          child_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          model: string | null
+          quantity: number
+          size: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand?: string | null
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          model?: string | null
+          quantity?: number
+          size?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand?: string | null
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          model?: string | null
+          quantity?: number
+          size?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diaper_stock_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           caregiver_id: string | null

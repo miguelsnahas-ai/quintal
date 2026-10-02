@@ -16,6 +16,7 @@ export const eventTypes = [
   "decision",
   "meal",
   "outing",
+  "hygiene",
 ] as const;
 
 export type EventType = (typeof eventTypes)[number];
@@ -29,6 +30,7 @@ export const eventTypeLabels: Record<EventType, string> = {
   decision: "Decisão",
   meal: "Alimentação",
   outing: "Passeio",
+  hygiene: "Higiene",
 };
 
 // De onde um evento veio — Fase 8. Existe para o Concierge (e futuras

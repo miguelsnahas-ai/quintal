@@ -5,6 +5,7 @@ import { getSessionCaregiver } from "@/lib/authorization";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { LinkCard } from "@/components/ui/LinkCard";
+import { QuintalIcon } from "@/components/icon/QuintalIcon";
 
 export const metadata: Metadata = {
   title: "Mais — Quintal",
@@ -29,21 +30,33 @@ export default async function MaisPage() {
       <PageHeader title="Mais" />
 
       <div className="space-y-3">
-        <LinkCard icon={Moon} title="Sono" description="Registro, análise e orientações" href="/quintal/sono" />
         <LinkCard
-          icon={Blocks}
+          icon={<Moon className="h-4 w-4 text-ink" aria-hidden />}
+          title="Sono"
+          description="Registro, análise e orientações"
+          href="/quintal/sono"
+        />
+        <LinkCard
+          icon={<Blocks className="h-4 w-4 text-ink" aria-hidden />}
           title="Brincar"
           description="Atividades, sugestões e registro de momentos"
           href="/quintal/brincadeiras"
         />
         <LinkCard
-          icon={Utensils}
+          icon={<Utensils className="h-4 w-4 text-ink" aria-hidden />}
           title="Comer"
           description="Registro de refeições, receitas e orientações"
           href="/quintal/alimentacao"
         />
         <LinkCard
-          icon={BookOpen}
+          icon={<QuintalIcon name="drop" theme="hygiene" size="md" background="light" />}
+          iconBackground="none"
+          title="Higiene"
+          description="Fraldas, trocas e histórico"
+          href="/quintal/higiene"
+        />
+        <LinkCard
+          icon={<BookOpen className="h-4 w-4 text-ink" aria-hidden />}
           title="Materiais"
           description="Artigos, guias e receitas para consultar"
           href="/quintal/materiais"
@@ -52,13 +65,23 @@ export default async function MaisPage() {
 
       <div className="space-y-3">
         <LinkCard
-          icon={Link2}
+          icon={<Link2 className="h-4 w-4 text-ink" aria-hidden />}
           title="Integrações"
           description="Conexão com serviços e dispositivos"
           href="/quintal/mais/integracoes"
         />
-        <LinkCard icon={Users} title="Família" description="Cuidadores, crianças e preferências" href="/quintal/configuracoes/familia" />
-        <LinkCard icon={Settings} title="Configurações" description="Conta, família e cuidadores" href="/quintal/configuracoes" />
+        <LinkCard
+          icon={<Users className="h-4 w-4 text-ink" aria-hidden />}
+          title="Família"
+          description="Cuidadores, crianças e preferências"
+          href="/quintal/configuracoes/familia"
+        />
+        <LinkCard
+          icon={<Settings className="h-4 w-4 text-ink" aria-hidden />}
+          title="Configurações"
+          description="Conta, família e cuidadores"
+          href="/quintal/configuracoes"
+        />
       </div>
     </PageContainer>
   );

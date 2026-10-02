@@ -23,6 +23,7 @@ const QUINTAL_MAP: Partial<Record<TimelineIcon, { name: QuintalIconName; theme: 
   play: { name: "ball", theme: "play" },
   routine: { name: "cycle", theme: "routine" },
   development: { name: "sprout", theme: "growth" },
+  hygiene: { name: "drop", theme: "hygiene" },
 };
 
 const LEGACY_ICONS: Partial<Record<TimelineIcon, LucideIcon>> = {

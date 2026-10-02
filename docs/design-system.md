@@ -264,7 +264,8 @@ expandir:
 - **Brincar:** `blocks`, `ball`, `box`
 - **Comer:** `plate`, `spoon`, `cup`
 - **Desenvolvimento:** `sprout`, `growth`, `book`
-- **Higiene:** `drop`, `bath`, `toothbrush`
+- **Higiene:** `drop`, `bath`, `toothbrush`, `diaper`, `poop`, `leak`, `skin`
+  (os quatro últimos, Fase Higiene — ver seção "Módulo Higiene" abaixo)
 - **Rotina:** `house`, `calendar`, `cycle`
 - **Sono (extra, ver Integração abaixo):** `sun` — "acordou", distinto de `moon`
 
@@ -313,3 +314,36 @@ continua como estava — não é um redesign completo do app.
 Um ícone nunca deve crescer para virar ilustração (adicionando detalhe
 até perder a leitura instantânea), e uma ilustração nunca deve ser
 espremida para funcionar no lugar de um ícone pequeno.
+
+## Módulo Higiene
+
+Primeira área de cuidado de higiene do Quintal, começando por fraldas.
+"Cuidado cotidiano da família", não "prontuário de saúde" — sem
+diagnóstico, sem linguagem clínica, sem interpretação médica.
+
+**Rotas:** `/quintal/higiene` (Visão geral), `/quintal/higiene/registrar`,
+`/quintal/higiene/fraldas`, `/quintal/higiene/historico` — navegação por
+`HygieneModuleNav`, as quatro seções pedidas (diferente do módulo Sono:
+aqui "Registrar troca" é uma aba, não só um botão).
+
+**Modelo de dados:**
+- **Troca** (xixi/cocô, condição, pele) vive em `events` (`type =
+  'hygiene'`), mesmo padrão de `sleep`/`meal` — payload estruturado,
+  reaproveita a Timeline/Home existentes de graça. Nunca inventa um
+  valor quando o payload falta (ex.: evento criado pelo fallback
+  genérico do chat): os campos ficam `null`, a UI cai para `notes`.
+- **Fralda** (marca/modelo/tamanho/data) é `diaper_profiles`, tabela
+  própria — é estado que vale por um período, não um evento pontual.
+  Múltiplas linhas por criança; a mais recente é "a atual".
+- **Estoque** é `diaper_stock`, também própria. Sem catálogo de marcas,
+  sem cálculo de consumo/duração — só o que a família informou.
+
+**ChildContext:** `hygieneSummary` (tamanho/marca atual + contagem de
+vazamentos nos últimos 7 dias) — uma representação resumida, nunca o
+histórico completo, mesmo princípio de `recentObservations`/
+`recentDecisions`.
+
+**Insights:** `hygieneInsights.ts`, mesma separação DECISÃO/REDAÇÃO pura
+de `sleepInsights.ts`/`routineEngine.ts`. Primeira regra: contagem de
+vazamentos ("3 vazamentos foram registrados nos últimos 7 dias"), nunca
+uma conclusão sobre causa ("a fralda está pequena").

@@ -5,6 +5,8 @@ import { eventTypeLabels, type EventType } from "@/lib/validation/events";
 import { mealEventPayloadSchema } from "@/lib/validation/feeding";
 import { sleepEventPayloadSchema, sleepTypeLabels } from "@/lib/validation/sleep";
 import { playEventPayloadSchema, activityFeedbackLabels } from "@/lib/validation/play";
+import { hygieneEventPayloadSchema, diaperResultLabels, diaperConditionLabels } from "@/lib/validation/hygiene";
+import { getCurrentDiaperProfile } from "@/lib/hygiene";
 import { formatDurationMinutes } from "@/lib/format";
 import type { MaterialCategory } from "@/lib/validation/library";
 import { materialCategoryLabels } from "@/lib/validation/library";
@@ -46,7 +48,13 @@ export const ACTIVITY_EVENT_TYPES: EventType[] = [
   "development",
   "meal",
   "outing",
+  "hygiene",
 ];
+
+// Janela do resumo de higiene abaixo — mesmo período que a Visão geral
+// do módulo usa para "vazamentos recentes" (ver src/lib/hygiene.ts,
+// INSIGHTS_WINDOW_DAYS).
+const HYGIENE_SUMMARY_WINDOW_DAYS = 7;
 
 export type ChildContextEvent = {
   type: EventType;
@@ -84,6 +92,18 @@ export type FamilyPreferences = {
   contentFocus: MaterialCategory[];
 };
 
+// Resumo de higiene (Fase Higiene) — NÃO o histórico completo de
+// trocas (pedido explícito: "não enviar todo o histórico para a IA.
+// Criar uma representação resumida e limitada"). recentLeakCount é uma
+// CONTAGEM, nunca a lista de ocorrências — o mesmo princípio dos
+// insights permitidos no módulo ("3 vazamentos... nos últimos 7 dias",
+// nunca uma conclusão tipo "a fralda está pequena").
+export type HygieneSummary = {
+  diaperSize: string | null;
+  diaperBrand: string | null;
+  recentLeakCount: number; // últimos HYGIENE_SUMMARY_WINDOW_DAYS dias
+};
+
 export type ChildContext = {
   child: {
     id: string;
@@ -116,6 +136,7 @@ export type ChildContext = {
   // não tem nenhuma preferência configurada (linha criada sob demanda,
   // mesmo padrão de family_preferences/caregiver_preferences).
   childPreferences: ChildPreferences | null;
+  hygieneSummary: HygieneSummary;
 };
 
 // The single place that knows how to assemble "what do we know about this
@@ -143,6 +164,9 @@ export async function getChildContext(
     return null;
   }
 
+  const hygieneSince = new Date();
+  hygieneSince.setDate(hygieneSince.getDate() - HYGIENE_SUMMARY_WINDOW_DAYS);
+
   const [
     { data: activityRaw },
     { data: observationsRaw },
@@ -150,6 +174,8 @@ export async function getChildContext(
     { data: preferencesRaw },
     { data: childPreferencesRaw },
     { data: feedingMethodRaw },
+    currentDiaperProfile,
+    { data: recentHygieneRaw },
   ] = await Promise.all([
     supabase
       .from("events")
@@ -192,6 +218,13 @@ export async function getChildContext(
       .select("title")
       .eq("id", child.feeding_method_id ?? "")
       .maybeSingle(),
+    getCurrentDiaperProfile(childId),
+    supabase
+      .from("events")
+      .select("payload")
+      .eq("child_id", childId)
+      .eq("type", "hygiene")
+      .gte("occurred_at", hygieneSince.toISOString()),
   ]);
 
   const toContextEvent = (row: {
@@ -248,6 +281,14 @@ export async function getChildContext(
           feedingNotes: childPreferencesRaw.feeding_notes,
         }
       : null,
+    hygieneSummary: {
+      diaperSize: currentDiaperProfile?.size ?? null,
+      diaperBrand: currentDiaperProfile?.brand ?? null,
+      recentLeakCount: (recentHygieneRaw ?? []).filter((row: { payload: Json }) => {
+        const parsed = hygieneEventPayloadSchema.safeParse(row.payload);
+        return parsed.success && parsed.data.condition === "leaked";
+      }).length,
+    },
   };
 }
 
@@ -294,6 +335,18 @@ function formatPlayDetail(payload: Json): string | null {
   return `${parsed.data.activityTitle} — ${activityFeedbackLabels[parsed.data.feedback]}`;
 }
 
+// Hygiene events (Fase Higiene) carry diaperResult/condition/skinCondition
+// beyond `notes` — same spirit as formatMealDetail/formatSleepDetail:
+// "Xixi — vazou" instead of just repeating notes, quando o payload é do
+// formato esperado.
+function formatHygieneDetail(payload: Json): string | null {
+  const parsed = hygieneEventPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+  const parts = [diaperResultLabels[parsed.data.diaperResult]];
+  if (parsed.data.condition !== "normal") parts.push(diaperConditionLabels[parsed.data.condition].toLowerCase());
+  return parts.join(" — ");
+}
+
 function formatEventGroup(title: string, events: ChildContextEvent[]): string {
   if (events.length === 0) return "";
   const lines = events.map((event) => {
@@ -302,7 +355,8 @@ function formatEventGroup(title: string, events: ChildContextEvent[]): string {
     const mealDetail = event.type === "meal" ? formatMealDetail(event.payload) : null;
     const sleepDetail = event.type === "sleep" ? formatSleepDetail(event.payload, event.durationMinutes) : null;
     const playDetail = event.type === "free_play" ? formatPlayDetail(event.payload) : null;
-    return `- [${label}] ${date}: ${mealDetail ?? sleepDetail ?? playDetail ?? event.notes}`;
+    const hygieneDetail = event.type === "hygiene" ? formatHygieneDetail(event.payload) : null;
+    return `- [${label}] ${date}: ${mealDetail ?? sleepDetail ?? playDetail ?? hygieneDetail ?? event.notes}`;
   });
   return `${title}:\n${lines.join("\n")}`;
 }
@@ -356,6 +410,23 @@ function formatChildPreferences(preferences: ChildPreferences | null): string {
   return `Preferências desta criança:\n${lines.join("\n")}`;
 }
 
+// Resumo de higiene — representação limitada (nunca o histórico
+// completo, ver HygieneSummary acima). Omitido inteiramente quando não
+// há nada a dizer (nenhuma fralda configurada e zero vazamentos
+// recentes), em vez de uma linha vazia de preenchimento.
+function formatHygieneSummary(summary: HygieneSummary): string {
+  const lines = [
+    summary.diaperSize ? `- Tamanho de fralda atual: ${summary.diaperSize}` : null,
+    summary.diaperBrand ? `- Marca/modelo atual: ${summary.diaperBrand}` : null,
+    summary.recentLeakCount > 0
+      ? `- Vazamentos registrados nos últimos ${HYGIENE_SUMMARY_WINDOW_DAYS} dias: ${summary.recentLeakCount}`
+      : null,
+  ].filter((line): line is string => line !== null);
+
+  if (lines.length === 0) return "";
+  return `Higiene (fralda):\n${lines.join("\n")}`;
+}
+
 // Compact, predictable text block for the AI prompts — the only place
 // that turns a ChildContext into prose, so suggestEvent/suggestReply never
 // need to know how events are shaped or grouped. Empty groups are simply
@@ -380,6 +451,7 @@ export function formatChildContextForPrompt(context: ChildContext): string {
 
   parts.push(formatChildPreferences(context.childPreferences));
   parts.push(formatFamilyPreferences(context.familyPreferences));
+  parts.push(formatHygieneSummary(context.hygieneSummary));
   parts.push(formatEventGroup("Decisões recentes da família", context.recentDecisions));
   parts.push(formatEventGroup("Observações recentes", context.recentObservations));
   parts.push(formatEventGroup("Atividades recentes", context.recentEvents));

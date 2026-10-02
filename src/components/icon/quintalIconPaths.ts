@@ -23,7 +23,11 @@ export type QuintalIconName =
   | "toothbrush"
   | "house"
   | "calendar"
-  | "cycle";
+  | "cycle"
+  | "diaper"
+  | "poop"
+  | "leak"
+  | "skin";
 
 export const QUINTAL_ICON_PATHS: Record<QuintalIconName, string[]> = {
   // Sono
@@ -95,6 +99,25 @@ export const QUINTAL_ICON_PATHS: Record<QuintalIconName, string[]> = {
     "M16.3 6.8l.9.9",
     "M17.3 6l.8.8",
   ],
+  diaper: [
+    "M5.2 7.6c0-.9.8-1.6 1.8-1.5 3.3.3 6.7.3 10 0 1-.1 1.8.6 1.8 1.5 0 3.6-1.4 6.9-3.9 8.8-1.8 1.4-3.9 1.4-5.8 0-2.5-1.9-3.9-5.2-3.9-8.8z",
+    "M4.6 9.4c-.8.3-1.4 1-1.4 1.9",
+    "M19.4 9.4c.8.3 1.4 1 1.4 1.9",
+  ],
+  poop: [
+    "M6.4 18.4c0-1.8 2.5-3.1 5.6-3.1s5.6 1.3 5.6 3.1-2.5 2.6-5.6 2.6-5.6-.8-5.6-2.6z",
+    "M7.6 14.6c0-1.6 1.9-2.8 4.4-2.8s4.4 1.2 4.4 2.8-1.9 2.4-4.4 2.4-4.4-.8-4.4-2.4z",
+    "M9.4 11.2c0-1.3 1.1-2.3 2.6-2.3s2.6 1 2.6 2.3-1.1 2-2.6 2-2.6-.7-2.6-2z",
+  ],
+  leak: [
+    "M12 5.4c1.8 2.7 3.6 5.4 3.6 7.6 0 2.2-1.6 4-3.6 4s-3.6-1.8-3.6-4c0-2.2 1.8-4.9 3.6-7.6z",
+    "M6 18.4c1.2-.8 2.4-.8 3.6 0 1.2.8 2.4.8 3.6 0 1.2-.8 2.4-.8 3.6 0",
+  ],
+  skin: [
+    "M5.6 10.4c.6-3 3.4-5 6.4-4.6 3.4.4 5.8 3.4 5.4 6.7-.4 3.6-3.6 6.4-7.3 6.1-3.4-.3-5.9-3.4-5.4-6.8.1-.5.2-1 .3-1.4z",
+    "M8.6 10.8c.9-.4 1.9-.3 2.7.3",
+    "M9.2 13.8c.9-.4 1.9-.3 2.7.3",
+  ],
 
   // Rotina
   house: [
@@ -126,6 +149,6 @@ export const QUINTAL_ICON_GROUPS: Record<string, QuintalIconName[]> = {
   play: ["blocks", "ball", "box"],
   meal: ["plate", "spoon", "cup"],
   growth: ["sprout", "growth", "book"],
-  hygiene: ["drop", "bath", "toothbrush"],
+  hygiene: ["drop", "bath", "toothbrush", "diaper", "poop", "leak", "skin"],
   routine: ["house", "calendar", "cycle"],
 };

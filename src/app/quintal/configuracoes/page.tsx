@@ -47,25 +47,25 @@ export default async function ConfiguracoesPage() {
 
       <div className="space-y-3">
         <LinkCard
-          icon={User}
+          icon={<User className="h-4 w-4 text-ink" aria-hidden />}
           title="Minha conta"
           description="Perfil, preferências pessoais e notificações"
           href="/quintal/configuracoes/conta"
         />
         <LinkCard
-          icon={Users}
+          icon={<Users className="h-4 w-4 text-ink" aria-hidden />}
           title="Minha família"
           description="Perfil e preferências da família"
           href="/quintal/configuracoes/familia"
         />
         <LinkCard
-          icon={Baby}
+          icon={<Baby className="h-4 w-4 text-ink" aria-hidden />}
           title="Crianças"
           description={childCount > 0 ? `${childCount} ${childCount === 1 ? "criança" : "crianças"}` : "Adicionar a primeira criança"}
           href="/quintal/configuracoes/criancas"
         />
         <LinkCard
-          icon={UserCog}
+          icon={<UserCog className="h-4 w-4 text-ink" aria-hidden />}
           title="Cuidadores"
           description={
             pendingCount > 0
