@@ -45,7 +45,7 @@ export default async function QuintalChatPage() {
     }));
 
   return (
-    <div className="mx-auto flex min-h-[calc(100dvh-9rem)] w-full max-w-lg flex-col px-4 pt-3 pb-6">
+    <div className="mx-auto flex h-[calc(100dvh-9rem)] w-full max-w-lg flex-col px-4 pt-3 pb-6">
       <ConversationChat
         caregiverId={session.caregiverId}
         childrenList={childrenList}

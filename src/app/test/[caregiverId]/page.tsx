@@ -36,8 +36,8 @@ export default async function TestChatPage({
   const handleSend = sendTestMessage.bind(null, caregiver.id);
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col px-4 py-6">
-      <div className="mb-4 space-y-1">
+    <div className="mx-auto flex h-[100dvh] w-full max-w-lg flex-col px-4 py-6">
+      <div className="mb-4 shrink-0 space-y-1">
         <h1 className="text-lg font-bold text-ink">Converse com o Quintal</h1>
         <p className="text-sm text-ink-muted">
           Oi, {caregiver.name}! Mande uma mensagem como se estivesse falando

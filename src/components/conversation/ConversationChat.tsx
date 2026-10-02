@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import { Input, Label, Select, FieldError } from "@/components/ui/Field";
 import { TEST_ACCESS_COOKIE } from "@/lib/testAccess";
@@ -71,6 +71,17 @@ export default function ConversationChat({
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  // Padrão de chat: a tela sempre abre e permanece no fim da conversa —
+  // quem quer ver mensagens antigas rola para cima dentro da própria
+  // "thread", a página ao redor não rola. Dispara na montagem (mensagens
+  // antigas já carregadas do servidor) e a cada nova mensagem/resposta.
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, isPending]);
 
   // Lets /comecar recognize this browser on a later visit and skip
   // straight back to this same chat instead of creating a new family.
@@ -113,7 +124,7 @@ export default function ConversationChat({
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {childrenList.length > 1 && (
         <div className="space-y-1">
           <Label>Sobre qual criança é a conversa?</Label>
@@ -130,7 +141,10 @@ export default function ConversationChat({
 
       <FieldError>{error}</FieldError>
 
-      <div className="min-h-[400px] flex-1 space-y-3 rounded-sm border border-neutral bg-chat-thread p-4">
+      <div
+        ref={threadRef}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-sm border border-neutral bg-chat-thread p-4"
+      >
         {messages.length === 0 ? (
           <p className="text-center text-sm text-ink-muted">
             Escreva uma mensagem abaixo para começar.
