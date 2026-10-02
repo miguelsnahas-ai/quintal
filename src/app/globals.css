@@ -36,6 +36,37 @@
   --palette-chat-thread: #ede6dc; /* chat wallpaper behind the bubbles */
   --palette-chat-bubble-mine: #dcf3d4; /* outgoing bubble */
 
+  /* Quintal Iconography (ver docs/design-system.md #Quintal Iconography)
+     — cada domínio do produto tem sua própria cor. "main" é o traço do
+     ícone, "light" é o fundo quando o ícone aparece sobre uma mancha de
+     cor, "dark" é reserva para texto/estado ativo sobre "light" (nunca
+     usada como traço). É uma linguagem de classificação, não uma pintura
+     da interface — não usar essas cores em botões, fundos de página ou
+     texto corrido fora do próprio ícone/selo do domínio. */
+  --palette-theme-sleep-main: #9aa8c7;
+  --palette-theme-sleep-light: #e8ecf5;
+  --palette-theme-sleep-dark: #66759a;
+
+  --palette-theme-play-main: #91a98b;
+  --palette-theme-play-light: #e8f0e5;
+  --palette-theme-play-dark: #607a5c;
+
+  --palette-theme-meal-main: #d89a7a;
+  --palette-theme-meal-light: #f7e8df;
+  --palette-theme-meal-dark: #a9684d;
+
+  --palette-theme-growth-main: #d4b45c;
+  --palette-theme-growth-light: #f7f0d8;
+  --palette-theme-growth-dark: #987d32;
+
+  --palette-theme-hygiene-main: #7fb8b0;
+  --palette-theme-hygiene-light: #e3f1ef;
+  --palette-theme-hygiene-dark: #528c84;
+
+  --palette-theme-routine-main: #b9a47d;
+  --palette-theme-routine-light: #f1ece2;
+  --palette-theme-routine-dark: #806d4d;
+
   --palette-radius-sm: 8px; /* --radius-field — buttons, inputs */
   --palette-radius-md: 20px; /* --radius-block — larger sections */
   --palette-radius-lg: 14px; /* --radius-card — the dominant "card" radius app-wide */
@@ -70,6 +101,25 @@
 
   --color-chat-thread: var(--palette-chat-thread);
   --color-chat-bubble-mine: var(--palette-chat-bubble-mine);
+
+  --color-theme-sleep-main: var(--palette-theme-sleep-main);
+  --color-theme-sleep-light: var(--palette-theme-sleep-light);
+  --color-theme-sleep-dark: var(--palette-theme-sleep-dark);
+  --color-theme-play-main: var(--palette-theme-play-main);
+  --color-theme-play-light: var(--palette-theme-play-light);
+  --color-theme-play-dark: var(--palette-theme-play-dark);
+  --color-theme-meal-main: var(--palette-theme-meal-main);
+  --color-theme-meal-light: var(--palette-theme-meal-light);
+  --color-theme-meal-dark: var(--palette-theme-meal-dark);
+  --color-theme-growth-main: var(--palette-theme-growth-main);
+  --color-theme-growth-light: var(--palette-theme-growth-light);
+  --color-theme-growth-dark: var(--palette-theme-growth-dark);
+  --color-theme-hygiene-main: var(--palette-theme-hygiene-main);
+  --color-theme-hygiene-light: var(--palette-theme-hygiene-light);
+  --color-theme-hygiene-dark: var(--palette-theme-hygiene-dark);
+  --color-theme-routine-main: var(--palette-theme-routine-main);
+  --color-theme-routine-light: var(--palette-theme-routine-light);
+  --color-theme-routine-dark: var(--palette-theme-routine-dark);
 
   --radius-sm: var(--palette-radius-sm);
   --radius-md: var(--palette-radius-md);

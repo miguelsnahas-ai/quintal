@@ -138,3 +138,154 @@ Base corner radius: 8px. See rounded tokens in front matter for the full scale.
 Landing pages, Modern websites
 
 <!-- Source: https://designmd.app/library/minimalismo-sereno-de-bem-estar · designmd.app -->
+
+<!--
+  Nota: o conteúdo acima (front matter + corpo até aqui) é um template de
+  referência genérico ("Minimalismo Sereno de Bem-Estar", meditação/bem-estar),
+  não o design system do Quintal — ele não descreve o produto real. A seção
+  abaixo é a primeira a documentar, de fato, uma decisão de design system do
+  Quintal, e é a única parte deste arquivo que deve ser tratada como fonte
+  de verdade atual.
+-->
+
+## Quintal Iconography
+
+### Conceito
+
+"Traço de giz desenhado à mão" — cada ícone deve parecer que alguém o
+desenhou rapidamente com giz ou lápis sobre uma superfície, não que foi
+gerado por uma biblioteca de UI. Isso é deliberado: ícones geométricos e
+perfeitos (incluindo ícones de biblioteca com apenas stroke/cor trocados)
+têm uma frieza corporativa que contradiz o tom do Quintal. A referência
+mental é um adulto desenhando um símbolo pequeno no quadro-negro de um
+quintal com um pedaço de giz — não se trata de aplicar textura de giz
+pesada, e sim de reproduzir a sensação do traço.
+
+### Características obrigatórias do traço
+
+- Traço orgânico, com curvas naturais e pequenas imperfeições.
+- Extremidades e junções sempre arredondadas (`stroke-linecap="round"`,
+  `stroke-linejoin="round"`).
+- Variação sutil de espessura ao longo do próprio traço (nunca uniforme
+  como uma linha vetorial perfeita).
+- Formas simples, poucos elementos por ícone, leitura imediata em
+  tamanhos pequenos (16px).
+- Assimetria intencional nas proporções — evitar círculos matematicamente
+  perfeitos e simetria excessiva.
+
+**Evitar:** linhas perfeitamente retas, simetria excessiva, cantos muito
+precisos, aparência tecnológica/corporativa, 3D, gradientes, sombras,
+excesso de detalhes, estilo cartoon infantil exagerado. O resultado deve
+ser artesanal, nunca desleixado.
+
+### Como o traço é construído
+
+Não são ícones Lucide com `stroke`/`strokeWidth`/`strokeLinecap`
+trocados — isso não é suficiente para a sensação de traço à mão. Cada
+ícone tem um path SVG próprio (`src/components/icon/quintalIconPaths.ts`),
+desenhado com curvas assimétricas desde a origem. Por cima disso, um
+filtro SVG (`feTurbulence` + `feDisplacementMap`, aplicado em
+`QuintalIcon.tsx`) adiciona a imperfeição e a variação de espessura de
+forma consistente entre todos os ícones — a mesma "mão" para a família
+inteira, sem precisar desenhar a imperfeição manualmente em cada path.
+A semente do ruído deriva do nome do ícone (determinística — o mesmo
+ícone sempre balança do mesmo jeito, sem depender de `Math.random` nem
+quebrar hidratação servidor/cliente).
+
+### Cores por tema
+
+Cada domínio do produto tem sua própria cor. É uma **linguagem de
+classificação**, não uma pintura da interface — nunca usar essas cores em
+botões, fundos de página ou texto corrido fora do próprio ícone/selo do
+domínio. O texto continua predominantemente neutro (`--color-ink` /
+`--color-ink-muted`).
+
+| Tema | main (traço) | light (fundo do selo) | dark (traço sobre light) |
+|---|---|---|---|
+| Sono | `#9AA8C7` | `#E8ECF5` | `#66759A` |
+| Brincar | `#91A98B` | `#E8F0E5` | `#607A5C` |
+| Comer | `#D89A7A` | `#F7E8DF` | `#A9684D` |
+| Desenvolvimento | `#D4B45C` | `#F7F0D8` | `#987D32` |
+| Higiene | `#7FB8B0` | `#E3F1EF` | `#528C84` |
+| Rotina | `#B9A47D` | `#F1ECE2` | `#806D4D` |
+
+Tokens em `globals.css`: `--color-theme-{sleep,play,meal,growth,hygiene,routine}-{main,light,dark}`.
+
+**Regra de contraste (validada ao criar esta fase):** `main` sobre `light`
+mede ~2:1 de contraste, abaixo do mínimo de 3:1 recomendado para
+elementos gráficos (WCAG 1.4.11). Por isso `QuintalIcon` troca
+automaticamente o traço para `dark` quando o ícone é renderizado com
+`background="light"` (selo/badge) — `dark` sobre `light` mede ~3.3–4.2:1.
+Sobre superfície neutra (cartão branco/creme, o uso mais comum no
+produto), o traço continua `main`, como pedido.
+
+### Tamanhos e stroke
+
+| Tamanho | px | Uso típico |
+|---|---|---|
+| `sm` | 16 | inline com texto, badges compactos |
+| `lg` | 40 | destaque, cabeçalhos de módulo, selos |
+| `md` | 24 | padrão — navegação, cards |
+
+`strokeWidth` tem padrão 1.85 e pode ser sobrescrito por chamada, mas na
+prática não há motivo para variar: a espessura "sutilmente variável" já
+vem do filtro, não de mudar o número.
+
+### Arquitetura / como usar
+
+```tsx
+import { QuintalIcon } from "@/components/icon/QuintalIcon";
+
+// Uso comum: traço main sobre o cartão
+<QuintalIcon name="moon" theme="sleep" size="md" />
+
+// Selo colorido (traço vira dark automaticamente)
+<QuintalIcon name="drop" theme="hygiene" size="lg" background="light" />
+
+// Tamanho customizado e rótulo acessível (raro — normalmente o ícone
+// acompanha texto visível, e aí fica aria-hidden por padrão)
+<QuintalIcon name="house" theme="routine" size={32} title="Rotina" />
+```
+
+Nunca espalhar SVG diretamente nas páginas — todo ícone novo da família
+"traço de giz" entra em `quintalIconPaths.ts` e passa por `QuintalIcon`,
+que centraliza tamanho, cor por tema, stroke e o filtro de textura.
+
+Página de validação visual (não é tela de produto): `/ops/design-system/icons`
+— compara o traço novo com os ícones Lucide atuais, tema por tema, em
+três tamanhos e sobre os dois fundos.
+
+### Ícones existentes (primeira família)
+
+18 ícones, 3 por tema — suficiente para validar a linguagem antes de
+expandir:
+
+- **Sono:** `moon`, `bed`, `nap`
+- **Brincar:** `blocks`, `ball`, `box`
+- **Comer:** `plate`, `spoon`, `cup`
+- **Desenvolvimento:** `sprout`, `growth`, `book`
+- **Higiene:** `drop`, `bath`, `toothbrush`
+- **Rotina:** `house`, `calendar`, `cycle`
+
+### Integração com o produto
+
+Esta fase criou a biblioteca e a página de validação — **não** substituiu
+os ícones existentes nos componentes de tema (`PillarIcon`, ícones Lucide
+temáticos) em produção. A substituição é gradual e vem depois, uma vez
+validada a linguagem visual; não é um redesign completo do app.
+
+### Ícones vs. ilustrações
+
+**Não misturar os dois sistemas.**
+
+- **Ícones** (`QuintalIcon`, esta seção): pequenos, funcionais, só
+  identificam um tema — navegação, cards, badges, selos. Poucos
+  elementos, leitura instantânea.
+- **Ilustrações**: maiores, mais expressivas, podem ter mais detalhes e
+  composição própria (ex.: estados vazios, onboarding, momentos de
+  celebração). Sistema à parte, ainda não criado — será tratado em fase
+  futura.
+
+Um ícone nunca deve crescer para virar ilustração (adicionando detalhe
+até perder a leitura instantânea), e uma ilustração nunca deve ser
+espremida para funcionar no lugar de um ícone pequeno.
