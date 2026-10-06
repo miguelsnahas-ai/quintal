@@ -20,14 +20,19 @@ export const QUINTAL_ICON_THEME_LABELS: Record<QuintalIconTheme, string> = {
 
 export const QUINTAL_ICON_THEMES: QuintalIconTheme[] = ["sleep", "play", "meal", "growth", "hygiene", "routine"];
 
+// Direto em --palette-theme-*, nunca via um --color-theme-* dentro de
+// @theme inline — ver o comentário em globals.css ao lado de
+// --palette-theme-sleep-main para o porquê (bug real de produção que
+// isso corrige: o Tailwind v4 removia o token do CSS final por nunca
+// vê-lo como nome de classe literal em nenhum arquivo).
 export function themeMainVar(theme: QuintalIconTheme): string {
-  return `var(--color-theme-${theme}-main)`;
+  return `var(--palette-theme-${theme}-main)`;
 }
 
 export function themeLightVar(theme: QuintalIconTheme): string {
-  return `var(--color-theme-${theme}-light)`;
+  return `var(--palette-theme-${theme}-light)`;
 }
 
 export function themeDarkVar(theme: QuintalIconTheme): string {
-  return `var(--color-theme-${theme}-dark)`;
+  return `var(--palette-theme-${theme}-dark)`;
 }

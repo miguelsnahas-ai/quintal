@@ -2,13 +2,20 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { Plus, Moon, Utensils, Blocks, ListChecks, MoreHorizontal, X } from "lucide-react";
+import { Plus, Moon, Utensils, Blocks, Droplet, ListChecks, MoreHorizontal, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+// Diagnóstico de navegabilidade (fase dedicada): Higiene tinha módulo e
+// rota de registro completos, mas não estava aqui — toda outra área do
+// dia a dia (Sono/Alimentação/Brincadeira) é alcançável em 1 toque a
+// partir de qualquer tela via este botão central; Higiene só era
+// alcançável em 3 (Mais → Higiene → aba Registrar). Corrigido somando
+// a sexta opção, mesmo critério das outras cinco.
 const OPTIONS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/quintal/sono/registrar", label: "Sono", icon: Moon },
   { href: "/quintal/alimentacao#registrar", label: "Alimentação", icon: Utensils },
   { href: "/quintal/brincadeiras", label: "Brincadeira", icon: Blocks },
+  { href: "/quintal/higiene/registrar", label: "Fralda", icon: Droplet },
   { href: "/quintal/registrar?tipo=routine", label: "Rotina", icon: ListChecks },
   { href: "/quintal/registrar?tipo=observation", label: "Outro", icon: MoreHorizontal },
 ];

@@ -133,9 +133,12 @@ export default async function FraldasPage({
                   <form action={deleteDiaperStockAction}>
                     <input type="hidden" name="child_id" value={activeChild.id} />
                     <input type="hidden" name="stock_id" value={line.id} />
-                    <button type="submit" className="text-xs font-medium text-danger">
+                    {/* Alvo de toque real (antes: texto sem padding, achado
+                        do diagnóstico de navegabilidade) — mesmo padrão de
+                        "Confirmar remoção" em Configurações > Cuidadores. */}
+                    <Button type="submit" variant="danger" className="px-2 py-1.5 text-xs">
                       Remover
-                    </button>
+                    </Button>
                   </form>
                 </div>
                 <form action={updateDiaperStockAction} className="flex items-center gap-2">

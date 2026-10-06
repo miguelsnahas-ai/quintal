@@ -67,7 +67,7 @@ export default function IconsDesignSystemPage() {
             </h2>
             <span
               className="h-2.5 w-2.5 rounded-full"
-              style={{ background: `var(--color-theme-${theme}-main)` }}
+              style={{ background: `var(--palette-theme-${theme}-main)` }}
               aria-hidden
             />
           </div>
@@ -123,7 +123,7 @@ export default function IconsDesignSystemPage() {
                 <span key={shade} className="flex items-center gap-1.5 text-ink-muted">
                   <span
                     className="h-4 w-4 rounded-full border border-neutral"
-                    style={{ background: `var(--color-theme-${theme}-${shade})` }}
+                    style={{ background: `var(--palette-theme-${theme}-${shade})` }}
                     aria-hidden
                   />
                   {shade}

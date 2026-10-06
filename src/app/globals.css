@@ -42,7 +42,20 @@
      cor, "dark" é reserva para texto/estado ativo sobre "light" (nunca
      usada como traço). É uma linguagem de classificação, não uma pintura
      da interface — não usar essas cores em botões, fundos de página ou
-     texto corrido fora do próprio ícone/selo do domínio. */
+     texto corrido fora do próprio ícone/selo do domínio.
+
+     QuintalIcon.tsx referencia estas --palette-theme-* DIRETO (nunca via
+     um --color-theme-* dentro de @theme inline) de propósito: essas
+     variáveis só são consumidas via var(...) cru dentro de atributos SVG
+     (stroke=...), nunca como nome de classe Tailwind literal em nenhum
+     arquivo — e o content-scanner do Tailwind v4 remove do CSS final
+     qualquer token de @theme que ele não veja referenciado por uma
+     classe literal. Isso já aconteceu aqui (bug real, descoberto só na
+     checagem do CSS compilado de produção): o traço de todo QuintalIcon
+     ficava stroke: none no build de produção, embora funcionasse em
+     `next dev` e em qualquer teste que injetasse seu próprio :root.
+     Ficando fora de @theme, como --palette-ink/--shadow-card já fazem,
+     a variável é sempre emitida, sem depender de scanning. */
   --palette-theme-sleep-main: #9aa8c7;
   --palette-theme-sleep-light: #e8ecf5;
   --palette-theme-sleep-dark: #66759a;
@@ -101,25 +114,6 @@
 
   --color-chat-thread: var(--palette-chat-thread);
   --color-chat-bubble-mine: var(--palette-chat-bubble-mine);
-
-  --color-theme-sleep-main: var(--palette-theme-sleep-main);
-  --color-theme-sleep-light: var(--palette-theme-sleep-light);
-  --color-theme-sleep-dark: var(--palette-theme-sleep-dark);
-  --color-theme-play-main: var(--palette-theme-play-main);
-  --color-theme-play-light: var(--palette-theme-play-light);
-  --color-theme-play-dark: var(--palette-theme-play-dark);
-  --color-theme-meal-main: var(--palette-theme-meal-main);
-  --color-theme-meal-light: var(--palette-theme-meal-light);
-  --color-theme-meal-dark: var(--palette-theme-meal-dark);
-  --color-theme-growth-main: var(--palette-theme-growth-main);
-  --color-theme-growth-light: var(--palette-theme-growth-light);
-  --color-theme-growth-dark: var(--palette-theme-growth-dark);
-  --color-theme-hygiene-main: var(--palette-theme-hygiene-main);
-  --color-theme-hygiene-light: var(--palette-theme-hygiene-light);
-  --color-theme-hygiene-dark: var(--palette-theme-hygiene-dark);
-  --color-theme-routine-main: var(--palette-theme-routine-main);
-  --color-theme-routine-light: var(--palette-theme-routine-light);
-  --color-theme-routine-dark: var(--palette-theme-routine-dark);
 
   --radius-sm: var(--palette-radius-sm);
   --radius-md: var(--palette-radius-md);

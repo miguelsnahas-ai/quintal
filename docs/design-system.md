@@ -209,7 +209,15 @@ domínio. O texto continua predominantemente neutro (`--color-ink` /
 | Higiene | `#7FB8B0` | `#E3F1EF` | `#528C84` |
 | Rotina | `#B9A47D` | `#F1ECE2` | `#806D4D` |
 
-Tokens em `globals.css`: `--color-theme-{sleep,play,meal,growth,hygiene,routine}-{main,light,dark}`.
+Tokens em `globals.css`: `--palette-theme-{sleep,play,meal,growth,hygiene,routine}-{main,light,dark}`.
+Propositalmente `--palette-*`, não `--color-*`/`@theme inline` — ver o
+comentário ao lado da declaração em globals.css: um token de `@theme`
+só sobrevive no CSS de produção do Tailwind v4 se o content-scanner o
+vir como nome de classe literal em algum arquivo, e estes só são
+consumidos via `var(...)` cru dentro de atributos SVG. Ficaram dentro de
+`@theme inline` até essa checagem de navegabilidade descobrir o bug: todo
+`QuintalIcon` renderizava com `stroke: none` no build de produção (não
+em `next dev`, nem em nenhum teste que injetasse seu próprio `:root`).
 
 **Regra de contraste (validada ao criar esta fase):** `main` sobre `light`
 mede ~2:1 de contraste, abaixo do mínimo de 3:1 recomendado para
