@@ -73,6 +73,25 @@ const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   // para "brincadeiras" (lazer fora de casa), não para "rotina", por ser
   // o vizinho semântico mais próximo dos seis nomes pedidos.
   passeios: { materialCategory: "play", materialType: "guide", descriptionField: "O que levar" },
+
+  // Aprofundamento de Higiene (sync da RAG de out/2026, abas 10a–10i da
+  // planilha) — mesma categoria "routine" da aba 7 original ("higiene"
+  // acima): a própria planilha diz que essas abas aprofundam a 7, não a
+  // substituem, então aqui também são a mesma gaveta da Biblioteca, só
+  // com mais conteúdo dentro. descriptionField escolhido por aba a
+  // partir do campo mais parecido com um resumo de uma linha; nem toda
+  // linha tem esse campo (ex.: ING-013/PRO-013 só têm "O que evitar") —
+  // nesse caso a descrição fica null e o campo aparece em `extra`, sem
+  // inventar nada.
+  higiene_fraldas_troca: { materialCategory: "routine", materialType: "guide", descriptionField: "Como fazer" },
+  higiene_fraldas_tamanhos: { materialCategory: "routine", materialType: "reference", descriptionField: "Peso / descrição" },
+  higiene_xixi_coco: { materialCategory: "routine", materialType: "reference", descriptionField: "O que é normal" },
+  higiene_natural_desfralde: { materialCategory: "routine", materialType: "guide", descriptionField: "Como fazer" },
+  higiene_fralda_pano: { materialCategory: "routine", materialType: "guide", descriptionField: "Descrição" },
+  higiene_pele_fralda: { materialCategory: "routine", materialType: "reference", descriptionField: "Como aparece" },
+  higiene_banho: { materialCategory: "routine", materialType: "guide", descriptionField: "Como fazer" },
+  higiene_produtos: { materialCategory: "routine", materialType: "reference", descriptionField: "Para quê" },
+  higiene_ingredientes: { materialCategory: "routine", materialType: "reference", descriptionField: "Por quê" },
 };
 
 // Nunca vira uma seção "extra" duplicada — já aparece em campos
