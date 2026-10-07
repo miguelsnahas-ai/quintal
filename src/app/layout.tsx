@@ -1,14 +1,48 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Gabarito, Hanken_Grotesk, Caveat, Caveat_Brush, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Design system Quintal: Gabarito (títulos, Gabarito 600 — ver globals.css)
+// + Hanken Grotesk (texto corrido) + Caveat (notas manuscritas, uso
+// pontual) + Caveat Brush (só o Wordmark — "stand-in" do design system
+// até a marca ser desenhada por um designer) + JetBrains Mono
+// (eyebrows/meta, já usado antes desta troca). Self-hosted via
+// next/font — mesmo resultado visual do
+// `@import url(fonts.googleapis.com/...)` do design system, sem depender
+// de rede em runtime.
+// weight: "variable" (não um array de pesos fixos) — Gabarito/Hanken
+// Grotesk/Caveat são fontes variáveis no Google Fonts, e um array de
+// pesos nelas dispara uma regressão do Turbopack no Next 16.3.8+
+// ("next/font/google queries have exactly one entry", build quebra
+// sempre que o cache de fonte é limpo). "variable" resolve numa única
+// consulta e ainda responde a qualquer font-weight em CSS — mesmos
+// pesos (500/600/700, 400–700) continuam funcionando normalmente.
+const gabarito = Gabarito({
+  variable: "--font-gabarito",
   subsets: ["latin"],
+  weight: "variable",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const hankenGrotesk = Hanken_Grotesk({
+  variable: "--font-hanken-grotesk",
+  subsets: ["latin"],
+  weight: "variable",
+});
+
+const caveat = Caveat({
+  variable: "--font-caveat",
+  subsets: ["latin"],
+  weight: "variable",
+});
+
+const caveatBrush = Caveat_Brush({
+  variable: "--font-caveat-brush",
+  subsets: ["latin"],
+  weight: "400",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -20,10 +54,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      lang="pt-BR"
+      className={`${gabarito.variable} ${hankenGrotesk.variable} ${caveat.variable} ${caveatBrush.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }

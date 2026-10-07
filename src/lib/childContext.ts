@@ -1,0 +1,460 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database, Json } from "@/lib/supabase/types";
+import { ageInMonths, ageLabel } from "@/lib/format";
+import { eventTypeLabels, type EventType } from "@/lib/validation/events";
+import { mealEventPayloadSchema } from "@/lib/validation/feeding";
+import { sleepEventPayloadSchema, sleepTypeLabels } from "@/lib/validation/sleep";
+import { playEventPayloadSchema, activityFeedbackLabels } from "@/lib/validation/play";
+import { hygieneEventPayloadSchema, diaperResultLabels, diaperConditionLabels } from "@/lib/validation/hygiene";
+import { getCurrentDiaperProfile } from "@/lib/hygiene";
+import { formatDurationMinutes } from "@/lib/format";
+import type { MaterialCategory } from "@/lib/validation/library";
+import { materialCategoryLabels } from "@/lib/validation/library";
+import {
+  recommendationStyleLabels,
+  routineFlexibilityLabels,
+  routineActivityFocusLabels,
+  childRoutinePreferenceLabels,
+  childActivityStyleLabels,
+  type RecommendationStyle,
+  type RoutineFlexibility,
+  type RoutineActivityFocus,
+  type ChildRoutinePreference,
+  type ChildActivityStyle,
+} from "@/lib/validation/profile";
+import type { ChildPreferences } from "@/lib/childPreferences";
+
+// Deterministic, documented limits — no vector search, no ranking, just
+// "last N by time". Tune here if evidence says otherwise; nothing else in
+// the codebase should hardcode a different number for the same concept.
+const RECENT_EVENTS_LIMIT = 10; // day-to-day activity: sleep, routine, free_play, development
+const RECENT_OBSERVATIONS_LIMIT = 5; // type = 'observation'
+const RECENT_DECISIONS_LIMIT = 5; // type = 'decision'
+
+// "Atividade" vs. "memória": sleep/routine/free_play/development/meal/
+// outing are frequent, low-stakes logs (what happened) — kept in
+// recentEvents. observation/decision are conceptually more durable
+// ("things that keep mattering"), so they get their own smaller,
+// separate buckets instead of being buried in a shared list of 10
+// mixed-type rows. meal/outing (Fase 8) joined this group the same way
+// they joined the schema — new areas of the same "day to day" kind, not
+// a new kind of memory. Exported so the dashboard's "hoje" summary
+// (src/lib/dashboard.ts) filters by the exact same set instead of
+// redefining it.
+export const ACTIVITY_EVENT_TYPES: EventType[] = [
+  "sleep",
+  "routine",
+  "free_play",
+  "development",
+  "meal",
+  "outing",
+  "hygiene",
+];
+
+// Janela do resumo de higiene abaixo — mesmo período que a Visão geral
+// do módulo usa para "vazamentos recentes" (ver src/lib/hygiene.ts,
+// INSIGHTS_WINDOW_DAYS).
+const HYGIENE_SUMMARY_WINDOW_DAYS = 7;
+
+export type ChildContextEvent = {
+  type: EventType;
+  notes: string;
+  occurredAt: string;
+  // Only meal events carry this (Fase 9) — raw jsonb, parsed defensively
+  // where it's formatted (formatEventGroup) rather than here, so a
+  // malformed/legacy payload never breaks context assembly, only loses
+  // the extra detail for that one line.
+  payload: Json;
+  // Only sleep events carry this (Fase 10) — null for every other type
+  // and for sleep events still in progress.
+  durationMinutes: number | null;
+};
+
+// Family-level preferences (Fase 8) — not the child's own data, but part
+// of what the AI should know about how this family likes to be talked to
+// and what fits their routine. One row per family (family_preferences),
+// created lazily the first time a family saves anything in
+// /quintal/perfil — most families won't have one yet, hence the nullable
+// fields and the `| null` on ChildContext.familyPreferences itself.
+export type FamilyPreferences = {
+  feedingNotes: string | null;
+  routineNotes: string | null;
+  playNotes: string | null;
+  materialsNotes: string | null;
+  interactionStyle: string | null;
+  // Campos estruturados (Fase 19, /quintal/configuracoes/familia) — ao
+  // lado dos campos de texto livre acima, para o mecanismo de
+  // recomendação/IA poder consultar um valor exato em vez de precisar
+  // interpretar prosa. Ver src/lib/validation/profile.ts para os enums.
+  recommendationStyle: RecommendationStyle | null;
+  routineFlexibility: RoutineFlexibility | null;
+  routineActivityFocus: RoutineActivityFocus | null;
+  contentFocus: MaterialCategory[];
+};
+
+// Resumo de higiene (Fase Higiene) — NÃO o histórico completo de
+// trocas (pedido explícito: "não enviar todo o histórico para a IA.
+// Criar uma representação resumida e limitada"). recentLeakCount é uma
+// CONTAGEM, nunca a lista de ocorrências — o mesmo princípio dos
+// insights permitidos no módulo ("3 vazamentos... nos últimos 7 dias",
+// nunca uma conclusão tipo "a fralda está pequena").
+export type HygieneSummary = {
+  diaperSize: string | null;
+  diaperBrand: string | null;
+  recentLeakCount: number; // últimos HYGIENE_SUMMARY_WINDOW_DAYS dias
+};
+
+export type ChildContext = {
+  child: {
+    id: string;
+    name: string;
+    birthDate: string | null;
+    sex: string | null;
+    notes: string | null;
+    // Structured, editable in /quintal/perfil — Fase 8's answer to "o
+    // Quintal precisa deixar de depender exclusivamente do histórico
+    // textual da conversa". Empty array (not null) when nothing was set.
+    interests: string[];
+    // Fase 9: título do método (knowledge_chunks) ou o texto
+    // personalizado da família — já resolvido para exibição/prompt, sem
+    // o chamador precisar saber que por trás disso existe uma referência
+    // a knowledge_chunks (ver src/lib/feeding.ts).
+    feedingMethod: string | null;
+  };
+  age: {
+    label: string | null; // "8 meses" / "2 anos" — for display and prompts
+    months: number | null; // for the knowledge-base age filter
+  };
+  // Most recent first (occurred_at desc), never older data mixed in past
+  // the limit above.
+  recentEvents: ChildContextEvent[];
+  recentObservations: ChildContextEvent[];
+  recentDecisions: ChildContextEvent[];
+  familyPreferences: FamilyPreferences | null;
+  // Preferências desta CRIANÇA (Fase 20, child_preferences) — não
+  // confundir com familyPreferences acima. null quando a criança ainda
+  // não tem nenhuma preferência configurada (linha criada sob demanda,
+  // mesmo padrão de family_preferences/caregiver_preferences).
+  childPreferences: ChildPreferences | null;
+  hygieneSummary: HygieneSummary;
+};
+
+// The single place that knows how to assemble "what do we know about this
+// child right now" — suggestEvent/suggestReply/conversation.ts should
+// never query `children`/`events` directly for this purpose; they call
+// this instead. Strictly scoped by child_id, so two children (even in the
+// same family) can never leak into each other's context here. Message
+// history is deliberately NOT part of this: `messages` has no child_id
+// column (only family_id/caregiver_id), so "what was said recently" is
+// inherently a family-level concept in the current schema, not a
+// child-level one — see docs/ARCHITECTURE_TARGET.md.
+export async function getChildContext(
+  supabase: SupabaseClient<Database>,
+  childId: string,
+): Promise<ChildContext | null> {
+  const { data: child, error: childError } = await supabase
+    .from("children")
+    .select(
+      "id, family_id, name, birth_date, sex, notes, interests, feeding_method_id, feeding_method_custom",
+    )
+    .eq("id", childId)
+    .maybeSingle();
+
+  if (childError || !child) {
+    return null;
+  }
+
+  const hygieneSince = new Date();
+  hygieneSince.setDate(hygieneSince.getDate() - HYGIENE_SUMMARY_WINDOW_DAYS);
+
+  const [
+    { data: activityRaw },
+    { data: observationsRaw },
+    { data: decisionsRaw },
+    { data: preferencesRaw },
+    { data: childPreferencesRaw },
+    { data: feedingMethodRaw },
+    currentDiaperProfile,
+    { data: recentHygieneRaw },
+  ] = await Promise.all([
+    supabase
+      .from("events")
+      .select("type, notes, occurred_at, payload, duration_minutes")
+      .eq("child_id", childId)
+      .in("type", ACTIVITY_EVENT_TYPES)
+      .order("occurred_at", { ascending: false })
+      .limit(RECENT_EVENTS_LIMIT),
+    supabase
+      .from("events")
+      .select("type, notes, occurred_at, payload, duration_minutes")
+      .eq("child_id", childId)
+      .eq("type", "observation")
+      .order("occurred_at", { ascending: false })
+      .limit(RECENT_OBSERVATIONS_LIMIT),
+    supabase
+      .from("events")
+      .select("type, notes, occurred_at, payload, duration_minutes")
+      .eq("child_id", childId)
+      .eq("type", "decision")
+      .order("occurred_at", { ascending: false })
+      .limit(RECENT_DECISIONS_LIMIT),
+    supabase
+      .from("family_preferences")
+      .select(
+        "feeding_notes, routine_notes, play_notes, materials_notes, interaction_style, recommendation_style, routine_flexibility, routine_activity_focus, content_focus",
+      )
+      .eq("family_id", child.family_id)
+      .maybeSingle(),
+    supabase
+      .from("child_preferences")
+      .select("favorite_activities, preferred_materials, routine_preference, activity_style, routine_notes, feeding_notes")
+      .eq("child_id", childId)
+      .maybeSingle(),
+    // Sem feeding_method_id, esta query simplesmente não bate com
+    // nenhuma linha (id vazio não existe) — mais simples do que pular a
+    // chamada condicionalmente.
+    supabase
+      .from("knowledge_chunks")
+      .select("title")
+      .eq("id", child.feeding_method_id ?? "")
+      .maybeSingle(),
+    getCurrentDiaperProfile(childId),
+    supabase
+      .from("events")
+      .select("payload")
+      .eq("child_id", childId)
+      .eq("type", "hygiene")
+      .gte("occurred_at", hygieneSince.toISOString()),
+  ]);
+
+  const toContextEvent = (row: {
+    type: string;
+    notes: string;
+    occurred_at: string;
+    payload: Json;
+    duration_minutes: number | null;
+  }): ChildContextEvent => ({
+    type: row.type as EventType,
+    notes: row.notes,
+    occurredAt: row.occurred_at,
+    payload: row.payload,
+    durationMinutes: row.duration_minutes,
+  });
+
+  return {
+    child: {
+      id: child.id,
+      name: child.name,
+      birthDate: child.birth_date,
+      sex: child.sex,
+      notes: child.notes,
+      interests: child.interests,
+      feedingMethod: feedingMethodRaw?.title ?? child.feeding_method_custom,
+    },
+    age: {
+      label: ageLabel(child.birth_date),
+      months: ageInMonths(child.birth_date),
+    },
+    recentEvents: (activityRaw ?? []).map(toContextEvent),
+    recentObservations: (observationsRaw ?? []).map(toContextEvent),
+    recentDecisions: (decisionsRaw ?? []).map(toContextEvent),
+    familyPreferences: preferencesRaw
+      ? {
+          feedingNotes: preferencesRaw.feeding_notes,
+          routineNotes: preferencesRaw.routine_notes,
+          playNotes: preferencesRaw.play_notes,
+          materialsNotes: preferencesRaw.materials_notes,
+          interactionStyle: preferencesRaw.interaction_style,
+          recommendationStyle: preferencesRaw.recommendation_style as RecommendationStyle | null,
+          routineFlexibility: preferencesRaw.routine_flexibility as RoutineFlexibility | null,
+          routineActivityFocus: preferencesRaw.routine_activity_focus as RoutineActivityFocus | null,
+          contentFocus: preferencesRaw.content_focus as MaterialCategory[],
+        }
+      : null,
+    childPreferences: childPreferencesRaw
+      ? {
+          favoriteActivities: childPreferencesRaw.favorite_activities,
+          preferredMaterials: childPreferencesRaw.preferred_materials,
+          routinePreference: childPreferencesRaw.routine_preference as ChildRoutinePreference | null,
+          activityStyle: childPreferencesRaw.activity_style as ChildActivityStyle | null,
+          routineNotes: childPreferencesRaw.routine_notes,
+          feedingNotes: childPreferencesRaw.feeding_notes,
+        }
+      : null,
+    hygieneSummary: {
+      diaperSize: currentDiaperProfile?.size ?? null,
+      diaperBrand: currentDiaperProfile?.brand ?? null,
+      recentLeakCount: (recentHygieneRaw ?? []).filter((row: { payload: Json }) => {
+        const parsed = hygieneEventPayloadSchema.safeParse(row.payload);
+        return parsed.success && parsed.data.condition === "leaked";
+      }).length,
+    },
+  };
+}
+
+// Meal events (Fase 9) carry a structured payload (slot/foods/acceptance)
+// beyond the free-text `notes` every event already has — when it parses
+// cleanly, the prompt line gets the real foods and acceptance instead of
+// just repeating `notes` (which is often just the foods list anyway, but
+// acceptance is real signal `notes` alone doesn't carry).
+function formatMealDetail(payload: Json): string | null {
+  const parsed = mealEventPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+  const { foods, acceptance } = parsed.data;
+  const acceptanceLabel =
+    { ate_well: "comeu bem", ate_some: "comeu pouco", refused: "recusou", unknown: null }[acceptance] ?? null;
+  const parts = [foods.length > 0 ? foods.join(", ") : null, acceptanceLabel].filter(Boolean);
+  return parts.length > 0 ? parts.join(" — ") : null;
+}
+
+// Sleep events (Fase 10) carry a structured payload (sleepType/endedAt)
+// beyond `notes` — when it parses cleanly, the prompt line says "Soneca
+// — 1h35" (or "em andamento" for a period not yet ended) instead of just
+// repeating whatever fallback text `notes` happened to get at write
+// time. Legacy 'sleep' events without this payload (Fase 3-8) fall back
+// to null, same as formatMealDetail's own defensive parse.
+function formatSleepDetail(payload: Json, durationMinutes: number | null): string | null {
+  const parsed = sleepEventPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+  const label = sleepTypeLabels[parsed.data.sleepType];
+  if (parsed.data.endedAt === null) return `${label} (em andamento)`;
+  return durationMinutes !== null ? `${label} — ${formatDurationMinutes(durationMinutes)}` : label;
+}
+
+// Activity events (Fase 11) carry activityTitle + feedback in payload —
+// mesma ideia de formatMealDetail/formatSleepDetail: enriquece a linha
+// do prompt com o resultado real ("Cabana — Adorou") em vez de só
+// repetir `notes` (que já é essencialmente isso, mas via payload fica
+// resiliente a uma futura mudança no formato de notes).
+function formatPlayDetail(payload: Json): string | null {
+  const parsed = playEventPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+  // feedback é null para um registro livre vindo do chat sem reação
+  // explícita (Fase 15) — nunca inventamos uma reação aqui.
+  if (parsed.data.feedback === null) return parsed.data.activityTitle;
+  return `${parsed.data.activityTitle} — ${activityFeedbackLabels[parsed.data.feedback]}`;
+}
+
+// Hygiene events (Fase Higiene) carry diaperResult/condition/skinCondition
+// beyond `notes` — same spirit as formatMealDetail/formatSleepDetail:
+// "Xixi — vazou" instead of just repeating notes, quando o payload é do
+// formato esperado.
+function formatHygieneDetail(payload: Json): string | null {
+  const parsed = hygieneEventPayloadSchema.safeParse(payload);
+  if (!parsed.success) return null;
+  const parts = [diaperResultLabels[parsed.data.diaperResult]];
+  if (parsed.data.condition !== "normal") parts.push(diaperConditionLabels[parsed.data.condition].toLowerCase());
+  return parts.join(" — ");
+}
+
+function formatEventGroup(title: string, events: ChildContextEvent[]): string {
+  if (events.length === 0) return "";
+  const lines = events.map((event) => {
+    const label = eventTypeLabels[event.type] ?? event.type;
+    const date = new Date(event.occurredAt).toLocaleDateString("pt-BR");
+    const mealDetail = event.type === "meal" ? formatMealDetail(event.payload) : null;
+    const sleepDetail = event.type === "sleep" ? formatSleepDetail(event.payload, event.durationMinutes) : null;
+    const playDetail = event.type === "free_play" ? formatPlayDetail(event.payload) : null;
+    const hygieneDetail = event.type === "hygiene" ? formatHygieneDetail(event.payload) : null;
+    return `- [${label}] ${date}: ${mealDetail ?? sleepDetail ?? playDetail ?? hygieneDetail ?? event.notes}`;
+  });
+  return `${title}:\n${lines.join("\n")}`;
+}
+
+function formatFamilyPreferences(preferences: FamilyPreferences | null): string {
+  if (!preferences) return "";
+  const lines = [
+    preferences.recommendationStyle
+      ? `- Estilo de recomendações preferido: ${recommendationStyleLabels[preferences.recommendationStyle]}`
+      : null,
+    preferences.routineFlexibility
+      ? `- Rotina: ${routineFlexibilityLabels[preferences.routineFlexibility]}`
+      : null,
+    preferences.routineActivityFocus
+      ? `- Atividades: ${routineActivityFocusLabels[preferences.routineActivityFocus]}`
+      : null,
+    preferences.contentFocus.length > 0
+      ? `- Conteúdo prioritário: ${preferences.contentFocus.map((category) => materialCategoryLabels[category]).join(", ")}`
+      : null,
+    preferences.feedingNotes ? `- Alimentação (observações): ${preferences.feedingNotes}` : null,
+    preferences.routineNotes ? `- Rotina (observações): ${preferences.routineNotes}` : null,
+    preferences.playNotes ? `- Brincadeiras (observações): ${preferences.playNotes}` : null,
+    preferences.materialsNotes ? `- Materiais (observações): ${preferences.materialsNotes}` : null,
+    preferences.interactionStyle ? `- Estilo de interação preferido: ${preferences.interactionStyle}` : null,
+  ].filter((line): line is string => line !== null);
+
+  if (lines.length === 0) return "";
+  return `Preferências da família:\n${lines.join("\n")}`;
+}
+
+function formatChildPreferences(preferences: ChildPreferences | null): string {
+  if (!preferences) return "";
+  const lines = [
+    preferences.favoriteActivities.length > 0
+      ? `- Brincadeiras favoritas: ${preferences.favoriteActivities.join(", ")}`
+      : null,
+    preferences.preferredMaterials.length > 0
+      ? `- Materiais de interesse: ${preferences.preferredMaterials.join(", ")}`
+      : null,
+    preferences.routinePreference
+      ? `- Preferência de rotina: ${childRoutinePreferenceLabels[preferences.routinePreference]}`
+      : null,
+    preferences.activityStyle
+      ? `- Estilo de atividades preferido: ${childActivityStyleLabels[preferences.activityStyle]}`
+      : null,
+    preferences.routineNotes ? `- Rotina (observações): ${preferences.routineNotes}` : null,
+    preferences.feedingNotes ? `- Alimentação (observações): ${preferences.feedingNotes}` : null,
+  ].filter((line): line is string => line !== null);
+
+  if (lines.length === 0) return "";
+  return `Preferências desta criança:\n${lines.join("\n")}`;
+}
+
+// Resumo de higiene — representação limitada (nunca o histórico
+// completo, ver HygieneSummary acima). Omitido inteiramente quando não
+// há nada a dizer (nenhuma fralda configurada e zero vazamentos
+// recentes), em vez de uma linha vazia de preenchimento.
+function formatHygieneSummary(summary: HygieneSummary): string {
+  const lines = [
+    summary.diaperSize ? `- Tamanho de fralda atual: ${summary.diaperSize}` : null,
+    summary.diaperBrand ? `- Marca/modelo atual: ${summary.diaperBrand}` : null,
+    summary.recentLeakCount > 0
+      ? `- Vazamentos registrados nos últimos ${HYGIENE_SUMMARY_WINDOW_DAYS} dias: ${summary.recentLeakCount}`
+      : null,
+  ].filter((line): line is string => line !== null);
+
+  if (lines.length === 0) return "";
+  return `Higiene (fralda):\n${lines.join("\n")}`;
+}
+
+// Compact, predictable text block for the AI prompts — the only place
+// that turns a ChildContext into prose, so suggestEvent/suggestReply never
+// need to know how events are shaped or grouped. Empty groups are simply
+// omitted (no "nenhum evento registrado" filler) rather than fabricating
+// a sentence about missing data.
+export function formatChildContextForPrompt(context: ChildContext): string {
+  const parts: string[] = [
+    `Criança: ${context.child.name}${context.age.label ? ` (${context.age.label})` : ""}`,
+  ];
+
+  if (context.child.notes) {
+    parts.push(`Notas gerais sobre a criança: ${context.child.notes}`);
+  }
+
+  if (context.child.interests.length > 0) {
+    parts.push(`Interesses observados: ${context.child.interests.join(", ")}`);
+  }
+
+  if (context.child.feedingMethod) {
+    parts.push(`Método alimentar escolhido pela família: ${context.child.feedingMethod}`);
+  }
+
+  parts.push(formatChildPreferences(context.childPreferences));
+  parts.push(formatFamilyPreferences(context.familyPreferences));
+  parts.push(formatHygieneSummary(context.hygieneSummary));
+  parts.push(formatEventGroup("Decisões recentes da família", context.recentDecisions));
+  parts.push(formatEventGroup("Observações recentes", context.recentObservations));
+  parts.push(formatEventGroup("Atividades recentes", context.recentEvents));
+
+  return parts.filter(Boolean).join("\n\n");
+}

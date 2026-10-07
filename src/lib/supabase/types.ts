@@ -1,0 +1,1109 @@
+// Generated from the Supabase project (familyos) schema.
+// Regenerate after every migration: see `mcp__Supabase__generate_typescript_types`.
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  public: {
+    Tables: {
+      activity_feedback: {
+        Row: {
+          activity_id: string
+          caregiver_id: string | null
+          child_id: string | null
+          created_at: string
+          helpful: boolean
+          id: string
+        }
+        Insert: {
+          activity_id: string
+          caregiver_id?: string | null
+          child_id?: string | null
+          created_at?: string
+          helpful: boolean
+          id?: string
+        }
+        Update: {
+          activity_id?: string
+          caregiver_id?: string | null
+          child_id?: string | null
+          created_at?: string
+          helpful?: boolean
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_feedback_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_feedback_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_feedback_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_recommendation_feedback: {
+        Row: {
+          activity_id: string
+          child_id: string
+          created_at: string
+          feedback: string
+          id: string
+          note: string | null
+          recommendation_id: string
+        }
+        Insert: {
+          activity_id: string
+          child_id: string
+          created_at?: string
+          feedback: string
+          id?: string
+          note?: string | null
+          recommendation_id: string
+        }
+        Update: {
+          activity_id?: string
+          child_id?: string
+          created_at?: string
+          feedback?: string
+          id?: string
+          note?: string | null
+          recommendation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_recommendation_feedback_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendation_feedback_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendation_feedback_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "activity_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_recommendations: {
+        Row: {
+          activity_id: string
+          child_id: string
+          created_at: string
+          id: string
+          opened_at: string | null
+          source_message_id: string | null
+        }
+        Insert: {
+          activity_id: string
+          child_id: string
+          created_at?: string
+          id?: string
+          opened_at?: string | null
+          source_message_id?: string | null
+        }
+        Update: {
+          activity_id?: string
+          child_id?: string
+          created_at?: string
+          id?: string
+          opened_at?: string | null
+          source_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_recommendations_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendations_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendations_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_settings: {
+        Row: {
+          custom_instructions: string
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          custom_instructions?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          custom_instructions?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      caregiver_child: {
+        Row: {
+          caregiver_id: string
+          child_id: string
+          created_at: string
+          relationship: string | null
+        }
+        Insert: {
+          caregiver_id: string
+          child_id: string
+          created_at?: string
+          relationship?: string | null
+        }
+        Update: {
+          caregiver_id?: string
+          child_id?: string
+          created_at?: string
+          relationship?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caregiver_child_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "caregiver_child_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      caregiver_preferences: {
+        Row: {
+          caregiver_id: string
+          communication_style: string | null
+          content_interests: string[]
+          notify_general: boolean
+          notify_recommendations: boolean
+          notify_reminders: boolean
+          notify_routine_updates: boolean
+          updated_at: string
+        }
+        Insert: {
+          caregiver_id: string
+          communication_style?: string | null
+          content_interests?: string[]
+          notify_general?: boolean
+          notify_recommendations?: boolean
+          notify_reminders?: boolean
+          notify_routine_updates?: boolean
+          updated_at?: string
+        }
+        Update: {
+          caregiver_id?: string
+          communication_style?: string | null
+          content_interests?: string[]
+          notify_general?: boolean
+          notify_recommendations?: boolean
+          notify_reminders?: boolean
+          notify_routine_updates?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caregiver_preferences_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: true
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      caregiver_sessions: {
+        Row: {
+          caregiver_id: string
+          created_at: string
+          token: string
+        }
+        Insert: {
+          caregiver_id: string
+          created_at?: string
+          token: string
+        }
+        Update: {
+          caregiver_id?: string
+          created_at?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caregiver_sessions_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      caregivers: {
+        Row: {
+          access_role: string
+          avatar_url: string | null
+          created_at: string
+          family_id: string
+          id: string
+          is_primary_contact: boolean
+          name: string
+          phone_number: string
+          role: string | null
+        }
+        Insert: {
+          access_role?: string
+          avatar_url?: string | null
+          created_at?: string
+          family_id: string
+          id?: string
+          is_primary_contact?: boolean
+          name: string
+          phone_number: string
+          role?: string | null
+        }
+        Update: {
+          access_role?: string
+          avatar_url?: string | null
+          created_at?: string
+          family_id?: string
+          id?: string
+          is_primary_contact?: boolean
+          name?: string
+          phone_number?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caregivers_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      child_preferences: {
+        Row: {
+          activity_style: string | null
+          child_id: string
+          favorite_activities: string[]
+          feeding_notes: string | null
+          preferred_materials: string[]
+          routine_notes: string | null
+          routine_preference: string | null
+          updated_at: string
+        }
+        Insert: {
+          activity_style?: string | null
+          child_id: string
+          favorite_activities?: string[]
+          feeding_notes?: string | null
+          preferred_materials?: string[]
+          routine_notes?: string | null
+          routine_preference?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activity_style?: string | null
+          child_id?: string
+          favorite_activities?: string[]
+          feeding_notes?: string | null
+          preferred_materials?: string[]
+          routine_notes?: string | null
+          routine_preference?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_preferences_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: true
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      children: {
+        Row: {
+          avatar_url: string | null
+          birth_date: string | null
+          created_at: string
+          family_id: string
+          feeding_method_custom: string | null
+          feeding_method_id: string | null
+          id: string
+          interests: string[]
+          name: string
+          notes: string | null
+          sex: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          birth_date?: string | null
+          created_at?: string
+          family_id: string
+          feeding_method_custom?: string | null
+          feeding_method_id?: string | null
+          id?: string
+          interests?: string[]
+          name: string
+          notes?: string | null
+          sex?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          birth_date?: string | null
+          created_at?: string
+          family_id?: string
+          feeding_method_custom?: string | null
+          feeding_method_id?: string | null
+          id?: string
+          interests?: string[]
+          name?: string
+          notes?: string | null
+          sex?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "children_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "children_feeding_method_id_fkey"
+            columns: ["feeding_method_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diaper_profiles: {
+        Row: {
+          brand: string | null
+          child_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          model: string | null
+          notes: string | null
+          size: string | null
+          started_at: string
+        }
+        Insert: {
+          brand?: string | null
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          model?: string | null
+          notes?: string | null
+          size?: string | null
+          started_at?: string
+        }
+        Update: {
+          brand?: string | null
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          model?: string | null
+          notes?: string | null
+          size?: string | null
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diaper_profiles_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diaper_stock: {
+        Row: {
+          brand: string | null
+          child_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          model: string | null
+          quantity: number
+          size: string | null
+          updated_at: string
+        }
+        Insert: {
+          brand?: string | null
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          model?: string | null
+          quantity?: number
+          size?: string | null
+          updated_at?: string
+        }
+        Update: {
+          brand?: string | null
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          model?: string | null
+          quantity?: number
+          size?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diaper_stock_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          caregiver_id: string | null
+          child_id: string
+          created_at: string
+          created_by: string | null
+          duration_minutes: number | null
+          id: string
+          notes: string
+          occurred_at: string
+          origin: string
+          payload: Json
+          source_message_id: string | null
+          type: string
+        }
+        Insert: {
+          caregiver_id?: string | null
+          child_id: string
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number | null
+          id?: string
+          notes: string
+          occurred_at?: string
+          origin?: string
+          payload?: Json
+          source_message_id?: string | null
+          type: string
+        }
+        Update: {
+          caregiver_id?: string | null
+          child_id?: string
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number | null
+          id?: string
+          notes?: string
+          occurred_at?: string
+          origin?: string
+          payload?: Json
+          source_message_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      families: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      family_invitations: {
+        Row: {
+          accepted_at: string | null
+          access_role: string
+          created_at: string
+          email: string | null
+          expires_at: string
+          family_id: string
+          id: string
+          invited_by: string | null
+          name: string | null
+          status: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          access_role?: string
+          created_at?: string
+          email?: string | null
+          expires_at: string
+          family_id: string
+          id?: string
+          invited_by?: string | null
+          name?: string | null
+          status?: string
+          token: string
+        }
+        Update: {
+          accepted_at?: string | null
+          access_role?: string
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          family_id?: string
+          id?: string
+          invited_by?: string | null
+          name?: string | null
+          status?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_invitations_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_invitations_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      family_preferences: {
+        Row: {
+          content_focus: string[]
+          family_id: string
+          feeding_notes: string | null
+          interaction_style: string | null
+          materials_notes: string | null
+          play_notes: string | null
+          recommendation_style: string | null
+          routine_activity_focus: string | null
+          routine_flexibility: string | null
+          routine_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          content_focus?: string[]
+          family_id: string
+          feeding_notes?: string | null
+          interaction_style?: string | null
+          materials_notes?: string | null
+          play_notes?: string | null
+          recommendation_style?: string | null
+          routine_activity_focus?: string | null
+          routine_flexibility?: string | null
+          routine_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content_focus?: string[]
+          family_id?: string
+          feeding_notes?: string | null
+          interaction_style?: string | null
+          materials_notes?: string | null
+          play_notes?: string | null
+          recommendation_style?: string | null
+          routine_activity_focus?: string | null
+          routine_flexibility?: string | null
+          routine_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_preferences_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: true
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_chunks: {
+        Row: {
+          age_max_months: number | null
+          age_min_months: number | null
+          category: string
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          search: unknown
+          status: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          age_max_months?: number | null
+          age_min_months?: number | null
+          category: string
+          content: string
+          created_at?: string
+          id: string
+          image_url?: string | null
+          search?: unknown
+          status?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          age_max_months?: number | null
+          age_min_months?: number | null
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          search?: unknown
+          status?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          activity_id: string | null
+          body: string | null
+          caregiver_id: string | null
+          created_at: string
+          direction: string
+          family_id: string | null
+          feedback_notes: string | null
+          feedback_recorded_at: string | null
+          from_phone_number: string
+          handled_at: string | null
+          helpful: boolean | null
+          id: string
+          in_reply_to_message_id: string | null
+          message_type: string
+          raw_payload: Json
+          wa_message_id: string
+          wa_timestamp: string | null
+        }
+        Insert: {
+          activity_id?: string | null
+          body?: string | null
+          caregiver_id?: string | null
+          created_at?: string
+          direction?: string
+          family_id?: string | null
+          feedback_notes?: string | null
+          feedback_recorded_at?: string | null
+          from_phone_number: string
+          handled_at?: string | null
+          helpful?: boolean | null
+          id?: string
+          in_reply_to_message_id?: string | null
+          message_type: string
+          raw_payload: Json
+          wa_message_id: string
+          wa_timestamp?: string | null
+        }
+        Update: {
+          activity_id?: string | null
+          body?: string | null
+          caregiver_id?: string | null
+          created_at?: string
+          direction?: string
+          family_id?: string | null
+          feedback_notes?: string | null
+          feedback_recorded_at?: string | null
+          from_phone_number?: string
+          handled_at?: string | null
+          helpful?: boolean | null
+          id?: string
+          in_reply_to_message_id?: string | null
+          message_type?: string
+          raw_payload?: Json
+          wa_message_id?: string
+          wa_timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_in_reply_to_message_id_fkey"
+            columns: ["in_reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waitlist_leads: {
+        Row: {
+          app_used: string | null
+          app_which: string | null
+          caregivers: string[] | null
+          caregivers_other: string | null
+          challenges: string[] | null
+          challenges_other: string | null
+          child_age: string[]
+          child_count: string | null
+          converted_family_id: string | null
+          course_taken: string | null
+          course_which: string | null
+          created_at: string
+          email: string
+          expectation: string | null
+          family_setup_interest: boolean
+          how_found: string | null
+          how_found_other: string | null
+          id: string
+          name: string
+          notes: string | null
+          professionals: string[] | null
+          status: string
+          support_network: string[] | null
+          support_network_other: string | null
+          updated_at: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          whatsapp: string
+        }
+        Insert: {
+          app_used?: string | null
+          app_which?: string | null
+          caregivers?: string[] | null
+          caregivers_other?: string | null
+          challenges?: string[] | null
+          challenges_other?: string | null
+          child_age?: string[]
+          child_count?: string | null
+          converted_family_id?: string | null
+          course_taken?: string | null
+          course_which?: string | null
+          created_at?: string
+          email: string
+          expectation?: string | null
+          family_setup_interest?: boolean
+          how_found?: string | null
+          how_found_other?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          professionals?: string[] | null
+          status?: string
+          support_network?: string[] | null
+          support_network_other?: string | null
+          updated_at?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          whatsapp: string
+        }
+        Update: {
+          app_used?: string | null
+          app_which?: string | null
+          caregivers?: string[] | null
+          caregivers_other?: string | null
+          challenges?: string[] | null
+          challenges_other?: string | null
+          child_age?: string[]
+          child_count?: string | null
+          converted_family_id?: string | null
+          course_taken?: string | null
+          course_which?: string | null
+          created_at?: string
+          email?: string
+          expectation?: string | null
+          family_setup_interest?: boolean
+          how_found?: string | null
+          how_found_other?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          professionals?: string[] | null
+          status?: string
+          support_network?: string[] | null
+          support_network_other?: string | null
+          updated_at?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_leads_converted_family_id_fkey"
+            columns: ["converted_family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      knowledge_chunks_tsvector: {
+        Args: { content: string; tags: string[]; title: string }
+        Returns: unknown
+      }
+      search_knowledge_chunks: {
+        Args: { age_months?: number; message: string; result_limit?: number }
+        Returns: {
+          category: string
+          content: string
+          id: string
+          title: string
+        }[]
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
