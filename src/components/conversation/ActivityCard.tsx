@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
 import { inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
+import { QuintalIcon } from "@/components/icon/QuintalIcon";
 import type { ActivitySummary } from "@/lib/activity";
 
 // Deliberately warmer than the operator tool's `Card` (rounded-sm,
@@ -38,9 +38,7 @@ export default function ActivityCard({
             className="h-9 w-9 shrink-0 rounded-full object-cover"
           />
         ) : (
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
-            <Sparkles className="h-4 w-4 text-ink" aria-hidden />
-          </span>
+          <QuintalIcon name="blocks" theme="play" size="md" background="light" />
         )}
         <div className="min-w-0 space-y-0.5">
           <p className="font-semibold text-ink">{activity.title}</p>

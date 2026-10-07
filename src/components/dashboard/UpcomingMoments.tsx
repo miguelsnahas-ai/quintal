@@ -1,14 +1,21 @@
 import Link from "next/link";
-import { Sparkles, Blocks, MapPin, Utensils, Moon } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
+import { QuintalIcon } from "@/components/icon/QuintalIcon";
+import type { QuintalIconName } from "@/components/icon/quintalIconPaths";
+import type { QuintalIconTheme } from "@/components/icon/quintalIconTheme";
 import type { RoutineSuggestion, RoutineSuggestionKind } from "@/lib/routineEngine";
 
-const ICONS: Record<RoutineSuggestionKind, LucideIcon> = {
-  play: Blocks,
-  outing: MapPin,
-  meal: Utensils,
-  wind_down: Moon,
+// Cor por domínio (ver docs/design-system.md #Quintal Iconography),
+// mesmo critério já usado no grid "Resumo do dia" logo acima na Home —
+// "outing" (passeio) entra como "play" porque é a mesma categoria de
+// lazer que a Biblioteca de Materiais já usa para "passeios"
+// (lib/library.ts, CATEGORY_CONFIG), e não há um sétimo tema só pra isso.
+const ICONS: Record<RoutineSuggestionKind, { name: QuintalIconName; theme: QuintalIconTheme }> = {
+  play: { name: "blocks", theme: "play" },
+  outing: { name: "ball", theme: "play" },
+  meal: { name: "plate", theme: "meal" },
+  wind_down: { name: "moon", theme: "sleep" },
 };
 
 // "Próximos momentos" (Fase 14) — uma leitura leve da rotina adaptativa,
@@ -37,13 +44,11 @@ export default function UpcomingMoments({ suggestions }: { suggestions: RoutineS
       </p>
       <ol className="space-y-2">
         {suggestions.map((suggestion) => {
-          const Icon = ICONS[suggestion.kind];
+          const icon = ICONS[suggestion.kind];
           return (
             <li key={suggestion.id}>
               <Link href={suggestion.href} className={inviteCardClassName(`flex items-start gap-3 p-3 ${cardHoverLift}`)}>
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
-                  <Icon className="h-4 w-4 text-ink" aria-hidden />
-                </span>
+                <QuintalIcon name={icon.name} theme={icon.theme} size="md" background="light" />
                 <div className="min-w-0 flex-1 space-y-0.5">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-sm font-semibold text-ink">{suggestion.label}</p>

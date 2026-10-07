@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Moon, Utensils, Blocks, BookOpen, Link2, Users, Settings } from "lucide-react";
+import { Link2, Users, Settings } from "lucide-react";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -29,21 +29,30 @@ export default async function MaisPage() {
     <PageContainer>
       <PageHeader title="Mais" />
 
+      {/* Cada entrada usa a cor do seu próprio domínio (ver
+          docs/design-system.md #Quintal Iconography) — não o selo amber
+          genérico (iconBackground="accent", ainda o padrão de LinkCard):
+          Sono/Brincar/Comer/Higiene já têm tema próprio; Materiais usa
+          "growth" porque "book" é o ícone dessa família que representa
+          a biblioteca (não é um domínio de registro à parte). */}
       <div className="space-y-3">
         <LinkCard
-          icon={<Moon className="h-4 w-4 text-ink" aria-hidden />}
+          icon={<QuintalIcon name="moon" theme="sleep" size="md" background="light" />}
+          iconBackground="none"
           title="Sono"
           description="Registro, análise e orientações"
           href="/quintal/sono"
         />
         <LinkCard
-          icon={<Blocks className="h-4 w-4 text-ink" aria-hidden />}
+          icon={<QuintalIcon name="blocks" theme="play" size="md" background="light" />}
+          iconBackground="none"
           title="Brincar"
           description="Atividades, sugestões e registro de momentos"
           href="/quintal/brincadeiras"
         />
         <LinkCard
-          icon={<Utensils className="h-4 w-4 text-ink" aria-hidden />}
+          icon={<QuintalIcon name="plate" theme="meal" size="md" background="light" />}
+          iconBackground="none"
           title="Comer"
           description="Registro de refeições, receitas e orientações"
           href="/quintal/alimentacao"
@@ -56,7 +65,8 @@ export default async function MaisPage() {
           href="/quintal/higiene"
         />
         <LinkCard
-          icon={<BookOpen className="h-4 w-4 text-ink" aria-hidden />}
+          icon={<QuintalIcon name="book" theme="growth" size="md" background="light" />}
+          iconBackground="none"
           title="Materiais"
           description="Artigos, guias e receitas para consultar"
           href="/quintal/materiais"

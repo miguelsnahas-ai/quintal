@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { UtensilsCrossed } from "lucide-react";
 import { inviteCardClassName } from "@/components/ui/Card";
+import { QuintalIcon } from "@/components/icon/QuintalIcon";
 import type { MealSuggestion } from "@/lib/feeding";
 import type { MealSlot } from "@/lib/validation/feeding";
 
@@ -23,9 +23,7 @@ export default function MealSuggestionCard({
   return (
     <div className={inviteCardClassName("space-y-3 p-4")}>
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent">
-          <UtensilsCrossed className="h-4 w-4 text-ink" aria-hidden />
-        </span>
+        <QuintalIcon name="plate" theme="meal" size="md" background="light" />
         <div className="min-w-0 space-y-0.5">
           <p className="font-semibold text-ink">{suggestion.title}</p>
           {suggestion.mealLabel && <p className="text-xs text-ink-muted">{suggestion.mealLabel}</p>}
