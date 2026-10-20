@@ -111,7 +111,7 @@ export default async function QuintalDashboardPage() {
             label="Sono"
             href="/quintal/sono"
             value={sleepCardValue}
-            empty="Nenhum registro ainda hoje."
+            empty="Registre a rotina de sono de hoje."
           />
           <SummaryCard
             icon={<QuintalIcon name="plate" theme="meal" size="sm" />}
@@ -122,7 +122,7 @@ export default async function QuintalDashboardPage() {
                 ? `${summary.mealCount} ${summary.mealCount === 1 ? "refeição" : "refeições"} · última: ${summary.lastMeal.notes}`
                 : null
             }
-            empty="Nenhum registro ainda hoje."
+            empty="Como foi a alimentação hoje? Registre aqui."
           />
           <SummaryCard
             icon={<QuintalIcon name="blocks" theme="play" size="sm" />}
@@ -133,14 +133,14 @@ export default async function QuintalDashboardPage() {
                 ? `${summary.freePlayCount} ${summary.freePlayCount === 1 ? "atividade" : "atividades"} · última: ${summary.lastActivity.notes}`
                 : null
             }
-            empty="Nenhuma atividade ainda hoje."
+            empty="Diga quais brincadeiras fizeram mais sucesso."
           />
           <SummaryCard
             icon={<QuintalIcon name="cycle" theme="routine" size="sm" />}
             label="Rotina"
             href="/quintal/registrar?tipo=routine"
             value={summary.lastRoutine ? `Último: ${summary.lastRoutine.notes} · ${lastRoutineTime}` : null}
-            empty="Nenhum evento ainda hoje."
+            empty="Registre um momento da rotina de hoje."
           />
         </div>
       </section>
