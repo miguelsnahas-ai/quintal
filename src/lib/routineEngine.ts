@@ -166,6 +166,19 @@ const OUTING_OFFSET_AFTER_PLAY_MINUTES = 90;
 const MEAL_MIN_GAP_MINUTES = 120; // "se acabou de comer, não sugerir outra refeição já"
 const WIND_DOWN_LEAD_MINUTES = 45; // antecedência sugerida antes do horário costumeiro de dormir
 
+// Diferente de refeição (limitada aos horários típicos já registrados) e
+// de preparação para dormir (só existe quando há uma rotina de sono
+// conhecida), brincadeira/passeio eram sugeridos como um deslocamento
+// fixo a partir de `now` sem olhar que horas são — bug real: aberto o
+// app perto das 20h, "Passeio" surgia sugerido para quase 22h, bem
+// depois de qualquer horário razoável de dormir. Usa o horário
+// costumeiro de dormir da família (quando já há rotina suficiente
+// registrada — computeTypicalBedtimeMinutes) como limite; sem essa
+// rotina ainda, cai neste padrão conservador — não é um horário
+// clínico, só o limite razoável pra parar de propor brincadeira nova/
+// passeio, fácil de ajustar.
+const DEFAULT_ACTIVE_DAY_END_MINUTES = 19 * 60; // 19h
+
 // Palavras-chave usadas como "interesses" para inclinar a escolha de
 // atividade para algo mais calmo depois de uma soneca curta — reaproveita
 // o próprio desempate por interesses de getActivitySuggestions (Fase 11)
@@ -297,7 +310,16 @@ export function buildRoutineSuggestions(state: RoutineState, input: BuildSuggest
 
   const suggestions: RoutineSuggestion[] = [];
 
-  if (input.playSuggestion) {
+  // Ver DEFAULT_ACTIVE_DAY_END_MINUTES acima — depois desse horário, não
+  // propõe brincadeira nova nem passeio (já é hora de desacelerar, não
+  // de começar algo novo).
+  const activeDayEndMinutes =
+    input.typicalBedtimeMinutes !== null
+      ? input.typicalBedtimeMinutes - WIND_DOWN_LEAD_MINUTES
+      : DEFAULT_ACTIVE_DAY_END_MINUTES;
+  const activeDayIsOver = minutesOfDay(input.now) >= activeDayEndMinutes;
+
+  if (input.playSuggestion && !activeDayIsOver) {
     const playAt = new Date(input.now.getTime() + PLAY_OFFSET_MINUTES * 60000);
     suggestions.push({
       id: "play",
@@ -313,15 +335,17 @@ export function buildRoutineSuggestions(state: RoutineState, input: BuildSuggest
     });
   }
 
-  const outingAt = new Date(input.now.getTime() + (PLAY_OFFSET_MINUTES + OUTING_OFFSET_AFTER_PLAY_MINUTES) * 60000);
-  suggestions.push({
-    id: "outing",
-    kind: "outing",
-    label: "Passeio",
-    suggestedAt: outingAt.toISOString(),
-    reason: "Uma pausa ao ar livre pode variar o ritmo do dia",
-    href: "/quintal/brincadeiras?ambiente=outdoor",
-  });
+  if (!activeDayIsOver) {
+    const outingAt = new Date(input.now.getTime() + (PLAY_OFFSET_MINUTES + OUTING_OFFSET_AFTER_PLAY_MINUTES) * 60000);
+    suggestions.push({
+      id: "outing",
+      kind: "outing",
+      label: "Passeio",
+      suggestedAt: outingAt.toISOString(),
+      reason: "Uma pausa ao ar livre pode variar o ritmo do dia",
+      href: "/quintal/brincadeiras?ambiente=outdoor",
+    });
+  }
 
   const meal = nextMealSuggestion(input.now, state.minutesSinceLastMeal, input.typicalMealTimes);
   if (meal) {

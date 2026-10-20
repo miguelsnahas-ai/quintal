@@ -309,6 +309,60 @@ describe("buildRoutineSuggestions", () => {
     expect(suggestions[0].reason).toContain("sucesso antes");
   });
 
+  it("não sugere brincadeira nem passeio tarde da noite sem rotina de sono conhecida (usa o limite padrão)", () => {
+    // Bug real: por volta das 20h, sem nenhuma rotina de sono noturno
+    // ainda registrada, "Passeio" era sugerido quase 2h depois (now +
+    // 110min), bem depois de qualquer horário razoável de dormir.
+    const suggestions = buildRoutineSuggestions(baseState, {
+      now: new Date("2026-09-29T20:06:00"),
+      typicalMealTimes: {},
+      typicalBedtimeMinutes: null,
+      playSuggestion: {
+        id: "BRI-030",
+        category: "brincadeiras",
+        title: "Empilhar blocos",
+        ageDisplayLabel: null,
+        imageUrl: null,
+      },
+    });
+    expect(suggestions.some((s) => s.kind === "outing")).toBe(false);
+    expect(suggestions.some((s) => s.kind === "play")).toBe(false);
+  });
+
+  it("não sugere brincadeira nem passeio depois do horário costumeiro de dormir da família", () => {
+    const suggestions = buildRoutineSuggestions(baseState, {
+      now: new Date("2026-09-29T19:30:00"),
+      typicalMealTimes: {},
+      typicalBedtimeMinutes: 20 * 60, // 20h — 45min de antecedência already past às 19h30
+      playSuggestion: {
+        id: "BRI-031",
+        category: "brincadeiras",
+        title: "Cesto sensorial",
+        ageDisplayLabel: null,
+        imageUrl: null,
+      },
+    });
+    expect(suggestions.some((s) => s.kind === "outing")).toBe(false);
+    expect(suggestions.some((s) => s.kind === "play")).toBe(false);
+  });
+
+  it("ainda sugere brincadeira e passeio durante o dia, bem antes do limite", () => {
+    const suggestions = buildRoutineSuggestions(baseState, {
+      now: new Date("2026-09-29T10:00:00"),
+      typicalMealTimes: {},
+      typicalBedtimeMinutes: null,
+      playSuggestion: {
+        id: "BRI-032",
+        category: "brincadeiras",
+        title: "Pintura",
+        ageDisplayLabel: null,
+        imageUrl: null,
+      },
+    });
+    expect(suggestions.some((s) => s.kind === "outing")).toBe(true);
+    expect(suggestions.some((s) => s.kind === "play")).toBe(true);
+  });
+
   it("omite a preparação para dormir quando já passou do horário sugerido", () => {
     const suggestions = buildRoutineSuggestions(baseState, {
       now: new Date("2026-09-29T21:00:00"),
