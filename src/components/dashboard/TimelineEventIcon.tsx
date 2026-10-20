@@ -13,6 +13,7 @@ import type { QuintalIconTheme } from "@/components/icon/quintalIconTheme";
 // registrados. "outing" entra como "play": mesma categoria de lazer que
 // a Biblioteca de Materiais já usa para "passeios" (lib/library.ts).
 export const ROUTINE_SUGGESTION_ICONS: Record<RoutineSuggestionKind, { name: QuintalIconName; theme: QuintalIconTheme }> = {
+  wake: { name: "sun", theme: "sleep" },
   play: { name: "blocks", theme: "play" },
   outing: { name: "ball", theme: "play" },
   meal: { name: "plate", theme: "meal" },

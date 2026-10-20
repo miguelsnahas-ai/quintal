@@ -3,7 +3,9 @@ import {
   detectState,
   computeTypicalMealTimes,
   computeTypicalBedtimeMinutes,
+  computeTypicalWakeMinutes,
   buildRoutineSuggestions,
+  buildFullDayRoutine,
   type RoutineState,
 } from "@/lib/routineEngine";
 import type { SleepHistoryEntry } from "@/lib/sleep";
@@ -208,6 +210,32 @@ describe("computeTypicalBedtimeMinutes", () => {
   });
 });
 
+describe("computeTypicalWakeMinutes", () => {
+  it("considera o fim do sono noturno, nunca sonecas", () => {
+    const minutes = computeTypicalWakeMinutes([
+      sleepEntry({ sleepType: "nap", startedAt: "2026-09-29T13:00:00", endedAt: "2026-09-29T13:30:00" }),
+      sleepEntry({ sleepType: "night", startedAt: "2026-09-28T20:00:00", endedAt: "2026-09-29T07:00:00" }),
+      sleepEntry({ sleepType: "night", startedAt: "2026-09-27T20:00:00", endedAt: "2026-09-28T07:00:00" }),
+    ]);
+    expect(minutes).toBe(7 * 60);
+  });
+
+  it("devolve null com um único sono noturno — ainda não é um padrão", () => {
+    const minutes = computeTypicalWakeMinutes([
+      sleepEntry({ sleepType: "night", startedAt: "2026-09-28T20:00:00", endedAt: "2026-09-29T07:00:00" }),
+    ]);
+    expect(minutes).toBeNull();
+  });
+
+  it("ignora sono noturno ainda em andamento (sem endedAt)", () => {
+    const minutes = computeTypicalWakeMinutes([
+      sleepEntry({ sleepType: "night", startedAt: "2026-09-28T20:00:00", endedAt: "2026-09-29T07:00:00" }),
+      sleepEntry({ sleepType: "night", startedAt: "2026-09-29T20:00:00", endedAt: null }),
+    ]);
+    expect(minutes).toBeNull();
+  });
+});
+
 describe("buildRoutineSuggestions", () => {
   // Sem sufixo "Z" de propósito: as funções testadas trabalham com
   // horário local (mesma convenção pragmática já usada em
@@ -381,5 +409,66 @@ describe("buildRoutineSuggestions", () => {
       playSuggestion: null,
     });
     expect(suggestions.some((s) => s.kind === "wind_down")).toBe(false);
+  });
+});
+
+describe("buildFullDayRoutine", () => {
+  // Dia hipotético (amanhã), sem relação com "agora" — diferente de
+  // buildRoutineSuggestions, nada aqui depende do relógio real.
+  const dayDate = new Date("2026-09-30T00:00:00");
+
+  it("propõe o dia inteiro quando há rotina suficiente registrada: acordar → brincadeira → café da manhã → passeio → almoço → preparação para dormir", () => {
+    const suggestions = buildFullDayRoutine(dayDate, {
+      typicalWakeMinutes: 7 * 60,
+      typicalMealTimes: { breakfast: 7 * 60 + 30, lunch: 12 * 60 },
+      typicalBedtimeMinutes: 20 * 60,
+      playSuggestion: { id: "BRI-040", category: "brincadeiras", title: "Massinha", ageDisplayLabel: null, imageUrl: null },
+    });
+
+    // Ordem cronológica real: acordar(7h) → brincadeira(7h20, âncora+20min)
+    // → café da manhã(7h30) → passeio(8h50, âncora+110min) → almoço(12h)
+    // → preparação para dormir(19h15, 20h - 45min de antecedência).
+    expect(suggestions.map((s) => s.kind)).toEqual(["wake", "play", "meal", "outing", "meal", "wind_down"]);
+
+    // Cada horário ancorado no dia navegado (dayDate), não em "hoje".
+    for (const s of suggestions) {
+      const at = new Date(s.suggestedAt);
+      expect(at.getFullYear()).toBe(2026);
+      expect(at.getMonth()).toBe(8); // setembro, 0-indexado
+      expect(at.getDate()).toBe(30);
+    }
+  });
+
+  it("nunca inventa acordar/dormir sem rotina de sono suficiente — só o que tem dado real", () => {
+    const suggestions = buildFullDayRoutine(dayDate, {
+      typicalWakeMinutes: null,
+      typicalMealTimes: {},
+      typicalBedtimeMinutes: null,
+      playSuggestion: null,
+    });
+    expect(suggestions.some((s) => s.kind === "wake")).toBe(false);
+    expect(suggestions.some((s) => s.kind === "wind_down")).toBe(false);
+  });
+
+  it("ainda propõe passeio mesmo sem nenhuma rotina conhecida (usa o padrão só pra ancorar, nunca exibido como 'acordar')", () => {
+    const suggestions = buildFullDayRoutine(dayDate, {
+      typicalWakeMinutes: null,
+      typicalMealTimes: {},
+      typicalBedtimeMinutes: null,
+      playSuggestion: null,
+    });
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0].kind).toBe("outing");
+  });
+
+  it("inclui cada refeição com horário típico conhecido, não só uma", () => {
+    const suggestions = buildFullDayRoutine(dayDate, {
+      typicalWakeMinutes: null,
+      typicalMealTimes: { breakfast: 7 * 60, lunch: 12 * 60, dinner: 19 * 60 },
+      typicalBedtimeMinutes: null,
+      playSuggestion: null,
+    });
+    const meals = suggestions.filter((s) => s.kind === "meal");
+    expect(meals.map((m) => m.label)).toEqual(["Café da manhã", "Almoço", "Jantar"]);
   });
 });

@@ -145,7 +145,7 @@ export function describeCurrentMoment(
   return null;
 }
 
-export type RoutineSuggestionKind = "play" | "outing" | "meal" | "wind_down";
+export type RoutineSuggestionKind = "wake" | "play" | "outing" | "meal" | "wind_down";
 
 export type RoutineSuggestion = {
   id: string;
@@ -178,6 +178,13 @@ const WIND_DOWN_LEAD_MINUTES = 45; // antecedência sugerida antes do horário c
 // clínico, só o limite razoável pra parar de propor brincadeira nova/
 // passeio, fácil de ajustar.
 const DEFAULT_ACTIVE_DAY_END_MINUTES = 19 * 60; // 19h
+
+// Mesmo raciocínio, só pra decidir ONDE encaixar brincadeira/passeio
+// numa proposta de dia futuro inteiro (buildFullDayRoutine) quando não
+// há horário de acordar típico conhecido ainda — nunca aparece como uma
+// sugestão própria de "hora de acordar" (ver buildFullDayRoutine: isso
+// seria inventar um horário, o que o app nunca faz).
+const DEFAULT_WAKE_MINUTES = 7 * 60; // 7h
 
 // Palavras-chave usadas como "interesses" para inclinar a escolha de
 // atividade para algo mais calmo depois de uma soneca curta — reaproveita
@@ -252,6 +259,19 @@ export function computeTypicalBedtimeMinutes(sleepHistory: SleepHistoryEntry[]):
     .map((entry) => minutesOfDay(new Date(entry.startedAt)));
   if (nightStarts.length < MIN_SAMPLES_FOR_TYPICAL_TIME) return null;
   return median(nightStarts);
+}
+
+// Espelha computeTypicalBedtimeMinutes, mas pro fim do sono noturno —
+// usado só por buildFullDayRoutine, pra propor "Acordar" no topo de uma
+// proposta de dia futuro inteiro quando já há rotina suficiente
+// registrada. Mesma exigência de amostra mínima: nunca inventa uma hora
+// de despertar a partir de um único registro (ou de nenhum).
+export function computeTypicalWakeMinutes(sleepHistory: SleepHistoryEntry[]): number | null {
+  const nightWakes = sleepHistory
+    .filter((entry) => entry.sleepType === "night" && entry.endedAt !== null)
+    .map((entry) => minutesOfDay(new Date(entry.endedAt as string)));
+  if (nightWakes.length < MIN_SAMPLES_FOR_TYPICAL_TIME) return null;
+  return median(nightWakes);
 }
 
 function nextMealSuggestion(
@@ -378,6 +398,104 @@ export function buildRoutineSuggestions(state: RoutineState, input: BuildSuggest
   return suggestions.sort((a, b) => a.suggestedAt.localeCompare(b.suggestedAt));
 }
 
+export type FullDayRoutineInput = {
+  typicalWakeMinutes: number | null;
+  typicalMealTimes: Partial<Record<MealSlot, number>>;
+  typicalBedtimeMinutes: number | null;
+  playSuggestion: (ActivitySummary & { isFavorite?: boolean }) | null;
+};
+
+// Pedido explícito: ao olhar um dia a partir de amanhã na Timeline, ver
+// uma "proposição de rotina completa" — diferente de buildRoutineSuggestions
+// (que só projeta o RESTO do dia de hoje a partir de `now`), aqui não há
+// "agora": o dia inteiro é hipotético, então cada item só aparece quando
+// apoiado em dado real (acordar/dormir exigem computeTypicalWakeMinutes/
+// computeTypicalBedtimeMinutes com amostra mínima) — nunca inventa "a
+// família acorda às 7h" quando não sabe disso. A única exceção é o
+// ANCORAMENTO de brincadeira/passeio: como esses dois já são sempre um
+// deslocamento conveniente (nunca uma alegação factual, sempre "uma
+// possibilidade"), usar um horário de referência padrão quando não há
+// rotina de sono conhecida é razoável — é só onde encaixar na lista, não
+// uma sugestão própria de horário de acordar/dormir.
+export function buildFullDayRoutine(dayDate: Date, input: FullDayRoutineInput): RoutineSuggestion[] {
+  const suggestions: RoutineSuggestion[] = [];
+
+  if (input.typicalWakeMinutes !== null) {
+    suggestions.push({
+      id: "wake",
+      kind: "wake",
+      label: "Acordar",
+      suggestedAt: atMinutesOfDay(dayDate, input.typicalWakeMinutes).toISOString(),
+      reason: "Baseado no horário em que a família costuma acordar",
+      href: "/quintal/sono",
+    });
+  }
+
+  for (const slot of mealSlots) {
+    const minutes = input.typicalMealTimes[slot];
+    if (minutes === undefined) continue;
+    suggestions.push({
+      id: `meal-${slot}`,
+      kind: "meal",
+      label: mealSlotLabels[slot],
+      suggestedAt: atMinutesOfDay(dayDate, minutes).toISOString(),
+      reason: "Baseado no horário que a família costuma seguir",
+      href: `/quintal/alimentacao?slot=${slot}`,
+    });
+  }
+
+  // Ver comentário da função: âncora só pra decidir ONDE propor
+  // brincadeira/passeio, nunca exibida como sugestão própria de
+  // horário de acordar. dayEnd reaproveita DEFAULT_ACTIVE_DAY_END_MINUTES
+  // (mesmo limite já usado pra não propor atividade nova tarde da noite).
+  const scheduleAnchor = input.typicalWakeMinutes ?? DEFAULT_WAKE_MINUTES;
+  const dayEnd =
+    input.typicalBedtimeMinutes !== null
+      ? input.typicalBedtimeMinutes - WIND_DOWN_LEAD_MINUTES
+      : DEFAULT_ACTIVE_DAY_END_MINUTES;
+
+  if (input.playSuggestion) {
+    const playMinutes = scheduleAnchor + PLAY_OFFSET_MINUTES;
+    if (playMinutes < dayEnd) {
+      suggestions.push({
+        id: "play",
+        kind: "play",
+        label: `Brincadeira: ${input.playSuggestion.title}`,
+        suggestedAt: atMinutesOfDay(dayDate, playMinutes).toISOString(),
+        reason: input.playSuggestion.isFavorite
+          ? "Essa atividade já foi um sucesso antes"
+          : "Um momento de brincadeira livre",
+        href: "/quintal/brincadeiras",
+      });
+    }
+  }
+
+  const outingMinutes = scheduleAnchor + PLAY_OFFSET_MINUTES + OUTING_OFFSET_AFTER_PLAY_MINUTES;
+  if (outingMinutes < dayEnd) {
+    suggestions.push({
+      id: "outing",
+      kind: "outing",
+      label: "Passeio",
+      suggestedAt: atMinutesOfDay(dayDate, outingMinutes).toISOString(),
+      reason: "Uma pausa ao ar livre pode variar o ritmo do dia",
+      href: "/quintal/brincadeiras?ambiente=outdoor",
+    });
+  }
+
+  if (input.typicalBedtimeMinutes !== null) {
+    suggestions.push({
+      id: "wind_down",
+      kind: "wind_down",
+      label: "Preparação para dormir",
+      suggestedAt: atMinutesOfDay(dayDate, input.typicalBedtimeMinutes - WIND_DOWN_LEAD_MINUTES).toISOString(),
+      reason: "Baseado no horário em que a família costuma dormir",
+      href: "/quintal/sono",
+    });
+  }
+
+  return suggestions.sort((a, b) => a.suggestedAt.localeCompare(b.suggestedAt));
+}
+
 // O único ponto assíncrono do módulo — busca o real, delega toda
 // decisão para as funções puras acima.
 export async function getRoutineSuggestions(childId: string): Promise<{
@@ -426,4 +544,34 @@ export async function getRoutineSuggestions(childId: string): Promise<{
   });
 
   return { state, suggestions };
+}
+
+// Equivalente assíncrono de getRoutineSuggestions, mas para um dia
+// futuro inteiro (buildFullDayRoutine) — usado pela Timeline ao navegar
+// pra amanhã em diante. Sem "estado atual" (não dormindo/acordado agora,
+// sem minutesSinceLastMeal): nada disso faz sentido pra um dia que ainda
+// não começou, então a escolha de brincadeira aqui é só idade + interesses
+// da criança (sem o ajuste de "soneca curta", que é sobre o AGORA).
+export async function getFullDayRoutine(childId: string, dayDate: Date): Promise<RoutineSuggestion[]> {
+  const supabase = createServiceClient();
+
+  const [sleepHistory, mealHistory, childRow, avoidIds] = await Promise.all([
+    getSleepHistory(childId, HISTORY_LOOKBACK_LIMIT),
+    getMealHistory(childId, HISTORY_LOOKBACK_LIMIT),
+    supabase.from("children").select("birth_date, interests").eq("id", childId).maybeSingle(),
+    getRecentNegativeLibraryFeedbackActivityIds(childId),
+  ]);
+
+  const ageMonths = ageInMonths(childRow.data?.birth_date ?? null);
+  const picks = await getActivitySuggestions(
+    { ageMonths, interests: childRow.data?.interests ?? [], excludeIds: avoidIds },
+    1,
+  );
+
+  return buildFullDayRoutine(dayDate, {
+    typicalWakeMinutes: computeTypicalWakeMinutes(sleepHistory),
+    typicalMealTimes: computeTypicalMealTimes(mealHistory),
+    typicalBedtimeMinutes: computeTypicalBedtimeMinutes(sleepHistory),
+    playSuggestion: picks[0] ?? null,
+  });
 }

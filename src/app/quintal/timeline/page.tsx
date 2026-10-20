@@ -14,7 +14,7 @@ import {
   isTimelineFilter,
   type TimelineDisplayEntry,
 } from "@/lib/timeline";
-import { getRoutineSuggestions, type RoutineSuggestion } from "@/lib/routineEngine";
+import { getRoutineSuggestions, getFullDayRoutine, type RoutineSuggestion } from "@/lib/routineEngine";
 import { eventOriginLabels } from "@/lib/validation/events";
 import { cardClassName, inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -53,14 +53,17 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 // A agenda unificada: o dia registrado (eventos já acontecidos) e as
-// próximas sugestões da rotina adaptativa (routineEngine.ts) numa única
-// lista cronológica — pedido explícito desta fase, para que "Ver agenda
+// sugestões da rotina adaptativa (routineEngine.ts) numa única lista
+// cronológica — pedido explícito desta fase, para que "Ver agenda
 // completa" (link de UpcomingMoments na Home) entregue de fato uma
 // agenda completa, não só o histórico. Sugestão nunca é fato: continua
 // com o mesmo tom "convite"/sem borda de UpcomingMoments, nunca o
-// cardClassName sólido/bordado dos eventos já registrados — e só entra
-// aqui no dia de HOJE (routineEngine sempre projeta a partir de
-// `new Date()` real; não existe "sugestão" para ontem ou outro dia).
+// cardClassName sólido/bordado dos eventos já registrados. Duas fontes
+// diferentes de sugestão, nunca as duas ao mesmo tempo: HOJE usa
+// getRoutineSuggestions (só o resto do dia, a partir de `now` real); de
+// amanhã em diante usa getFullDayRoutine (uma proposta do dia inteiro,
+// pedido explícito desta fase — ver routineEngine.ts). Dias passados não
+// têm sugestão nenhuma — não existe "proposta" pra um dia que já foi.
 type AgendaRow =
   | { kind: "registered"; sortAt: string; entry: TimelineDisplayEntry }
   | { kind: "suggested"; sortAt: string; suggestion: RoutineSuggestion };
@@ -103,24 +106,31 @@ export default async function TimelinePage({
   const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0);
   const dayEnd = addDays(dayStart, 1);
   const filter = isTimelineFilter(filtro) ? filtro : undefined;
-  const viewingToday = isSameDay(dayStart, new Date());
 
-  const [allEntries, routine] = await Promise.all([
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const viewingToday = isSameDay(dayStart, todayStart);
+  const viewingFutureDay = !viewingToday && dayStart.getTime() > todayStart.getTime();
+
+  const [allEntries, routine, fullDaySuggestions] = await Promise.all([
     getDayTimeline(activeChild.id, {
       since: dayStart.toISOString(),
       until: dayEnd.toISOString(),
     }),
-    // Sugestões só fazem sentido pra hoje — routineEngine projeta sempre
-    // a partir do agora real, nunca de um dia navegado (ver isSameDay
-    // acima). Evita também a consulta à toa ao navegar pro passado/futuro.
+    // "Resto do dia" só faz sentido pra hoje — routineEngine projeta
+    // sempre a partir do agora real (ver isSameDay acima).
     viewingToday ? getRoutineSuggestions(activeChild.id) : null,
+    // De amanhã em diante: uma proposta do dia inteiro (pedido explícito
+    // desta fase), não um resto-do-dia a partir de agora.
+    viewingFutureDay ? getFullDayRoutine(activeChild.id, dayStart) : null,
   ]);
 
   const entries = filter
     ? allEntries.filter((entry) => (TIMELINE_FILTER_TYPES[filter] as string[]).includes(entry.type))
     : allEntries;
 
-  const suggestions = (routine?.suggestions ?? []).filter(
+  const rawSuggestions = routine?.suggestions ?? fullDaySuggestions ?? [];
+  const suggestions = rawSuggestions.filter(
     (suggestion) => !filter || SUGGESTION_KIND_TO_FILTER[suggestion.kind] === filter,
   );
 
@@ -167,9 +177,11 @@ export default async function TimelinePage({
         ]}
       />
 
-      {viewingToday && suggestions.length > 0 && (
+      {(viewingToday || viewingFutureDay) && suggestions.length > 0 && (
         <p className="text-xs text-ink-muted">
-          Os cards mais claros são possibilidades para o resto do dia — não um compromisso.
+          {viewingToday
+            ? "Os cards mais claros são possibilidades para o resto do dia — não um compromisso."
+            : "Os cards mais claros são uma proposta de como o dia pode ser — não um compromisso."}
         </p>
       )}
 

@@ -387,6 +387,7 @@ export function isTimelineFilter(value: string | undefined): value is TimelineFi
 // filtro ativo (ex.: "Sono") também esconda/mostre sugestões do mesmo
 // domínio, não só eventos já registrados.
 export const SUGGESTION_KIND_TO_FILTER: Record<RoutineSuggestionKind, TimelineFilter> = {
+  wake: "sono",
   play: "brincadeiras",
   outing: "brincadeiras",
   meal: "alimentacao",
