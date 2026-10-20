@@ -417,7 +417,7 @@ describe("buildFullDayRoutine", () => {
   // buildRoutineSuggestions, nada aqui depende do relógio real.
   const dayDate = new Date("2026-09-30T00:00:00");
 
-  it("propõe o dia inteiro quando há rotina suficiente registrada: acordar → brincadeira → café da manhã → passeio → almoço → preparação para dormir", () => {
+  it("propõe o dia inteiro quando há rotina suficiente registrada, usando o dado real em cada horário", () => {
     const suggestions = buildFullDayRoutine(dayDate, {
       typicalWakeMinutes: 7 * 60,
       typicalMealTimes: { breakfast: 7 * 60 + 30, lunch: 12 * 60 },
@@ -425,10 +425,30 @@ describe("buildFullDayRoutine", () => {
       playSuggestion: { id: "BRI-040", category: "brincadeiras", title: "Massinha", ageDisplayLabel: null, imageUrl: null },
     });
 
-    // Ordem cronológica real: acordar(7h) → brincadeira(7h20, âncora+20min)
-    // → café da manhã(7h30) → passeio(8h50, âncora+110min) → almoço(12h)
-    // → preparação para dormir(19h15, 20h - 45min de antecedência).
-    expect(suggestions.map((s) => s.kind)).toEqual(["wake", "play", "meal", "outing", "meal", "wind_down"]);
+    // acordar(7h, real) → brincadeira(7h20) → café da manhã(7h30, real) →
+    // passeio(8h50) → lanche da manhã(9h30, referência) → almoço(12h,
+    // real) → lanche da tarde(15h30, referência) → jantar(18h30,
+    // referência) → preparação para dormir(19h15, real: 20h - 45min).
+    expect(suggestions.map((s) => s.kind)).toEqual([
+      "wake",
+      "play",
+      "meal",
+      "outing",
+      "meal",
+      "meal",
+      "meal",
+      "meal",
+      "wind_down",
+    ]);
+
+    const wake = suggestions.find((s) => s.kind === "wake")!;
+    expect(wake.reason).toContain("costuma acordar");
+    const breakfast = suggestions.find((s) => s.label === "Café da manhã")!;
+    expect(breakfast.reason).toContain("costuma seguir");
+    const morningSnack = suggestions.find((s) => s.label === "Lanche da manhã")!;
+    expect(morningSnack.reason).toContain("referência");
+    const windDown = suggestions.find((s) => s.kind === "wind_down")!;
+    expect(windDown.reason).toContain("costuma dormir");
 
     // Cada horário ancorado no dia navegado (dayDate), não em "hoje".
     for (const s of suggestions) {
@@ -439,29 +459,35 @@ describe("buildFullDayRoutine", () => {
     }
   });
 
-  it("nunca inventa acordar/dormir sem rotina de sono suficiente — só o que tem dado real", () => {
+  it("propõe o dia inteiro mesmo sem nenhuma rotina própria registrada ainda, usando horários de referência honestos (pedido: 'quero uma programação completa, não só 2 eventos')", () => {
     const suggestions = buildFullDayRoutine(dayDate, {
       typicalWakeMinutes: null,
       typicalMealTimes: {},
       typicalBedtimeMinutes: null,
       playSuggestion: null,
     });
-    expect(suggestions.some((s) => s.kind === "wake")).toBe(false);
-    expect(suggestions.some((s) => s.kind === "wind_down")).toBe(false);
+
+    // acordar + 5 refeições + passeio + preparação para dormir = 8 (sem
+    // brincadeira, já que playSuggestion é null aqui).
+    expect(suggestions).toHaveLength(8);
+    expect(suggestions.map((s) => s.kind)).toContain("wake");
+    expect(suggestions.map((s) => s.kind)).toContain("wind_down");
+    expect(suggestions.filter((s) => s.kind === "meal")).toHaveLength(5);
+
+    // Nenhuma dessas alega ser a rotina real da família — todas dizem
+    // claramente que é só uma referência, nunca "nunca inventa" virando
+    // "finge que sabe".
+    for (const s of suggestions.filter((s) => s.kind === "wake" || s.kind === "wind_down" || s.kind === "meal")) {
+      expect(s.reason).toContain("referência");
+      expect(s.reason).not.toContain("costuma");
+    }
+
+    // acordar ainda é o primeiro do dia, preparação para dormir o último.
+    expect(suggestions[0].kind).toBe("wake");
+    expect(suggestions[suggestions.length - 1].kind).toBe("wind_down");
   });
 
-  it("ainda propõe passeio mesmo sem nenhuma rotina conhecida (usa o padrão só pra ancorar, nunca exibido como 'acordar')", () => {
-    const suggestions = buildFullDayRoutine(dayDate, {
-      typicalWakeMinutes: null,
-      typicalMealTimes: {},
-      typicalBedtimeMinutes: null,
-      playSuggestion: null,
-    });
-    expect(suggestions).toHaveLength(1);
-    expect(suggestions[0].kind).toBe("outing");
-  });
-
-  it("inclui cada refeição com horário típico conhecido, não só uma", () => {
+  it("inclui as 5 refeições do dia, não só as que têm dado real", () => {
     const suggestions = buildFullDayRoutine(dayDate, {
       typicalWakeMinutes: null,
       typicalMealTimes: { breakfast: 7 * 60, lunch: 12 * 60, dinner: 19 * 60 },
@@ -469,6 +495,17 @@ describe("buildFullDayRoutine", () => {
       playSuggestion: null,
     });
     const meals = suggestions.filter((s) => s.kind === "meal");
-    expect(meals.map((m) => m.label)).toEqual(["Café da manhã", "Almoço", "Jantar"]);
+    expect(meals.map((m) => m.label)).toEqual([
+      "Café da manhã",
+      "Lanche da manhã",
+      "Almoço",
+      "Lanche da tarde",
+      "Jantar",
+    ]);
+    // As 3 com dado real dizem isso; as 2 de referência (lanches) dizem
+    // claramente que são só uma referência.
+    expect(meals.find((m) => m.label === "Café da manhã")!.reason).toContain("costuma seguir");
+    expect(meals.find((m) => m.label === "Lanche da manhã")!.reason).toContain("referência");
+    expect(meals.find((m) => m.label === "Lanche da tarde")!.reason).toContain("referência");
   });
 });

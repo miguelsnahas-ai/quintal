@@ -179,12 +179,26 @@ const WIND_DOWN_LEAD_MINUTES = 45; // antecedência sugerida antes do horário c
 // passeio, fácil de ajustar.
 const DEFAULT_ACTIVE_DAY_END_MINUTES = 19 * 60; // 19h
 
-// Mesmo raciocínio, só pra decidir ONDE encaixar brincadeira/passeio
-// numa proposta de dia futuro inteiro (buildFullDayRoutine) quando não
-// há horário de acordar típico conhecido ainda — nunca aparece como uma
-// sugestão própria de "hora de acordar" (ver buildFullDayRoutine: isso
-// seria inventar um horário, o que o app nunca faz).
+// Horários de referência usados só por buildFullDayRoutine (a proposta
+// de dia futuro inteiro) quando a família ainda não tem rotina própria
+// registrada o bastante — pedido explícito: "quero uma programação
+// completa, não só 2 eventos" (sem isso, uma família nova via só
+// Brincadeira/Passeio, já que refeição/acordar/dormir exigiam dado
+// real). Não são um horário clínico nem uma alegação sobre a rotina
+// desta família — por isso cada sugestão que usa um valor daqui carrega
+// uma razão própria e honesta ("horário de referência", nunca "baseado
+// no que a família costuma fazer") distinguindo do que é dado real. Um
+// ritmo comum e fácil de ajustar, não uma prescrição.
 const DEFAULT_WAKE_MINUTES = 7 * 60; // 7h
+const DEFAULT_BEDTIME_MINUTES = 20 * 60; // 20h
+const DEFAULT_MEAL_MINUTES: Record<MealSlot, number> = {
+  breakfast: 7 * 60 + 30,
+  morning_snack: 9 * 60 + 30,
+  lunch: 12 * 60,
+  afternoon_snack: 15 * 60 + 30,
+  dinner: 18 * 60 + 30,
+  other: 12 * 60, // nunca usado — "other" não entra no modelo genérico (ver buildFullDayRoutine)
+};
 
 // Palavras-chave usadas como "interesses" para inclinar a escolha de
 // atividade para algo mais calmo depois de uma soneca curta — reaproveita
@@ -405,57 +419,67 @@ export type FullDayRoutineInput = {
   playSuggestion: (ActivitySummary & { isFavorite?: boolean }) | null;
 };
 
+// Os 5 tipos de refeição "de verdade" do dia (mealSlots inclui "other",
+// o catch-all de registro livre — não faz sentido como item de um
+// modelo de rotina).
+const GENERIC_MEAL_SLOTS: MealSlot[] = ["breakfast", "morning_snack", "lunch", "afternoon_snack", "dinner"];
+
 // Pedido explícito: ao olhar um dia a partir de amanhã na Timeline, ver
 // uma "proposição de rotina completa" — diferente de buildRoutineSuggestions
 // (que só projeta o RESTO do dia de hoje a partir de `now`), aqui não há
-// "agora": o dia inteiro é hipotético, então cada item só aparece quando
-// apoiado em dado real (acordar/dormir exigem computeTypicalWakeMinutes/
-// computeTypicalBedtimeMinutes com amostra mínima) — nunca inventa "a
-// família acorda às 7h" quando não sabe disso. A única exceção é o
-// ANCORAMENTO de brincadeira/passeio: como esses dois já são sempre um
-// deslocamento conveniente (nunca uma alegação factual, sempre "uma
-// possibilidade"), usar um horário de referência padrão quando não há
-// rotina de sono conhecida é razoável — é só onde encaixar na lista, não
-// uma sugestão própria de horário de acordar/dormir.
+// "agora": o dia inteiro é hipotético. Primeira versão só mostrava um
+// item quando havia dado real por trás (nunca inventar um horário) —
+// mas pra uma família ainda sem rotina registrada, isso virava uma
+// "proposta" de só 1-2 itens (brincadeira/passeio), não um dia completo
+// (pedido explícito de correção: "quero uma programação completa, não
+// só 2 eventos"). Resolvido SEM abrir mão de nunca alegar fato sem
+// dado: todo item sempre aparece (acordar, cada refeição, preparação
+// para dormir), mas usa um horário de referência (DEFAULT_*) quando
+// ainda não há rotina própria — e a RAZÃO de cada sugestão diz a
+// verdade sobre qual dos dois casos é: "baseado no horário que a
+// família costuma..." só quando é dado real; "horário de referência,
+// ainda sem registro suficiente" quando é o modelo genérico. A escolha
+// de SEMPRE mostrar vive só aqui — buildRoutineSuggestions (hoje) segue
+// com o comportamento anterior, nunca prevendo acordar/refeição/dormir
+// sem dado real, porque ali faz sentido "nada ainda" (o dia já começou,
+// uma lacuna é só uma lacuna); aqui faz sentido um "ponto de partida".
 export function buildFullDayRoutine(dayDate: Date, input: FullDayRoutineInput): RoutineSuggestion[] {
   const suggestions: RoutineSuggestion[] = [];
 
-  if (input.typicalWakeMinutes !== null) {
-    suggestions.push({
-      id: "wake",
-      kind: "wake",
-      label: "Acordar",
-      suggestedAt: atMinutesOfDay(dayDate, input.typicalWakeMinutes).toISOString(),
-      reason: "Baseado no horário em que a família costuma acordar",
-      href: "/quintal/sono",
-    });
-  }
+  const wakeMinutes = input.typicalWakeMinutes ?? DEFAULT_WAKE_MINUTES;
+  suggestions.push({
+    id: "wake",
+    kind: "wake",
+    label: "Acordar",
+    suggestedAt: atMinutesOfDay(dayDate, wakeMinutes).toISOString(),
+    reason:
+      input.typicalWakeMinutes !== null
+        ? "Baseado no horário em que a família costuma acordar"
+        : "Horário de referência — ainda sem rotina de sono suficiente registrada",
+    href: "/quintal/sono",
+  });
 
-  for (const slot of mealSlots) {
-    const minutes = input.typicalMealTimes[slot];
-    if (minutes === undefined) continue;
+  for (const slot of GENERIC_MEAL_SLOTS) {
+    const typicalMinutes = input.typicalMealTimes[slot];
+    const minutes = typicalMinutes ?? DEFAULT_MEAL_MINUTES[slot];
     suggestions.push({
       id: `meal-${slot}`,
       kind: "meal",
       label: mealSlotLabels[slot],
       suggestedAt: atMinutesOfDay(dayDate, minutes).toISOString(),
-      reason: "Baseado no horário que a família costuma seguir",
+      reason:
+        typicalMinutes !== undefined
+          ? "Baseado no horário que a família costuma seguir"
+          : "Horário de referência — ainda sem registros suficientes dessa refeição",
       href: `/quintal/alimentacao?slot=${slot}`,
     });
   }
 
-  // Ver comentário da função: âncora só pra decidir ONDE propor
-  // brincadeira/passeio, nunca exibida como sugestão própria de
-  // horário de acordar. dayEnd reaproveita DEFAULT_ACTIVE_DAY_END_MINUTES
-  // (mesmo limite já usado pra não propor atividade nova tarde da noite).
-  const scheduleAnchor = input.typicalWakeMinutes ?? DEFAULT_WAKE_MINUTES;
-  const dayEnd =
-    input.typicalBedtimeMinutes !== null
-      ? input.typicalBedtimeMinutes - WIND_DOWN_LEAD_MINUTES
-      : DEFAULT_ACTIVE_DAY_END_MINUTES;
+  const bedtimeMinutes = input.typicalBedtimeMinutes ?? DEFAULT_BEDTIME_MINUTES;
+  const dayEnd = bedtimeMinutes - WIND_DOWN_LEAD_MINUTES;
 
   if (input.playSuggestion) {
-    const playMinutes = scheduleAnchor + PLAY_OFFSET_MINUTES;
+    const playMinutes = wakeMinutes + PLAY_OFFSET_MINUTES;
     if (playMinutes < dayEnd) {
       suggestions.push({
         id: "play",
@@ -470,7 +494,7 @@ export function buildFullDayRoutine(dayDate: Date, input: FullDayRoutineInput): 
     }
   }
 
-  const outingMinutes = scheduleAnchor + PLAY_OFFSET_MINUTES + OUTING_OFFSET_AFTER_PLAY_MINUTES;
+  const outingMinutes = wakeMinutes + PLAY_OFFSET_MINUTES + OUTING_OFFSET_AFTER_PLAY_MINUTES;
   if (outingMinutes < dayEnd) {
     suggestions.push({
       id: "outing",
@@ -482,16 +506,17 @@ export function buildFullDayRoutine(dayDate: Date, input: FullDayRoutineInput): 
     });
   }
 
-  if (input.typicalBedtimeMinutes !== null) {
-    suggestions.push({
-      id: "wind_down",
-      kind: "wind_down",
-      label: "Preparação para dormir",
-      suggestedAt: atMinutesOfDay(dayDate, input.typicalBedtimeMinutes - WIND_DOWN_LEAD_MINUTES).toISOString(),
-      reason: "Baseado no horário em que a família costuma dormir",
-      href: "/quintal/sono",
-    });
-  }
+  suggestions.push({
+    id: "wind_down",
+    kind: "wind_down",
+    label: "Preparação para dormir",
+    suggestedAt: atMinutesOfDay(dayDate, dayEnd).toISOString(),
+    reason:
+      input.typicalBedtimeMinutes !== null
+        ? "Baseado no horário em que a família costuma dormir"
+        : "Horário de referência — ainda sem rotina de sono suficiente registrada",
+    href: "/quintal/sono",
+  });
 
   return suggestions.sort((a, b) => a.suggestedAt.localeCompare(b.suggestedAt));
 }
