@@ -104,7 +104,7 @@ export default async function QuintalDashboardPage() {
       <CurrentMomentCard moment={summary.currentMoment} />
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Resumo do dia</h2>
+        <h2 className="text-sm font-semibold text-ink">Resumo do dia</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryCard
             icon={<QuintalIcon name="moon" theme="sleep" size="sm" />}
@@ -148,7 +148,7 @@ export default async function QuintalDashboardPage() {
       <UpcomingMoments suggestions={summary.upcomingMoments} />
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Sparkles className="h-4 w-4" aria-hidden />
           Sugestões para hoje
         </h2>
@@ -173,7 +173,7 @@ export default async function QuintalDashboardPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Últimos registros</h2>
+        <h2 className="text-sm font-semibold text-ink">Últimos registros</h2>
         <Timeline events={summary.timeline} />
         <Link href="/quintal/timeline" className="text-xs font-medium text-ink underline underline-offset-2">
           Ver timeline completa

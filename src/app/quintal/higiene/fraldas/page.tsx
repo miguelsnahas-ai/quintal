@@ -61,7 +61,7 @@ export default async function FraldasPage({
       <FieldError>{error}</FieldError>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Fralda atual e histórico</h2>
+        <h2 className="text-sm font-semibold text-ink">Fralda atual e histórico</h2>
 
         {profiles.length === 0 ? (
           <p className={cardClassName("p-4 text-sm text-ink-muted")}>Nenhuma fralda informada ainda.</p>
@@ -120,7 +120,7 @@ export default async function FraldasPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Estoque</h2>
+        <h2 className="text-sm font-semibold text-ink">Estoque</h2>
 
         {stock.length === 0 ? (
           <p className={cardClassName("p-4 text-sm text-ink-muted")}>Nenhum estoque informado ainda.</p>

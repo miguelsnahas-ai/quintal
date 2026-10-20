@@ -173,6 +173,16 @@ describe("computeTypicalMealTimes", () => {
     const times = computeTypicalMealTimes([mealEntry({ slot: "lunch" })]);
     expect(times.dinner).toBeUndefined();
   });
+
+  it("não trata um único registro como horário típico — não é ainda uma rotina", () => {
+    // Bug real: um único "café da manhã" registrado à noite (a família
+    // testando o app, não um horário de fato típico) não deveria virar
+    // "o horário que a família costuma tomar café da manhã".
+    const times = computeTypicalMealTimes([
+      mealEntry({ slot: "breakfast", occurredAt: "2026-09-29T17:59:00" }),
+    ]);
+    expect(times.breakfast).toBeUndefined();
+  });
 });
 
 describe("computeTypicalBedtimeMinutes", () => {
@@ -180,12 +190,20 @@ describe("computeTypicalBedtimeMinutes", () => {
     const minutes = computeTypicalBedtimeMinutes([
       sleepEntry({ sleepType: "nap", startedAt: "2026-09-29T13:00:00" }),
       sleepEntry({ sleepType: "night", startedAt: "2026-09-28T20:00:00" }),
+      sleepEntry({ sleepType: "night", startedAt: "2026-09-27T20:00:00" }),
     ]);
     expect(minutes).toBe(20 * 60);
   });
 
   it("devolve null sem nenhum sono noturno no histórico", () => {
     const minutes = computeTypicalBedtimeMinutes([sleepEntry({ sleepType: "nap" })]);
+    expect(minutes).toBeNull();
+  });
+
+  it("devolve null com um único sono noturno — ainda não é um padrão", () => {
+    // Mesmo raciocínio de computeTypicalMealTimes: uma ocorrência isolada
+    // não é "o horário que a família costuma dormir".
+    const minutes = computeTypicalBedtimeMinutes([sleepEntry({ sleepType: "night", startedAt: "2026-09-28T20:00:00" })]);
     expect(minutes).toBeNull();
   });
 });

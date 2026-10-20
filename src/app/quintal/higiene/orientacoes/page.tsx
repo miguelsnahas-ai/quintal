@@ -103,7 +103,7 @@ export default async function OrientacoesHigienePage() {
       </div>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Sparkles className="h-4 w-4" aria-hidden />
           {heading ?? "Conteúdos sobre higiene"}
         </h2>

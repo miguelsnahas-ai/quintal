@@ -158,7 +158,7 @@ export default async function BrincadeirasPage({
       </form>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Sparkles className="h-4 w-4" aria-hidden />
           Para hoje
         </h2>
@@ -177,7 +177,7 @@ export default async function BrincadeirasPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Biblioteca</h2>
+        <h2 className="text-sm font-semibold text-ink">Biblioteca</h2>
         {library.length > 0 ? (
           <div className="space-y-3">
             {library.map((activity) => (
@@ -192,7 +192,7 @@ export default async function BrincadeirasPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Histórico</h2>
+        <h2 className="text-sm font-semibold text-ink">Histórico</h2>
         {historyGroups.length === 0 ? (
           <p className={cardClassName("p-4 text-sm text-ink-muted")}>
             Nenhuma atividade registrada ainda.

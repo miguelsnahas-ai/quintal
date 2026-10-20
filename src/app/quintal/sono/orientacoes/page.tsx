@@ -69,7 +69,7 @@ export default async function OrientacoesSonoPage() {
 
       {windDown && (
         <section className="space-y-2">
-          <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
             <Moon className="h-4 w-4" aria-hidden />
             Uma possibilidade de rotina
           </h2>
@@ -81,7 +81,7 @@ export default async function OrientacoesSonoPage() {
       )}
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Sparkles className="h-4 w-4" aria-hidden />
           Conteúdos sobre sono
         </h2>

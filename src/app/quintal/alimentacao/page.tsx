@@ -88,7 +88,7 @@ export default async function AlimentacaoPage({
       {success && <p className="text-sm text-ink-muted">Salvo com sucesso.</p>}
 
       <section id="registrar" className="scroll-mt-4 space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Registrar refeição</h2>
+        <h2 className="text-sm font-semibold text-ink">Registrar refeição</h2>
         <form action={logMeal} className={cardClassName("space-y-3 p-4")}>
           <input type="hidden" name="child_id" value={activeChild.id} />
           {suggestionParam && <input type="hidden" name="suggestion_id" value={suggestionParam} />}
@@ -152,7 +152,7 @@ export default async function AlimentacaoPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Sugestões para {mealSlotLabels[defaultSlot].toLowerCase()}</h2>
+        <h2 className="text-sm font-semibold text-ink">Sugestões para {mealSlotLabels[defaultSlot].toLowerCase()}</h2>
         {suggestions.length > 0 ? (
           <div className="space-y-3">
             {suggestions.map((suggestion) => (
@@ -171,7 +171,7 @@ export default async function AlimentacaoPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-ink-muted">Histórico</h2>
+        <h2 className="text-sm font-semibold text-ink">Histórico</h2>
         {historyGroups.length === 0 ? (
           <p className={cardClassName("p-4 text-sm text-ink-muted")}>
             Nenhuma refeição registrada ainda.

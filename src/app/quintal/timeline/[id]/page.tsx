@@ -83,7 +83,7 @@ export default async function TimelineEntryPage({
       {success && <p className="text-sm text-ink-muted">Salvo com sucesso.</p>}
 
       <form action={updateTimelineEntryAction.bind(null, entry.id)} className={cardClassName("space-y-3 p-4")}>
-        <h2 className="text-sm font-medium text-ink-muted">Editar</h2>
+        <h2 className="text-sm font-semibold text-ink">Editar</h2>
         <div className="space-y-1">
           <Label htmlFor="occurred_at">Quando</Label>
           <Input

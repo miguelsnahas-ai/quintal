@@ -30,7 +30,7 @@ export default function UpcomingMoments({ suggestions }: { suggestions: RoutineS
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
           <Sparkles className="h-4 w-4" aria-hidden />
           Próximos momentos
         </h2>

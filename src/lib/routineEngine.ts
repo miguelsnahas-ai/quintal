@@ -194,6 +194,14 @@ function median(values: number[]): number | null {
   return sorted.length % 2 !== 0 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
 }
 
+// Um único registro não é uma rotina — é só uma ocorrência (poderia ser
+// a família testando o app a qualquer hora do dia, não "quando essa
+// refeição costuma acontecer"). Exigir pelo menos 2 registros antes de
+// tratar a mediana como "horário típico" evita que um ponto isolado e
+// ruidoso vire uma sugestão sem sentido (ex.: "café da manhã" à noite
+// porque só houve um registro, feito à noite).
+const MIN_SAMPLES_FOR_TYPICAL_TIME = 2;
+
 // "Rotina histórica" (Fase 14): o horário mediano de cada refeição nos
 // últimos registros, em vez de um horário fixo — duas famílias
 // diferentes podem ter um "almoço típico" bem diferente. Simplificação
@@ -210,7 +218,8 @@ export function computeTypicalMealTimes(mealHistory: MealHistoryEntry[]): Partia
   const result: Partial<Record<MealSlot, number>> = {};
   for (const slot of mealSlots) {
     const times = bySlot.get(slot);
-    const typical = times ? median(times) : null;
+    if (!times || times.length < MIN_SAMPLES_FOR_TYPICAL_TIME) continue;
+    const typical = median(times);
     if (typical !== null) result[slot] = typical;
   }
   return result;
@@ -220,11 +229,15 @@ export function computeTypicalMealTimes(mealHistory: MealHistoryEntry[]): Partia
 // só sono noturno conta (uma soneca não diz nada sobre "hora de
 // dormir"). Simplificação assumida: mediana de minutos-desde-meia-noite
 // pressupõe que os horários não se espalham pelos dois lados da
-// meia-noite (razoável para bedtime, que raramente varia tanto).
+// meia-noite (razoável para bedtime, que raramente varia tanto). Mesma
+// exigência de amostra mínima de computeTypicalMealTimes: um único
+// sono noturno registrado ainda não é "o horário que a família costuma
+// dormir".
 export function computeTypicalBedtimeMinutes(sleepHistory: SleepHistoryEntry[]): number | null {
   const nightStarts = sleepHistory
     .filter((entry) => entry.sleepType === "night")
     .map((entry) => minutesOfDay(new Date(entry.startedAt)));
+  if (nightStarts.length < MIN_SAMPLES_FOR_TYPICAL_TIME) return null;
   return median(nightStarts);
 }
 

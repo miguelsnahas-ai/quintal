@@ -143,7 +143,7 @@ export default async function MateriaisPage({
 
       {isBrowsing ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-medium text-ink-muted">
+          <h2 className="text-sm font-semibold text-ink">
             {query ? `Resultados para "${query}"` : "Biblioteca"}
           </h2>
           {results.length > 0 ? (
@@ -164,7 +164,7 @@ export default async function MateriaisPage({
       ) : (
         <>
           <section className="space-y-3">
-            <h2 className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ink">
               <Sparkles className="h-4 w-4" aria-hidden />
               Recomendados para vocês
             </h2>
@@ -182,7 +182,7 @@ export default async function MateriaisPage({
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-ink-muted">Categorias</h2>
+            <h2 className="text-sm font-semibold text-ink">Categorias</h2>
             <div className="grid grid-cols-2 gap-2">
               {materialCategories.map((c) => (
                 <Link

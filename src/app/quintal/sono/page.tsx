@@ -122,7 +122,7 @@ export default async function SonoPage({
 
       {lastEntry && (
         <section className="space-y-2">
-          <h2 className="text-sm font-medium text-ink-muted">Último sono</h2>
+          <h2 className="text-sm font-semibold text-ink">Último sono</h2>
           <SleepEntryCard entry={lastEntry} />
         </section>
       )}
