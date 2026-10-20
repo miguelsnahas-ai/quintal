@@ -7,6 +7,7 @@ import { hygieneEventPayloadSchema, diaperResultLabels, diaperConditionLabels } 
 import { eventTypeLabels, type EventType, type EventOrigin } from "@/lib/validation/events";
 import { formatDurationMinutes } from "@/lib/format";
 import type { Json } from "@/lib/supabase/types";
+import type { RoutineSuggestionKind } from "@/lib/routineEngine";
 
 // ---------------------------------------------------------------------
 // Timeline central (Fase 13) — consolida os eventos de todos os módulos
@@ -378,3 +379,16 @@ export const TIMELINE_FILTER_TYPES: Record<TimelineFilter, EventType[]> = {
 export function isTimelineFilter(value: string | undefined): value is TimelineFilter {
   return (TIMELINE_FILTERS as readonly string[]).includes(value ?? "");
 }
+
+// Mesmo agrupamento acima, mas para as sugestões da rotina adaptativa
+// (routineEngine.ts, RoutineSuggestionKind) — usado só pela Timeline
+// central quando ela mescla sugestões ao dia de hoje (ver
+// getDayTimeline em src/app/quintal/timeline/page.tsx), para que o
+// filtro ativo (ex.: "Sono") também esconda/mostre sugestões do mesmo
+// domínio, não só eventos já registrados.
+export const SUGGESTION_KIND_TO_FILTER: Record<RoutineSuggestionKind, TimelineFilter> = {
+  play: "brincadeiras",
+  outing: "brincadeiras",
+  meal: "alimentacao",
+  wind_down: "sono",
+};

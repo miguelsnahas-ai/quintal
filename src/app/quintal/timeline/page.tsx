@@ -10,14 +10,18 @@ import {
   TIMELINE_FILTERS,
   TIMELINE_FILTER_LABELS,
   TIMELINE_FILTER_TYPES,
+  SUGGESTION_KIND_TO_FILTER,
   isTimelineFilter,
+  type TimelineDisplayEntry,
 } from "@/lib/timeline";
+import { getRoutineSuggestions, type RoutineSuggestion } from "@/lib/routineEngine";
 import { eventOriginLabels } from "@/lib/validation/events";
-import { cardClassName } from "@/components/ui/Card";
+import { cardClassName, inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 import { FilterChips } from "@/components/ui/FilterChips";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { TimelineEventIcon } from "@/components/dashboard/TimelineEventIcon";
+import { TimelineEventIcon, ROUTINE_SUGGESTION_ICONS } from "@/components/dashboard/TimelineEventIcon";
+import { QuintalIcon } from "@/components/icon/QuintalIcon";
 
 export const metadata: Metadata = {
   title: "Timeline — Quintal",
@@ -44,15 +48,32 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
-// A Timeline central pedida nesta fase: todos os módulos (Alimentação,
-// Sono, Brincadeiras, e o que já era criado via /ops — Rotina,
-// Desenvolvimento, Passeio, Observação) numa única lista cronológica,
-// um dia por vez, com filtro, e cada linha levando ao detalhe/edição/
-// exclusão (src/app/quintal/timeline/[id]/page.tsx). Objetivo de UX
-// explícito do pedido: parecer que "o Quintal está acompanhando o dia",
-// não um sistema de registro — por isso nada de tabela densa, cada
-// evento é uma linha com ícone, horário e no máximo duas linhas de
-// detalhe.
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+// A agenda unificada: o dia registrado (eventos já acontecidos) e as
+// próximas sugestões da rotina adaptativa (routineEngine.ts) numa única
+// lista cronológica — pedido explícito desta fase, para que "Ver agenda
+// completa" (link de UpcomingMoments na Home) entregue de fato uma
+// agenda completa, não só o histórico. Sugestão nunca é fato: continua
+// com o mesmo tom "convite"/sem borda de UpcomingMoments, nunca o
+// cardClassName sólido/bordado dos eventos já registrados — e só entra
+// aqui no dia de HOJE (routineEngine sempre projeta a partir de
+// `new Date()` real; não existe "sugestão" para ontem ou outro dia).
+type AgendaRow =
+  | { kind: "registered"; sortAt: string; entry: TimelineDisplayEntry }
+  | { kind: "suggested"; sortAt: string; suggestion: RoutineSuggestion };
+
+// A Timeline central pedida originalmente (Fase 13): todos os módulos
+// (Alimentação, Sono, Brincadeiras, e o que já era criado via /ops —
+// Rotina, Desenvolvimento, Passeio, Observação) numa única lista
+// cronológica, um dia por vez, com filtro, e cada linha registrada
+// levando ao detalhe/edição/exclusão (src/app/quintal/timeline/[id]/
+// page.tsx). Objetivo de UX explícito do pedido: parecer que "o Quintal
+// está acompanhando o dia", não um sistema de registro — por isso nada
+// de tabela densa, cada linha é um ícone, horário e no máximo duas
+// linhas de detalhe.
 export default async function TimelinePage({
   searchParams,
 }: {
@@ -82,15 +103,31 @@ export default async function TimelinePage({
   const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0);
   const dayEnd = addDays(dayStart, 1);
   const filter = isTimelineFilter(filtro) ? filtro : undefined;
+  const viewingToday = isSameDay(dayStart, new Date());
 
-  const allEntries = await getDayTimeline(activeChild.id, {
-    since: dayStart.toISOString(),
-    until: dayEnd.toISOString(),
-  });
+  const [allEntries, routine] = await Promise.all([
+    getDayTimeline(activeChild.id, {
+      since: dayStart.toISOString(),
+      until: dayEnd.toISOString(),
+    }),
+    // Sugestões só fazem sentido pra hoje — routineEngine projeta sempre
+    // a partir do agora real, nunca de um dia navegado (ver isSameDay
+    // acima). Evita também a consulta à toa ao navegar pro passado/futuro.
+    viewingToday ? getRoutineSuggestions(activeChild.id) : null,
+  ]);
 
   const entries = filter
     ? allEntries.filter((entry) => (TIMELINE_FILTER_TYPES[filter] as string[]).includes(entry.type))
     : allEntries;
+
+  const suggestions = (routine?.suggestions ?? []).filter(
+    (suggestion) => !filter || SUGGESTION_KIND_TO_FILTER[suggestion.kind] === filter,
+  );
+
+  const agenda: AgendaRow[] = [
+    ...entries.map((entry): AgendaRow => ({ kind: "registered", sortAt: entry.sortAt, entry })),
+    ...suggestions.map((suggestion): AgendaRow => ({ kind: "suggested", sortAt: suggestion.suggestedAt, suggestion })),
+  ].sort((a, b) => a.sortAt.localeCompare(b.sortAt));
 
   const prevDayParam = toDayParam(addDays(dayStart, -1));
   const nextDayParam = toDayParam(addDays(dayStart, 1));
@@ -130,7 +167,13 @@ export default async function TimelinePage({
         ]}
       />
 
-      {entries.length === 0 ? (
+      {viewingToday && suggestions.length > 0 && (
+        <p className="text-xs text-ink-muted">
+          Os cards mais claros são possibilidades para o resto do dia — não um compromisso.
+        </p>
+      )}
+
+      {agenda.length === 0 ? (
         <p className={cardClassName("p-4 text-sm text-ink-muted")}>
           {filter
             ? "Nada por aqui nesse filtro, nesse dia."
@@ -138,25 +181,54 @@ export default async function TimelinePage({
         </p>
       ) : (
         <ol className="space-y-2">
-          {entries.map((entry) => {
+          {agenda.map((row) => {
+            if (row.kind === "registered") {
+              const entry = row.entry;
+              return (
+                <li key={entry.displayKey}>
+                  <Link
+                    href={`/quintal/timeline/${entry.id}`}
+                    className={cardClassName("flex items-start gap-3 p-3 transition-all duration-200 hover:shadow-[var(--shadow-lift)]")}
+                  >
+                    <TimelineEventIcon type={entry.icon} />
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="font-semibold text-ink">{entry.verb}</p>
+                        <span className="shrink-0 font-mono text-xs text-ink-muted">{entry.timeLabel}</span>
+                      </div>
+                      {entry.detailLines.map((line) => (
+                        <p key={line} className="text-sm text-ink-muted">
+                          {line}
+                        </p>
+                      ))}
+                      <p className="pt-0.5 text-[11px] text-ink-muted">{eventOriginLabels[entry.origin]}</p>
+                    </div>
+                  </Link>
+                </li>
+              );
+            }
+
+            const suggestion = row.suggestion;
+            const icon = ROUTINE_SUGGESTION_ICONS[suggestion.kind];
             return (
-              <li key={entry.displayKey}>
+              <li key={`suggestion-${suggestion.id}`}>
                 <Link
-                  href={`/quintal/timeline/${entry.id}`}
-                  className={cardClassName("flex items-start gap-3 p-3 transition-all duration-200 hover:shadow-[var(--shadow-lift)]")}
+                  href={suggestion.href}
+                  className={inviteCardClassName(`flex items-start gap-3 p-3 ${cardHoverLift}`)}
                 >
-                  <TimelineEventIcon type={entry.icon} />
+                  <QuintalIcon name={icon.name} theme={icon.theme} size="md" background="light" />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="font-semibold text-ink">{entry.verb}</p>
-                      <span className="shrink-0 font-mono text-xs text-ink-muted">{entry.timeLabel}</span>
+                      <p className="font-semibold text-ink">{suggestion.label}</p>
+                      <span className="shrink-0 font-mono text-xs text-ink-muted">
+                        {new Date(suggestion.suggestedAt).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
                     </div>
-                    {entry.detailLines.map((line) => (
-                      <p key={line} className="text-sm text-ink-muted">
-                        {line}
-                      </p>
-                    ))}
-                    <p className="pt-0.5 text-[11px] text-ink-muted">{eventOriginLabels[entry.origin]}</p>
+                    <p className="text-sm text-ink-muted">{suggestion.reason}</p>
+                    <p className="pt-0.5 text-[11px] text-ink-muted">Sugestão</p>
                   </div>
                 </Link>
               </li>

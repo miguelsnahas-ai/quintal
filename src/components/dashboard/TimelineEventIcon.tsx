@@ -1,9 +1,23 @@
 import { MapPin, Eye } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { TimelineIcon } from "@/lib/timeline";
+import type { RoutineSuggestionKind } from "@/lib/routineEngine";
 import { QuintalIcon, type QuintalIconSize } from "@/components/icon/QuintalIcon";
 import type { QuintalIconName } from "@/components/icon/quintalIconPaths";
 import type { QuintalIconTheme } from "@/components/icon/quintalIconTheme";
+
+// Mesmo critério de cor por domínio (ver docs/design-system.md #Quintal
+// Iconography), para as sugestões da rotina adaptativa (routineEngine.ts)
+// — compartilhado entre UpcomingMoments (Home) e a Timeline central, que
+// a partir desta fase também exibe sugestões junto dos eventos
+// registrados. "outing" entra como "play": mesma categoria de lazer que
+// a Biblioteca de Materiais já usa para "passeios" (lib/library.ts).
+export const ROUTINE_SUGGESTION_ICONS: Record<RoutineSuggestionKind, { name: QuintalIconName; theme: QuintalIconTheme }> = {
+  play: { name: "blocks", theme: "play" },
+  outing: { name: "ball", theme: "play" },
+  meal: { name: "plate", theme: "meal" },
+  wind_down: { name: "moon", theme: "sleep" },
+};
 
 // Mapa ícone-por-tipo compartilhado entre /quintal/timeline (a timeline
 // completa) e o resumo compacto da Home — nasceu duplicado (cada tela
