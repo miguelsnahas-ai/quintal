@@ -10,17 +10,23 @@ import type { AccessibleChild } from "@/lib/activeChild";
 export function AppShell({
   activeChild,
   childrenList,
+  chatBadge = false,
   children,
 }: {
   activeChild: AccessibleChild | null;
   childrenList: AccessibleChild[];
+  // "Indicadores ativos de navegação" (pedido explícito) — um ponto no
+  // ícone de Chat quando o dia ainda está totalmente em branco. Resolvido
+  // no layout (único lugar que já sabe a criança ativa pra toda a árvore
+  // /quintal), não aqui — ver src/lib/chatSuggestions.ts.
+  chatBadge?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="pb-20">
       {activeChild && <ChildSwitcher activeChild={activeChild} childrenList={childrenList} />}
       {children}
-      <BottomNav />
+      <BottomNav chatBadge={chatBadge} />
     </div>
   );
 }

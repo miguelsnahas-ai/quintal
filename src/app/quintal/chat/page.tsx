@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
+import { getTodayEventCounts, getSuggestedChatQuestions } from "@/lib/chatSuggestions";
 import ConversationChat, {
   type ConversationTurn,
 } from "@/components/conversation/ConversationChat";
@@ -44,6 +45,15 @@ export default async function QuintalChatPage() {
       content: message.body!,
     }));
 
+  // Chips de pergunta sugerida (ver src/lib/chatSuggestions.ts) — só
+  // vale a pena calcular quando a conversa realmente vai abrir vazia
+  // (senão não aparecem, ver ConversationChat) e quando há uma criança
+  // ativa pra basear a sugestão.
+  const suggestedQuestions =
+    initialMessages.length === 0 && activeChild
+      ? getSuggestedChatQuestions(await getTodayEventCounts(activeChild.id))
+      : [];
+
   return (
     <div className="mx-auto flex h-[calc(100dvh-9rem)] w-full max-w-lg flex-col px-4 pt-3 pb-6">
       <ConversationChat
@@ -53,6 +63,7 @@ export default async function QuintalChatPage() {
         initialMessages={initialMessages}
         onSend={sendQuintalMessage}
         onFeedback={sendQuintalRecommendationFeedback}
+        suggestedQuestions={suggestedQuestions}
       />
     </div>
   );

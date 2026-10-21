@@ -23,7 +23,14 @@ const RIGHT_ITEMS: NavItem[] = [
   { href: "/quintal/mais", label: "Mais", icon: Menu },
 ];
 
-function NavLink({ href, label, icon: Icon, exact, pathname }: NavItem & { pathname: string }) {
+function NavLink({
+  href,
+  label,
+  icon: Icon,
+  exact,
+  pathname,
+  badge,
+}: NavItem & { pathname: string; badge?: boolean }) {
   const isActive = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
@@ -31,7 +38,15 @@ function NavLink({ href, label, icon: Icon, exact, pathname }: NavItem & { pathn
       aria-current={isActive ? "page" : undefined}
       className="flex min-w-[56px] flex-1 flex-col items-center gap-0.5 rounded-sm px-1 py-1.5 text-center transition-colors"
     >
-      <Icon className={`h-5 w-5 ${isActive ? "text-ink" : "text-ink-muted"}`} aria-hidden />
+      <span className="relative">
+        <Icon className={`h-5 w-5 ${isActive ? "text-ink" : "text-ink-muted"}`} aria-hidden />
+        {badge && (
+          <span
+            className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent"
+            aria-label="Nada registrado ainda hoje"
+          />
+        )}
+      </span>
       <span className={`text-[11px] leading-tight ${isActive ? "font-semibold text-ink" : "text-ink-muted"}`}>
         {label}
       </span>
@@ -39,7 +54,7 @@ function NavLink({ href, label, icon: Icon, exact, pathname }: NavItem & { pathn
   );
 }
 
-export default function BottomNav() {
+export default function BottomNav({ chatBadge = false }: { chatBadge?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -49,7 +64,7 @@ export default function BottomNav() {
     >
       <div className="mx-auto flex max-w-lg items-center justify-around px-1 py-1.5 sm:max-w-2xl lg:max-w-3xl">
         {LEFT_ITEMS.map((item) => (
-          <NavLink key={item.href} {...item} pathname={pathname} />
+          <NavLink key={item.href} {...item} pathname={pathname} badge={item.href === "/quintal/chat" && chatBadge} />
         ))}
         <RegisterSheet />
         {RIGHT_ITEMS.map((item) => (

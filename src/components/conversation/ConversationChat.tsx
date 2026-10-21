@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import { Input, Label, Select, FieldError } from "@/components/ui/Field";
+import { HandNote } from "@/components/marks/HandNote";
 import { TEST_ACCESS_COOKIE } from "@/lib/testAccess";
 import type { ActivitySummary } from "@/lib/activity";
 import type { RecommendationFeedback as FeedbackValue } from "@/lib/recommendation";
@@ -38,6 +39,7 @@ export default function ConversationChat({
   onSend,
   onFeedback,
   rememberDevice = false,
+  suggestedQuestions = [],
 }: {
   caregiverId: string;
   childrenList: Child[];
@@ -61,6 +63,12 @@ export default function ConversationChat({
     note?: string;
   }) => Promise<void>;
   rememberDevice?: boolean;
+  // Chips de pergunta sugerida (pedido explícito: "mais estímulos
+  // visuais para interagir com a IA") — só renderizam enquanto a
+  // conversa está vazia (ver uso abaixo), nunca somem o campo de texto
+  // livre, é só um atalho. Calculado no server (chat/page.tsx) a partir
+  // do que já foi registrado hoje — ver src/lib/chatSuggestions.ts.
+  suggestedQuestions?: string[];
 }) {
   // Prioridade: initialChildId (criança ativa, quando o chamador manda) >
   // auto-seleção quando só existe uma criança > nenhuma selecionada.
@@ -98,8 +106,8 @@ export default function ConversationChat({
     }
   }, [rememberDevice, caregiverId]);
 
-  function sendMessage() {
-    const text = draft.trim();
+  function sendMessage(overrideText?: string) {
+    const text = (overrideText ?? draft).trim();
     if (!text || isPending) return;
 
     setError(null);
@@ -146,9 +154,27 @@ export default function ConversationChat({
         className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-sm border border-neutral bg-chat-thread p-4"
       >
         {messages.length === 0 ? (
-          <p className="text-center text-sm text-ink-muted">
-            Escreva uma mensagem abaixo para começar.
-          </p>
+          <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+            <HandNote tone="sage" tilt={-2} size={18}>
+              Oi! Pode perguntar qualquer coisa 💬
+            </HandNote>
+            <p className="text-sm text-ink-muted">Escreva uma mensagem abaixo para começar.</p>
+            {suggestedQuestions.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2">
+                {suggestedQuestions.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => sendMessage(question)}
+                    disabled={isPending}
+                    className="rounded-full border border-neutral bg-primary px-3 py-1.5 text-xs font-medium text-ink shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-lift)] disabled:opacity-50"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           messages.map((message, index) => (
             <div

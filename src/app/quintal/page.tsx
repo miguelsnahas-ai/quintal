@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MessageCircle, Sparkles, Sprout } from "lucide-react";
 import { QuintalIcon } from "@/components/icon/QuintalIcon";
+import { CrayonDefs, CrayonMark } from "@/components/marks/CrayonMark";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -99,6 +100,7 @@ export default async function QuintalDashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
+      <CrayonDefs />
       <DashboardHeader caregiverName={caregiverRow?.name ?? null} childName={activeChild.name} hour={new Date().getHours()} />
 
       <CurrentMomentCard moment={summary.currentMoment} />
@@ -164,6 +166,7 @@ export default async function QuintalDashboardPage() {
           </div>
         ) : (
           <div className={inviteCardClassName("space-y-2 p-4 text-sm text-ink-muted")}>
+            <CrayonMark mark="sprig" scale={0.3} style={{ display: "block" }} />
             <p>Nenhuma sugestão ainda hoje.</p>
             <Link href="/quintal/chat" className="font-medium text-ink underline underline-offset-2">
               Conte pro Quintal como está o dia

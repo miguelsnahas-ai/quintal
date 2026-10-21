@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
+import { getTodayEventCounts, hasNoRegistrationsToday } from "@/lib/chatSuggestions";
 
 // Aplica a navegação persistente e o seletor de criança global (Fase 16)
 // a toda a experiência de família (/quintal e tudo abaixo dela) num só
@@ -18,8 +19,10 @@ export default async function QuintalLayout({ children }: { children: React.Reac
     ? await getActiveChildContext(session.caregiverId)
     : { active: null, children: [] };
 
+  const chatBadge = activeChild ? hasNoRegistrationsToday(await getTodayEventCounts(activeChild.id)) : false;
+
   return (
-    <AppShell activeChild={activeChild} childrenList={accessibleChildren}>
+    <AppShell activeChild={activeChild} childrenList={accessibleChildren} chatBadge={chatBadge}>
       {children}
     </AppShell>
   );

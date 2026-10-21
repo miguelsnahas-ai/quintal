@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionCaregiver } from "@/lib/authorization";
 import { getActiveChildContext } from "@/lib/activeChild";
@@ -173,9 +174,12 @@ export default async function AlimentacaoPage({
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-ink">Histórico</h2>
         {historyGroups.length === 0 ? (
-          <p className={cardClassName("p-4 text-sm text-ink-muted")}>
-            Nenhuma refeição registrada ainda.
-          </p>
+          <div className={cardClassName("space-y-1 p-4 text-sm text-ink-muted")}>
+            <p>Nenhuma refeição registrada ainda.</p>
+            <Link href="/quintal/chat" className="font-medium text-ink underline underline-offset-2">
+              Como foi a alimentação hoje? Conte pro Quintal
+            </Link>
+          </div>
         ) : (
           <div className="space-y-4">
             {historyGroups.map((group) => (

@@ -186,11 +186,16 @@ export default async function TimelinePage({
       )}
 
       {agenda.length === 0 ? (
-        <p className={cardClassName("p-4 text-sm text-ink-muted")}>
-          {filter
-            ? "Nada por aqui nesse filtro, nesse dia."
-            : "Nada registrado ainda nesse dia — o dia da família aparece aqui assim que algo for registrado."}
-        </p>
+        filter ? (
+          <p className={cardClassName("p-4 text-sm text-ink-muted")}>Nada por aqui nesse filtro, nesse dia.</p>
+        ) : (
+          <div className={cardClassName("space-y-1 p-4 text-sm text-ink-muted")}>
+            <p>Nada registrado ainda nesse dia — o dia da família aparece aqui assim que algo for registrado.</p>
+            <Link href="/quintal/chat" className="font-medium text-ink underline underline-offset-2">
+              Conte pro Quintal como foi esse dia
+            </Link>
+          </div>
+        )
       ) : (
         <ol className="space-y-2">
           {agenda.map((row) => {
