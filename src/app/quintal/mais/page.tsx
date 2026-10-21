@@ -71,6 +71,13 @@ export default async function MaisPage() {
           description="Artigos, guias e receitas para consultar"
           href="/quintal/materiais"
         />
+        <LinkCard
+          icon={<QuintalIcon name="calendar" theme="routine" size="md" background="light" />}
+          iconBackground="none"
+          title="Resumo"
+          description="Para quem quer se atualizar sem abrir cada módulo"
+          href="/quintal/resumo"
+        />
       </div>
 
       <div className="space-y-3">
