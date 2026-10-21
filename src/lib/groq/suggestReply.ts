@@ -1,0 +1,102 @@
+import { z } from "zod";
+import { createGroqClient } from "./client";
+import { getCustomInstructions } from "@/lib/ai-settings";
+import { searchKnowledge } from "@/lib/knowledge";
+import { formatChildContextForPrompt, type ChildContext } from "@/lib/childContext";
+
+// Same reasoning as suggestEvent.ts: openai/gpt-oss-120b, Groq's
+// recommended free-tier replacement for the deprecated
+// llama-3.3-70b-versatile.
+const MODEL = "openai/gpt-oss-120b";
+
+const replySchema = z.object({
+  text: z.string(),
+});
+
+export type ReplySuggestion = z.infer<typeof replySchema>;
+
+// This is the general conversational reply — used whenever the message
+// ISN'T a situation the Recommendation Engine decides to act on (see
+// src/lib/recommendation.ts, which now owns deciding+explaining a
+// specific activity recommendation end to end). Before Fase 5, this
+// function also picked and returned an `activityId`; that responsibility
+// moved out on purpose ("não colocar toda essa lógica dentro de
+// suggestReply") so there's exactly one place in the codebase that
+// decides which activity to recommend, not two.
+
+export async function suggestReply(input: {
+  messageBody: string;
+  childContext: ChildContext | null;
+  recentMessages: { direction: string; body: string }[];
+}): Promise<ReplySuggestion> {
+  const client = createGroqClient();
+
+  const contextBlock = input.childContext
+    ? formatChildContextForPrompt(input.childContext)
+    : "Não há uma criança específica identificada para esta conversa.";
+
+  const [customInstructions, knowledgeChunks] = await Promise.all([
+    getCustomInstructions().catch(() => ""),
+    searchKnowledge({
+      query: input.messageBody,
+      ageMonths: input.childContext?.age.months ?? null,
+    }).catch(() => []),
+  ]);
+
+  const knowledgeBlock = knowledgeChunks.length
+    ? `\n\nBase de conhecimento (materiais, brincadeiras, alimentação, sono, desenvolvimento, higiene, passeios) — use o que for relevante para enriquecer a resposta, adapte a linguagem ao tom de WhatsApp, não cite fontes, IDs ou nomes de categoria:\n${knowledgeChunks
+        .map((chunk) => `---\n${chunk.content}`)
+        .join("\n")}`
+    : "";
+
+  // Without this, each reply is generated blind to everything said earlier
+  // in the same conversation — a parent saying "ele fez de novo" has no
+  // "de novo" to point to unless it happens to already be a logged event.
+  const conversationHistoryBlock = input.recentMessages.length
+    ? `Histórico recente da conversa (mais antigas primeiro, para você entender o contexto — não repita nem resuma isso na resposta):\n${input.recentMessages
+        .map((message) => `${message.direction === "inbound" ? "Pai/mãe" : "Quintal"}: ${message.body}`)
+        .join("\n")}\n\n`
+    : "";
+
+  const completion = await client.chat.completions.create({
+    model: MODEL,
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: `Você é o Quintal, um copiloto de parentalidade que responde pelo WhatsApp a pais de crianças pequenas. Uma operadora humana revisa e edita cada resposta antes de enviar — você está apenas rascunhando.
+
+Escreva uma resposta curta (2 a 5 frases, tom de mensagem de WhatsApp), calorosa e prática, em português do Brasil, para a mensagem abaixo, usando o contexto da criança quando disponível.
+
+Regras importantes:
+- Baseie-se APENAS no que está no contexto, na mensagem e na base de conhecimento abaixo (quando houver). Nunca invente eventos, diagnósticos ou fatos que não foram informados.
+- Não dê diagnóstico médico nem prometa resultados. Diante de sinais de saúde preocupantes, sugira conversar com o pediatra.
+- Segurança sempre tem prioridade sobre preferência da família: sono seguro (de barriga para cima, superfície firme, sem objetos soltos no berço), risco de engasgo com objetos/alimentos pequenos ou duros, nunca mel antes de 1 ano, supervisão constante perto de água, e qualquer sinal de alerta de saúde.
+- Seja acolhedor e específico à situação relatada, sem soar genérico ou robótico.
+- "text" deve conter só o texto da mensagem em si, sem saudação de assinatura nem aspas ao redor.${
+          customInstructions
+            ? `\n\nInstruções adicionais definidas pela operadora:\n${customInstructions}`
+            : ""
+        }${knowledgeBlock}
+
+Responda APENAS com um objeto JSON no formato exato: {"text": "<sua resposta>"}. Nenhum texto fora do JSON.`,
+      },
+      {
+        role: "user",
+        content: `${conversationHistoryBlock}${contextBlock}\n\nMensagem atual do pai/mãe: "${input.messageBody}"`,
+      },
+    ],
+  });
+
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) {
+    throw new Error("A IA não retornou uma resposta.");
+  }
+
+  const parsed = replySchema.safeParse(JSON.parse(raw));
+  if (!parsed.success) {
+    throw new Error("A IA não retornou uma resposta válida.");
+  }
+
+  return { text: parsed.data.text.trim() };
+}
