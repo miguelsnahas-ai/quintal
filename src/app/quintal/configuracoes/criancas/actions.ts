@@ -6,12 +6,14 @@ import { getSessionCaregiver, canEditChild, canManageFamily } from "@/lib/author
 import { createChild, deleteChild, updateChildProfile } from "@/lib/familyContext";
 import { updateChildPreferences } from "@/lib/childPreferences";
 import { updateChildFeedingMethod } from "@/lib/feeding";
+import { generateAndStoreChildAvatar } from "@/lib/avatarGenerator";
 import {
   addChildInputSchema,
   updateChildProfileInputSchema,
   childPreferencesInputSchema,
 } from "@/lib/validation/profile";
 import { feedingMethodInputSchema } from "@/lib/validation/feeding";
+import { avatarAttributesInputSchema, type AvatarAttributes } from "@/lib/validation/avatar";
 
 // Movida de /quintal/familia/actions.ts (Fase 17) — mesma função, mesma
 // regra (qualquer cuidador pode adicionar, não só o owner).
@@ -223,4 +225,47 @@ export async function saveChildFeedingMethodAction(formData: FormData) {
   revalidatePath(`/quintal/configuracoes/criancas/${childId}`);
   revalidatePath("/quintal/alimentacao");
   redirect(`${backTo}&success=1#metodo`);
+}
+
+// Módulo de avatar em IA (ver src/lib/avatarGenerator.ts) — ação
+// compartilhada entre o onboarding (/comecar/crianca, childId null,
+// criança ainda não existe) e esta tela de Configurações (childId
+// presente, persiste direto em children.avatar_url). Chamada direto pelo
+// client component (AvatarAiGenerator), não por <form action>, mesmo
+// padrão de logActivityOutcomeAction (atividades/[id]/actions.ts):
+// lança erro em vez de redirecionar, o cliente decide o que mostrar.
+export async function generateChildAvatarAction(input: {
+  childId: string | null;
+  attributes: AvatarAttributes;
+}): Promise<{ url: string }> {
+  const session = await getSessionCaregiver();
+  if (!session) {
+    throw new Error("Sessão não encontrada.");
+  }
+
+  const parsedAttributes = avatarAttributesInputSchema.safeParse(input.attributes);
+  if (!parsedAttributes.success) {
+    throw new Error("Atributos inválidos.");
+  }
+
+  if (input.childId) {
+    const allowed = await canEditChild(session.caregiverId, input.childId);
+    if (!allowed) {
+      throw new Error("Você não tem permissão para editar esta criança.");
+    }
+  }
+
+  const result = await generateAndStoreChildAvatar({
+    childId: input.childId,
+    caregiverId: session.caregiverId,
+    attributes: parsedAttributes.data,
+  });
+
+  if (input.childId) {
+    revalidatePath(`/quintal/configuracoes/criancas/${input.childId}`);
+    revalidatePath("/quintal/configuracoes/criancas");
+    revalidatePath("/quintal");
+  }
+
+  return result;
 }

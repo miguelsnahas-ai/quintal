@@ -5,7 +5,7 @@ import { getSessionCaregiver } from "@/lib/authorization";
 import { getAccessibleChildren } from "@/lib/activeChild";
 import { ageLabel } from "@/lib/format";
 import { OnboardingScreen } from "@/components/onboarding/OnboardingScreen";
-import { AvatarUrlField } from "@/components/onboarding/AvatarUrlField";
+import { ChildAvatarField } from "@/components/avatar/ChildAvatarField";
 import { Input, Label, FieldError } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { cardClassName } from "@/components/ui/Card";
@@ -75,7 +75,7 @@ export default async function ChildStepPage({
           <Label htmlFor="birth_date">Data de nascimento</Label>
           <Input id="birth_date" name="birth_date" type="date" />
         </div>
-        <AvatarUrlField name="avatar_url" fallbackInitial="?" />
+        <ChildAvatarField name="avatar_url" fallbackInitial="?" childId={null} aiEnabled={Boolean(process.env.OPENAI_API_KEY)} />
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="submit" name="intent" value="continue" className="flex-1 justify-center">
             {isFirst ? "Continuar" : "Continuar com estas crianças"}

@@ -335,6 +335,80 @@ export type Database = {
           },
         ]
       }
+      child_avatar_attributes: {
+        Row: {
+          child_id: string
+          eye_color: string
+          hair_color: string
+          hair_style: string
+          skin_tone: string
+          updated_at: string
+          vibe: string
+        }
+        Insert: {
+          child_id: string
+          eye_color: string
+          hair_color: string
+          hair_style: string
+          skin_tone: string
+          updated_at?: string
+          vibe: string
+        }
+        Update: {
+          child_id?: string
+          eye_color?: string
+          hair_color?: string
+          hair_style?: string
+          skin_tone?: string
+          updated_at?: string
+          vibe?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_avatar_attributes_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: true
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      child_avatar_generations: {
+        Row: {
+          caregiver_id: string
+          child_id: string | null
+          created_at: string
+          id: string
+        }
+        Insert: {
+          caregiver_id: string
+          child_id?: string | null
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          caregiver_id?: string
+          child_id?: string | null
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_avatar_generations_caregiver_id_fkey"
+            columns: ["caregiver_id"]
+            isOneToOne: false
+            referencedRelation: "caregivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "child_avatar_generations_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       child_preferences: {
         Row: {
           activity_style: string | null

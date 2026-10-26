@@ -6,6 +6,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getChildContext, formatChildContextForPrompt } from "@/lib/childContext";
 import { getChildPreferences } from "@/lib/childPreferences";
 import { getFeedingMethodOptions, getChildFeedingMethod } from "@/lib/feeding";
+import { getChildAvatarAttributes } from "@/lib/avatarGenerator";
+import { ChildAvatarField } from "@/components/avatar/ChildAvatarField";
 import {
   childRoutinePreferences,
   childRoutinePreferenceLabels,
@@ -69,14 +71,16 @@ export default async function ChildSettingsPage({
   }
 
   const supabase = createServiceClient();
-  const [{ data: child }, isEditor, isOwner, preferences, feedingMethodOptions, feedingMethod] = await Promise.all([
-    supabase.from("children").select("id, name, birth_date, sex, notes, avatar_url, interests").eq("id", childId).maybeSingle(),
-    canEditChild(session.caregiverId, childId),
-    canManageFamily(session.caregiverId, session.familyId),
-    getChildPreferences(childId),
-    getFeedingMethodOptions(),
-    getChildFeedingMethod(childId),
-  ]);
+  const [{ data: child }, isEditor, isOwner, preferences, feedingMethodOptions, feedingMethod, avatarAttributes] =
+    await Promise.all([
+      supabase.from("children").select("id, name, birth_date, sex, notes, avatar_url, interests").eq("id", childId).maybeSingle(),
+      canEditChild(session.caregiverId, childId),
+      canManageFamily(session.caregiverId, session.familyId),
+      getChildPreferences(childId),
+      getFeedingMethodOptions(),
+      getChildFeedingMethod(childId),
+      getChildAvatarAttributes(childId),
+    ]);
 
   if (!child) {
     notFound();
@@ -111,26 +115,15 @@ export default async function ChildSettingsPage({
               className="space-y-3 rounded-lg bg-primary p-4 shadow-[var(--shadow-card)]"
             >
               <input type="hidden" name="child_id" value={child.id} />
-              <div className="flex items-center gap-4">
-                {child.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- URL externa arbitrária, não um asset do projeto.
-                  <img src={child.avatar_url} alt="" className="h-14 w-14 rounded-full object-cover" />
-                ) : (
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-lg font-semibold text-ink">
-                    {initials || "?"}
-                  </span>
-                )}
-                <div className="flex-1 space-y-1">
-                  <Label htmlFor="avatar_url">Foto (URL)</Label>
-                  <Input
-                    id="avatar_url"
-                    name="avatar_url"
-                    type="url"
-                    placeholder="https://..."
-                    defaultValue={child.avatar_url ?? ""}
-                  />
-                </div>
-              </div>
+              <ChildAvatarField
+                name="avatar_url"
+                label="Foto (URL)"
+                defaultValue={child.avatar_url}
+                fallbackInitial={initials || "?"}
+                childId={child.id}
+                aiEnabled={Boolean(process.env.OPENAI_API_KEY)}
+                initialAiAttributes={avatarAttributes}
+              />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="name">Nome</Label>
