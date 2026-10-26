@@ -15,6 +15,7 @@ import {
   type TimelineDisplayEntry,
 } from "@/lib/timeline";
 import { getRoutineSuggestions, getFullDayRoutine, type RoutineSuggestion } from "@/lib/routineEngine";
+import { markTimelineViewed } from "@/lib/onboardingProgress";
 import { eventOriginLabels } from "@/lib/validation/events";
 import { cardClassName, inviteCardClassName, cardHoverLift } from "@/components/ui/Card";
 import { FilterChips } from "@/components/ui/FilterChips";
@@ -111,6 +112,18 @@ export default async function TimelinePage({
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
   const viewingToday = isSameDay(dayStart, todayStart);
   const viewingFutureDay = !viewingToday && dayStart.getTime() > todayStart.getTime();
+
+  // "Primeiros passos" (Home) — primeira visita à Timeline marca esse
+  // item do checklist como feito (ver src/lib/onboardingProgress.ts).
+  // Aguardado (não fire-and-forget): numa função serverless a promise
+  // pode ser cancelada depois que a resposta terminar de renderizar.
+  // Falha aqui nunca pode quebrar a Timeline em si.
+  try {
+    await markTimelineViewed(session.familyId);
+  } catch {
+    // Pior caso, o item "Veja a timeline" fica pendente até a próxima
+    // visita conseguir gravar — nunca impede a Timeline de carregar.
+  }
 
   const [allEntries, routine, fullDaySuggestions] = await Promise.all([
     getDayTimeline(activeChild.id, {

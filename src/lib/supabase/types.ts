@@ -662,6 +662,38 @@ export type Database = {
           },
         ]
       }
+      family_onboarding_progress: {
+        Row: {
+          checklist_dismissed_at: string | null
+          family_id: string
+          tour_completed_at: string | null
+          updated_at: string
+          viewed_timeline_at: string | null
+        }
+        Insert: {
+          checklist_dismissed_at?: string | null
+          family_id: string
+          tour_completed_at?: string | null
+          updated_at?: string
+          viewed_timeline_at?: string | null
+        }
+        Update: {
+          checklist_dismissed_at?: string | null
+          family_id?: string
+          tour_completed_at?: string | null
+          updated_at?: string
+          viewed_timeline_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_onboarding_progress_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: true
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       families: {
         Row: {
           avatar_url: string | null

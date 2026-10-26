@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getSessionCaregiver, canAccessChild } from "@/lib/authorization";
 import { setActiveChildId } from "@/lib/activeChild";
+import { markTourCompleted, dismissOnboardingChecklist } from "@/lib/onboardingProgress";
 
 // A ação do seletor de criança global (ChildSwitcher, renderizado pelo
 // layout — src/app/quintal/layout.tsx). Nunca confia no child_id vindo
@@ -44,4 +45,23 @@ export async function setActiveChildAction(formData: FormData) {
   }
 
   redirect(backTo);
+}
+
+// Onboarding guiado (Home) — chamadas direto pelo client component
+// (GuidedTourOverlay/OnboardingChecklistCard) via useTransition, mesmo
+// padrão de logActivityOutcomeAction: lança erro em vez de redirecionar.
+export async function completeOnboardingTourAction(): Promise<void> {
+  const session = await getSessionCaregiver();
+  if (!session) {
+    throw new Error("Sessão não encontrada.");
+  }
+  await markTourCompleted(session.familyId);
+}
+
+export async function dismissOnboardingChecklistAction(): Promise<void> {
+  const session = await getSessionCaregiver();
+  if (!session) {
+    throw new Error("Sessão não encontrada.");
+  }
+  await dismissOnboardingChecklist(session.familyId);
 }

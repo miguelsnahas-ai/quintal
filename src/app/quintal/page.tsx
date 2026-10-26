@@ -9,6 +9,7 @@ import { getActiveChildContext } from "@/lib/activeChild";
 import { createServiceClient } from "@/lib/supabase/service";
 import { formatDurationMinutes } from "@/lib/format";
 import { getDashboardSummary } from "@/lib/dashboard";
+import { getOnboardingProgress } from "@/lib/onboardingProgress";
 import { buttonClassName } from "@/components/ui/Button";
 import { inviteCardClassName } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -17,6 +18,8 @@ import CurrentMomentCard from "@/components/dashboard/CurrentMomentCard";
 import SummaryCard from "@/components/dashboard/SummaryCard";
 import Timeline from "@/components/dashboard/Timeline";
 import UpcomingMoments from "@/components/dashboard/UpcomingMoments";
+import { GuidedTourOverlay } from "@/components/dashboard/GuidedTourOverlay";
+import { OnboardingChecklistCard } from "@/components/dashboard/OnboardingChecklistCard";
 import ActivityCard from "@/components/conversation/ActivityCard";
 import MealSuggestionCard from "@/components/feeding/MealSuggestionCard";
 import MaterialCard from "@/components/library/MaterialCard";
@@ -65,9 +68,10 @@ export default async function QuintalDashboardPage() {
   }
 
   const supabase = createServiceClient();
-  const [summary, { data: caregiverRow }] = await Promise.all([
+  const [summary, { data: caregiverRow }, onboarding] = await Promise.all([
     getDashboardSummary(activeChild.id),
     supabase.from("caregivers").select("name").eq("id", session.caregiverId).maybeSingle(),
+    getOnboardingProgress(session.familyId),
   ]);
 
   const lastRoutineTime = summary.lastRoutine
@@ -101,7 +105,10 @@ export default async function QuintalDashboardPage() {
   return (
     <div className="mx-auto w-full max-w-lg space-y-8 px-4 py-6 sm:max-w-2xl lg:max-w-3xl">
       <CrayonDefs />
+      {!onboarding.tourCompleted && <GuidedTourOverlay />}
       <DashboardHeader caregiverName={caregiverRow?.name ?? null} childName={activeChild.name} hour={new Date().getHours()} />
+
+      {!onboarding.allDone && !onboarding.dismissed && <OnboardingChecklistCard items={onboarding.items} />}
 
       <CurrentMomentCard moment={summary.currentMoment} />
 
