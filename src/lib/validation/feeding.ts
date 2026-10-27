@@ -86,10 +86,16 @@ export type MealLogInput = z.infer<typeof mealLogInputSchema>;
 // family picks "outro/personalizado". Not both: choosing a listed method
 // clears any previous custom text, and vice versa (enforced in
 // src/lib/feeding.ts's save function, not here).
+// .nullable() em ambos: formData.get() devolve null (não undefined) para
+// um campo ausente do formulário — o caso real do passo de onboarding em
+// /comecar/alimentacao, que não tem campo method_custom nenhum (só
+// method_id, via rádio). Bug real encontrado testando o fluxo de
+// cadastro em produção: sem isto, SALVAR QUALQUER MÉTODO nesse passo
+// falhava sempre com "Invalid input: expected string, received null".
 export const feedingMethodInputSchema = z.object({
   child_id: z.uuid("Criança inválida."),
-  method_id: z.string().optional(),
-  method_custom: z.string().optional(),
+  method_id: z.string().nullable().optional(),
+  method_custom: z.string().nullable().optional(),
 });
 
 export type FeedingMethodInput = z.infer<typeof feedingMethodInputSchema>;
